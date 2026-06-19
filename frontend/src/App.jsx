@@ -12,7 +12,7 @@ import Goals from "./components/Goals";
 import ToastContainer from "./components/Toast";
 import "./App.css";
 
-const API = "http://localhost:3001";
+const API = "https://habit-rpg-production.up.railway.app";
 
 const BRANCHES = [
   { key:"discipline",       label:"Дисциплина",  icon:"🛡️", accent:"#8d8cf8", glow:"rgba(141,140,248,0.35)" },

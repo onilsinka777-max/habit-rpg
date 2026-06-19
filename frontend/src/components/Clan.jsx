@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 
-const API = "http://localhost:3001";
+const API = "https://habit-rpg-production.up.railway.app";
 
 const BANNER_ICONS = ["🏋️", "📚", "💡", "⏰", "🎯", "🔥", "🧠", "📈", "⏱️", "🥇"];
 const BANNER_COLORS = ["#fb923c", "#8d8cf8", "#fb7878", "#34d399", "#38bdf8", "#f5b637", "#f472b6", "#22d3ee"];

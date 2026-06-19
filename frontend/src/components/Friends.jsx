@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const API = "http://localhost:3001";
+const API = "https://habit-rpg-production.up.railway.app";
 
 export default function Friends({ token, showToast, askConfirm }) {
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
