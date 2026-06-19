@@ -45,6 +45,9 @@ model User {
   journalEntries           JournalEntry[]
   goals                    Goal[]
   createdAt                DateTime       @default(now())
+  lastChestStreak      Int            @default(0)
+  friendRequestsFrom   FriendRequest[] @relation("RequestsFrom")
+  friendRequestsTo     FriendRequest[] @relation("RequestsTo")
 }
 
 model JournalEntry {
@@ -164,4 +167,15 @@ model Friendship {
   createdAt DateTime @default(now())
 
   @@unique([userId, friendId])
+}
+
+model FriendRequest {
+  id         Int      @id @default(autoincrement())
+  fromUserId Int
+  fromUser   User     @relation("RequestsFrom", fields: [fromUserId], references: [id])
+  toUserId   Int
+  toUser     User     @relation("RequestsTo", fields: [toUserId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([fromUserId, toUserId])
 }

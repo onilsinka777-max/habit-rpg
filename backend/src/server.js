@@ -1,571 +1,617 @@
-const cors = require("cors");
-const express = require("express");
-const prisma = require("./prisma");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+import { useEffect, useState } from "react";
+import axios from "axios";
+import PlayerCard from "./components/PlayerCard";
+import Shop from "./components/Shop";
+import Library from "./components/Library";
+import Clan from "./components/Clan";
+import Friends from "./components/Friends";
+import Rules from "./components/Rules";
+import Mastery from "./components/Mastery";
+import Journal from "./components/Journal";
+import Goals from "./components/Goals";
+import NicknameModal from "./components/NicknameModal";
+import ToastContainer from "./components/Toast";
+import "./App.css";
 
-const { ensureDailyQuests } = require("./questGenerator");
-const { computeAutoClass } = require("./mastery");
-const { ensureWeeklyLegendaryQuest } = require("./legendaryWeekly");
-const {
-  BRANCHES, DIFFICULTIES, DIFFICULTY_REWARDS,
-  getXpToNextLevel, getAchievements, getGoldMultiplier,
-  getMasteryMultipliers, getEffectiveMasteryPath, startOfToday,
-  DAILY_LOGIN_BONUS_GOLD, DAILY_LOGIN_BONUS_XP, applyXpGain,
-  CLAN_UNLOCK_LEVEL, MASTERY_UNLOCK_LEVEL, MASTERY_PATHS,
-  MASTERY_GRAPH, NODE_DIFFICULTY_REWARDS, LEGENDARY_REWARD_MULTIPLIER,
-  REPEATABLE_SHOP_EFFECTS, getAvailableNodes, MAX_CUSTOM_QUESTS_PER_DAY,
-} = require("./constants");
+const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+const BRANCHES = [
+  { key:"discipline",       label:"Дисциплина",  icon:"🛡️", accent:"#8d8cf8", glow:"rgba(141,140,248,0.35)" },
+  { key:"fitness",          label:"Фитнес",       icon:"💪", accent:"#fb7878", glow:"rgba(251,120,120,0.35)" },
+  { key:"self_development", label:"Саморазвитие", icon:"🌱", accent:"#34d399", glow:"rgba(52,211,153,0.35)"  },
+  { key:"knowledge",        label:"Знания",       icon:"📘", accent:"#38bdf8", glow:"rgba(56,189,248,0.35)"  },
+];
 
-const JWT_SECRET = "super-secret-key";
-const CLAN_BANNER_ICONS  = ["🏋️","📚","💡","⏰","🎯","🔥","🧠","📈","⏱️","🥇"];
-const CLAN_BANNER_COLORS = ["#fb923c","#8d8cf8","#fb7878","#34d399","#38bdf8","#f5b637","#f472b6","#22d3ee"];
-const CLAN_TAG_CHARS     = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+const CUSTOM_BRANCH = { key:"custom", label:"Свои", icon:"✏️", accent:"#a78bfa", glow:"rgba(167,139,250,0.35)" };
+const TAB_BRANCHES  = [...BRANCHES, CUSTOM_BRANCH];
 
-function randomClanTag(n = 6) {
-  let o = "";
-  for (let i = 0; i < n; i++) o += CLAN_TAG_CHARS[Math.floor(Math.random() * CLAN_TAG_CHARS.length)];
-  return o;
-}
-async function generateUniqueClanTag() {
-  let t, e = true;
-  while (e) { t = randomClanTag(); e = !!(await prisma.clan.findUnique({ where: { tag: t } })); }
-  return t;
-}
+const MASTERY_UNLOCK_LEVEL = 25;
+const CLAN_UNLOCK_LEVEL    = 10;
 
-function getMasteryState(user) {
-  const raw = user.masteryChoices ? JSON.parse(user.masteryChoices) : {};
-  return new Set(raw.completed || []);
-}
+const SHOP_THEME       = { accent:"#f5b637", glow:"rgba(245,182,55,0.35)"  };
+const LIBRARY_THEME    = { accent:"#22d3ee", glow:"rgba(34,211,238,0.35)"  };
+const CLAN_THEME       = { accent:"#fb923c", glow:"rgba(251,146,60,0.35)"  };
+const FRIENDS_THEME    = { accent:"#f472b6", glow:"rgba(244,114,182,0.35)" };
+const MASTERY_THEME    = { accent:"#c084fc", glow:"rgba(192,132,252,0.35)" };
+const JOURNAL_THEME    = { accent:"#a78bfa", glow:"rgba(167,139,250,0.35)" };
+const GOALS_THEME      = { accent:"#34d399", glow:"rgba(52,211,153,0.35)"  };
+const QUESTS_NAV_THEME = { accent:"#8d8cf8", glow:"rgba(141,140,248,0.35)" };
 
-// ── ROOT ─────────────────────────────────────────────────────────────────────
-app.get("/", async (req, res) => {
-  const u = await prisma.user.count();
-  res.json({ message: "SERVER WORKS", users: u });
-});
-
-// ── AUTH ─────────────────────────────────────────────────────────────────────
-app.post("/auth/register", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (await prisma.user.findUnique({ where: { email } })) return res.status(400).json({ message: "User already exists" });
-    const user = await prisma.user.create({ data: { email, password: await bcrypt.hash(password, 10) } });
-    res.status(201).json({ id: user.id, email: user.email });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.post("/auth/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ message: "Invalid credentials" });
-    res.json({ token: jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" }) });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-const authMiddleware = (req, res, next) => {
-  try {
-    const h = req.headers.authorization;
-    if (!h) return res.status(401).json({ message: "No token" });
-    const decoded = jwt.verify(h.split(" ")[1], JWT_SECRET);
-    req.userId = decoded.userId;
-    prisma.user.update({ where: { id: req.userId }, data: { lastActiveAt: new Date() } }).catch(() => {});
-    next();
-  } catch (e) { return res.status(401).json({ message: "Invalid token" }); }
+const TYPE_META = {
+  required:    { label:"Обязательные",    icon:"🔒" },
+  recommended: { label:"Рекомендованные", icon:"⭐" },
 };
 
-// ── ME ───────────────────────────────────────────────────────────────────────
-app.get("/me", authMiddleware, async (req, res) => {
-  let user = await prisma.user.findUnique({ where: { id: req.userId } });
-  const today = startOfToday();
-  let dailyBonusJustClaimed = false;
-  if (!user.lastLoginBonusDate || new Date(user.lastLoginBonusDate) < today) {
-    const { xp, level } = applyXpGain(user.xp, user.level, DAILY_LOGIN_BONUS_XP);
-    user = await prisma.user.update({ where: { id: req.userId }, data: { xp, level, gold: { increment: DAILY_LOGIN_BONUS_GOLD }, lastLoginBonusDate: new Date() } });
-    dailyBonusJustClaimed = true;
-  }
-  const autoClass = await computeAutoClass(req.userId);
-  const now = new Date();
-  const mp = MASTERY_PATHS[user.masteryPath];
-  res.json({
-    id: user.id, email: user.email,
-    name: user.name || user.email.split("@")[0],
-    nameSet: user.nameSet || false,
-    level: user.level, xp: user.xp, xpToNextLevel: getXpToNextLevel(user.level),
-    gold: user.gold, streak: user.streak, streakFreezeCount: user.streakFreezeCount,
-    masteryPath: user.masteryPath, masteryNodeIndex: user.masteryNodeIndex,
-    autoClass, effectiveMasteryPath: getEffectiveMasteryPath(user, autoClass),
-    hasEverFinishedMastery: user.hasEverFinishedMastery,
-    masteryStatusLabel: user.hasEverFinishedMastery && mp ? mp.statusLabel : null,
-    masteryStatusChangesLeft: user.masteryStatusChangesLeft,
-    xpBoostActive:    !!(user.xpBoostExpiresAt   && new Date(user.xpBoostExpiresAt)   > now),
-    goldBoostActive:  !!(user.goldBoostExpiresAt  && new Date(user.goldBoostExpiresAt) > now),
-    xpBoostPermanent: user.xpBoostPermanent, goldBoostPermanent: user.goldBoostPermanent,
-    achievements: getAchievements(user.level),
-    dailyBonusJustClaimed, dailyBonusGold: DAILY_LOGIN_BONUS_GOLD, dailyBonusXp: DAILY_LOGIN_BONUS_XP,
-  });
-});
+const DIFFICULTIES = [
+  { key:"easy",   label:"Простой", color:"#4ade80" },
+  { key:"medium", label:"Средний", color:"#fbbf24" },
+  { key:"hard",   label:"Сложный", color:"#f87171" },
+];
 
-app.patch("/me", authMiddleware, async (req, res) => {
-  try {
-    const { name } = req.body;
-    if (typeof name !== "string" || !name.trim()) return res.status(400).json({ message: "Name is required" });
-    if (name.trim().length > 30) return res.status(400).json({ message: "Name is too long" });
-    const trimmed = name.trim();
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (user.nameSet) return res.status(403).json({ message: "Имя уже установлено. Для смены купи «Свиток прошлого»" });
-    const existing = await prisma.user.findUnique({ where: { name: trimmed } });
-    if (existing && existing.id !== req.userId) return res.status(400).json({ message: "Этот ник уже занят" });
-    const updated = await prisma.user.update({ where: { id: req.userId }, data: { name: trimmed, nameSet: true } });
-    res.json({ id: updated.id, email: updated.email, name: updated.name });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+function getDifficultyMeta(key) {
+  return DIFFICULTIES.find(d => d.key === key) || DIFFICULTIES[0];
+}
 
-app.post("/me/use-scroll", authMiddleware, async (req, res) => {
-  try {
-    const { name } = req.body;
-    if (!name || !name.trim()) return res.status(400).json({ message: "Имя не может быть пустым" });
-    if (name.trim().length > 30) return res.status(400).json({ message: "Имя слишком длинное" });
-    const trimmed = name.trim();
-    const scrollItem = await prisma.shopItem.findFirst({ where: { effect: "name_change_scroll" } });
-    if (!scrollItem) return res.status(404).json({ message: "Свиток не найден" });
-    const purchase = await prisma.purchase.findUnique({ where: { userId_itemId: { userId: req.userId, itemId: scrollItem.id } } });
-    if (!purchase) return res.status(403).json({ message: "У тебя нет свитка прошлого" });
-    const existing = await prisma.user.findUnique({ where: { name: trimmed } });
-    if (existing && existing.id !== req.userId) return res.status(400).json({ message: "Этот ник уже занят" });
-    await prisma.$transaction([
-      prisma.user.update({ where: { id: req.userId }, data: { name: trimmed, nameSet: true } }),
-      prisma.purchase.delete({ where: { userId_itemId: { userId: req.userId, itemId: scrollItem.id } } }),
-    ]);
-    res.json({ message: "Имя изменено", name: trimmed });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+export default function App() {
+  const [token,    setToken]    = useState(localStorage.getItem("token") || "");
+  const [email,    setEmail]    = useState("");
+  const [password, setPassword] = useState("");
 
-// ── MASTERY ──────────────────────────────────────────────────────────────────
-app.get("/mastery/status", authMiddleware, async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    const autoClass = await computeAutoClass(req.userId);
-    if (user.level < MASTERY_UNLOCK_LEVEL) return res.json({ locked: true, unlockLevel: MASTERY_UNLOCK_LEVEL, autoClass });
-    const pathsList = Object.values(MASTERY_PATHS).map(p => ({ id: p.id, label: p.label, icon: p.icon, color: p.color, description: p.description, bonusDescription: p.bonusDescription, totalNodes: p.totalNodes }));
-    if (!user.masteryPath) return res.json({ locked: false, chosen: false, autoClass, paths: pathsList, hasEverFinishedMastery: user.hasEverFinishedMastery });
-    const completedSet = getMasteryState(user);
-    const availableNodes = getAvailableNodes(user.masteryPath, completedSet);
-    const isComplete = completedSet.has("legendary");
-    const path = MASTERY_PATHS[user.masteryPath];
-    const graph = MASTERY_GRAPH[user.masteryPath];
-    res.json({
-      locked: false, chosen: true, autoClass,
-      hasEverFinishedMastery: user.hasEverFinishedMastery,
-      masteryPath: user.masteryPath,
-      completedNodes: [...completedSet], availableNodes,
-      totalNodes: path.totalNodes, isComplete,
-      statusChangesLeft: user.masteryStatusChangesLeft, paths: pathsList,
-      path: path ? { id: path.id, label: path.label, icon: path.icon, color: path.color, statusLabel: path.statusLabel, bonusDescription: path.bonusDescription, finaleTitle: path.finale?.title, finaleDesc: path.finale?.description } : null,
-      nodeContent: Object.fromEntries(Object.entries(graph.nodes).map(([id, n]) => [id, { label: n.label, desc: n.desc, d: n.d, hidden: n.hidden || false }])),
+  const [user,  setUser]  = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [customQuestsCreatedToday, setCustomQuestsCreatedToday] = useState(0);
+  const [customQuestsMax,          setCustomQuestsMax]          = useState(8);
+
+  const [view,         setView]         = useState("quests");
+  const [navOpen,      setNavOpen]      = useState(false);
+  const [rulesOpen,    setRulesOpen]    = useState(false);
+  const [activeBranch, setActiveBranch] = useState("discipline");
+
+  const [newTaskTitle,      setNewTaskTitle]      = useState("");
+  const [newTaskDifficulty, setNewTaskDifficulty] = useState("easy");
+  const [newTaskBranch,     setNewTaskBranch]     = useState("discipline");
+
+  const [loadingTaskId, setLoadingTaskId] = useState(null);
+  const [shopItems,     setShopItems]     = useState([]);
+  const [library,       setLibrary]       = useState([]);
+  const [shopLoadingId, setShopLoadingId] = useState(null);
+  const [newLibCount,   setNewLibCount]   = useState(0);
+
+  const [toasts,            setToasts]            = useState([]);
+  const [confirmDialog,     setConfirmDialog]      = useState(null);
+  const [levelUpInfo,       setLevelUpInfo]        = useState(null);
+  const [streakModal,       setStreakModal]         = useState(null);
+  const [chestModal,        setChestModal]          = useState(null);
+  const [showNicknameModal, setShowNicknameModal]  = useState(false);
+  const [showScrollModal,   setShowScrollModal]    = useState(false);
+  const [scrollName,        setScrollName]         = useState("");
+  const [scrollError,       setScrollError]        = useState("");
+  const [scrollBusy,        setScrollBusy]         = useState(false);
+
+  const NAV_ITEMS = [
+    { key:"quests",  label:"Квесты",     icon:"🗺️", theme:QUESTS_NAV_THEME },
+    { key:"shop",    label:"Магазин",    icon:"🛒", theme:SHOP_THEME   },
+    { key:"library", label:"Библиотека", icon:"📚", theme:LIBRARY_THEME, badge:newLibCount },
+    { key:"friends", label:"Друзья",     icon:"🤝", theme:FRIENDS_THEME },
+    { key:"journal", label:"Дневник",    icon:"📔", theme:JOURNAL_THEME },
+    { key:"goals",   label:"Цели",       icon:"🎯", theme:GOALS_THEME   },
+    { key:"clan",    label:"Клан",       icon:"⚔️", theme:CLAN_THEME,
+      lockLevel:CLAN_UNLOCK_LEVEL, lockMessage:"Кланы доступны с 10 уровня" },
+    { key:"mastery", label:"Мастерство", icon:"🌟", theme:MASTERY_THEME,
+      lockLevel:MASTERY_UNLOCK_LEVEL, lockMessage:"Ветка развития доступна с 25 уровня" },
+  ];
+
+  const currentNavItem = NAV_ITEMS.find(n => n.key === view);
+  const branchTheme    = TAB_BRANCHES.find(b => b.key === activeBranch) || BRANCHES[0];
+  const effectiveTheme = view === "quests" ? branchTheme : (currentNavItem?.theme || QUESTS_NAV_THEME);
+  const authHeaders    = { headers: { Authorization: `Bearer ${token}` } };
+
+  const showToast = (message, type = "error") => {
+    const id = Date.now() + Math.random();
+    setToasts(t => [...t, { id, message, type }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000);
+  };
+
+  const dismissToast = (id) => setToasts(t => t.filter(x => x.id !== id));
+
+  const askConfirm = ({ title, text, confirmLabel = "Подтвердить", onConfirm }) => {
+    setConfirmDialog({ title, text, confirmLabel, onConfirm });
+  };
+
+  const loadProfile = async () => {
+    try {
+      const res = await axios.get(`${API}/me`, authHeaders);
+      setUser(res.data);
+      if (!res.data.nameSet) setShowNicknameModal(true);
+      if (res.data.dailyBonusJustClaimed) {
+        showToast(`С возвращением! +${res.data.dailyBonusGold} золота, +${res.data.dailyBonusXp} опыта`, "success");
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const loadTasks = async () => {
+    try {
+      const res = await axios.get(`${API}/tasks`, authHeaders);
+      if (res.data.tasks) {
+        setTasks(res.data.tasks);
+        setCustomQuestsCreatedToday(res.data.customQuestsCreatedToday || 0);
+        setCustomQuestsMax(res.data.customQuestsMax || 8);
+      } else {
+        setTasks(Array.isArray(res.data) ? res.data : []);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const loadShop = async () => {
+    try {
+      const res = await axios.get(`${API}/shop`, authHeaders);
+      setShopItems(res.data);
+    } catch (e) { console.error(e); }
+  };
+
+  const loadLibrary = async () => {
+    try {
+      const res = await axios.get(`${API}/shop/library`, authHeaders);
+      setLibrary(res.data);
+    } catch (e) { console.error(e); }
+  };
+
+  const register = async () => {
+    try {
+      await axios.post(`${API}/auth/register`, { email, password });
+      showToast("Аккаунт создан, теперь войди", "success");
+    } catch (e) { showToast(e.response?.data?.message || "Ошибка регистрации", "error"); }
+  };
+
+  const login = async () => {
+    try {
+      const res = await axios.post(`${API}/auth/login`, { email, password });
+      localStorage.setItem("token", res.data.token);
+      setToken(res.data.token);
+    } catch (e) { showToast(e.response?.data?.message || "Ошибка входа", "error"); }
+  };
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    setToken(""); setUser(null); setTasks([]);
+  };
+
+  const createTask = async () => {
+    if (!newTaskTitle.trim()) return;
+    try {
+      const res = await axios.post(`${API}/tasks`,
+        { title: newTaskTitle, branch: newTaskBranch, difficulty: newTaskDifficulty },
+        authHeaders
+      );
+      setNewTaskTitle(""); setNewTaskDifficulty("easy");
+      if (res.data.customQuestsCreatedToday !== undefined) {
+        setCustomQuestsCreatedToday(res.data.customQuestsCreatedToday);
+      }
+      await loadTasks();
+    } catch (e) { showToast(e.response?.data?.message || "Не удалось создать квест", "error"); }
+  };
+
+  const confirmComplete = (task) => {
+    if (loadingTaskId === task.id) return;
+    askConfirm({
+      title: "Выполнить квест?",
+      text: `«${task.title}» — +${task.xpReward} XP · +${task.goldReward} золота`,
+      confirmLabel: "Выполнить",
+      onConfirm: () => completeTask(task.id),
     });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+  };
 
-app.post("/mastery/choose", authMiddleware, async (req, res) => {
-  try {
-    const { pathId } = req.body;
-    if (!MASTERY_PATHS[pathId]) return res.status(400).json({ message: "Invalid path" });
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (user.level < MASTERY_UNLOCK_LEVEL) return res.status(403).json({ message: `Доступно с ${MASTERY_UNLOCK_LEVEL} уровня` });
-    if (user.hasEverFinishedMastery && user.masteryPath) {
-      if (user.masteryStatusChangesLeft <= 0) return res.status(403).json({ message: "Смена статуса недоступна — лимит исчерпан" });
-      await prisma.user.update({ where: { id: req.userId }, data: { masteryPath: pathId, masteryNodeIndex: 0, masteryChoices: JSON.stringify({ completed: [] }), masteryStatusChangesLeft: { decrement: 1 }, hasEverFinishedMastery: false } });
-      return res.json({ message: "Путь сменён" });
-    }
-    await prisma.user.update({ where: { id: req.userId }, data: { masteryPath: pathId, masteryNodeIndex: 0, masteryChoices: JSON.stringify({ completed: [] }) } });
-    res.json({ message: "Путь выбран" });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+  const completeTask = async (id) => {
+    try {
+      setLoadingTaskId(id);
+      const prevLevel = user?.level || 1;
+      const completeRes = await axios.patch(`${API}/tasks/${id}/complete`, {}, authHeaders);
+      await loadTasks();
 
-app.post("/mastery/complete-node", authMiddleware, async (req, res) => {
-  try {
-    const { nodeId } = req.body;
-    if (!nodeId) return res.status(400).json({ message: "nodeId required" });
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (!user.masteryPath) return res.status(400).json({ message: "Путь не выбран" });
-    const completedSet = getMasteryState(user);
-    if (completedSet.has("legendary")) return res.status(400).json({ message: "Путь уже пройден" });
-    const available = getAvailableNodes(user.masteryPath, completedSet);
-    if (!available.includes(nodeId)) return res.status(400).json({ message: "Этот узел пока недоступен" });
-    const graph = MASTERY_GRAPH[user.masteryPath];
-    const nodeInfo = graph.nodes[nodeId];
-    if (!nodeInfo) return res.status(400).json({ message: "Узел не найден" });
-    const rewards = NODE_DIFFICULTY_REWARDS[nodeInfo.d] || { xp: 30, gold: 15 };
-    const { xp, level } = applyXpGain(user.xp, user.level, rewards.xp);
-    completedSet.add(nodeId);
-    const newCompleted = [...completedSet];
-    const justFinished = nodeId === "legendary";
-    await prisma.user.update({ where: { id: req.userId }, data: { xp, level, gold: { increment: rewards.gold }, masteryNodeIndex: newCompleted.length, masteryChoices: JSON.stringify({ completed: newCompleted }), lastMasteryQuestDate: new Date(), ...(justFinished ? { hasEverFinishedMastery: true } : {}) } });
-    res.json({ message: justFinished ? "Путь завершён!" : "Узел пройден", justFinished, leveledUp: level > user.level, newLevel: level, xpGained: rewards.xp, goldGained: rewards.gold, completedNodes: newCompleted });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-// ── TASKS ────────────────────────────────────────────────────────────────────
-app.post("/tasks", authMiddleware, async (req, res) => {
-  try {
-    const { title, branch, difficulty } = req.body;
-    if (!title || !title.trim()) return res.status(400).json({ message: "Title is required" });
-    if (!BRANCHES.includes(branch)) return res.status(400).json({ message: "Invalid branch" });
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    const today = startOfToday();
-    const needsReset = !user.customQuestsResetDate || new Date(user.customQuestsResetDate) < today;
-    const createdToday = needsReset ? 0 : (user.customQuestsCreatedToday || 0);
-    if (createdToday >= MAX_CUSTOM_QUESTS_PER_DAY) return res.status(400).json({ message: `Достигнут дневной лимит (${MAX_CUSTOM_QUESTS_PER_DAY}).` });
-    const fd = DIFFICULTIES.includes(difficulty) ? difficulty : "easy";
-    const reward = DIFFICULTY_REWARDS[fd];
-    const task = await prisma.task.create({ data: { title: title.trim(), branch, type: "custom", difficulty: fd, xpReward: reward.xp, goldReward: reward.gold, userId: req.userId } });
-    await prisma.user.update({ where: { id: req.userId }, data: { customQuestsCreatedToday: createdToday + 1, ...(needsReset ? { customQuestsResetDate: new Date() } : {}) } });
-    res.status(201).json({ ...task, customQuestsCreatedToday: createdToday + 1 });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.get("/tasks", authMiddleware, async (req, res) => {
-  try {
-    await ensureDailyQuests(req.userId);
-    await ensureWeeklyLegendaryQuest(req.userId);
-    const { branch } = req.query;
-    const tasks = await prisma.task.findMany({ where: { userId: req.userId, ...(branch ? { branch } : {}) }, orderBy: { createdAt: "desc" } });
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    const today = startOfToday();
-    const needsReset = !user.customQuestsResetDate || new Date(user.customQuestsResetDate) < today;
-    const createdToday = needsReset ? 0 : (user.customQuestsCreatedToday || 0);
-    res.json({ tasks, customQuestsCreatedToday: createdToday, customQuestsMax: MAX_CUSTOM_QUESTS_PER_DAY });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.patch("/tasks/:id/complete", authMiddleware, async (req, res) => {
-  try {
-    const taskId = Number(req.params.id);
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
-    if (!task) return res.status(404).json({ message: "Task not found" });
-    if (task.userId !== req.userId) return res.status(403).json({ message: "Forbidden" });
-    if (task.completed) return res.status(400).json({ message: "Already completed" });
-    const updatedTask = await prisma.task.update({ where: { id: taskId }, data: { completed: true } });
-    const cu = await prisma.user.findUnique({ where: { id: req.userId } });
-    const now = new Date(); const today = startOfToday();
-    const xpBActive = cu.xpBoostExpiresAt && new Date(cu.xpBoostExpiresAt) > now;
-    const gBActive  = cu.goldBoostExpiresAt && new Date(cu.goldBoostExpiresAt) > now;
-    const xpM   = (xpBActive ? 1.5 : 1) * (cu.xpBoostPermanent ? 1.25 : 1);
-    const goldM = (gBActive  ? 1.5 : 1) * (cu.goldBoostPermanent ? 1.25 : 1);
-    const autoClass = cu.masteryPath ? null : await computeAutoClass(req.userId);
-    const mMult = getMasteryMultipliers(cu.masteryPath || autoClass, task.branch);
-    const { xp, level } = applyXpGain(cu.xp, cu.level, Math.round(task.xpReward * mMult.xp * xpM));
-    const goldGain = Math.round(task.goldReward * getGoldMultiplier() * mMult.gold * goldM);
-    let freezeConsumed = false, streakJustCompleted = false, newStreak = cu.streak;
-    const totalReq = await prisma.task.count({ where: { userId: req.userId, isDaily: true, type: "required", expiresAt: { gte: today } } });
-    const doneReq  = await prisma.task.count({ where: { userId: req.userId, isDaily: true, type: "required", expiresAt: { gte: today }, completed: true } });
-    const allDone = totalReq > 0 && doneReq === totalReq;
-    const streakToday = cu.streakUpdatedDate && new Date(cu.streakUpdatedDate) >= today;
-    if (allDone && !streakToday) {
-      if (!cu.streakUpdatedDate) { newStreak = 1; }
-      else {
-        const last = new Date(cu.streakUpdatedDate);
-        const lastM = new Date(last.getFullYear(), last.getMonth(), last.getDate());
-        const diff = Math.floor((today - lastM) / 86400000);
-        if (diff === 1) newStreak = cu.streak + 1;
-        else if (diff === 2 && cu.streakFreezeCount > 0) { newStreak = cu.streak + 1; freezeConsumed = true; }
-        else newStreak = 1;
+      if (completeRes.data.freezeConsumed) {
+        showToast("Заморозка стрика сработала — серия не сброшена!", "success");
       }
-      streakJustCompleted = true;
-    }
-    await prisma.user.update({ where: { id: req.userId }, data: { xp, level, gold: { increment: goldGain }, ...(streakJustCompleted ? { streak: newStreak, streakUpdatedDate: now } : {}), ...(freezeConsumed ? { streakFreezeCount: { decrement: 1 } } : {}) } });
-    res.json({ ...updatedTask, freezeConsumed, streakJustCompleted, newStreak: streakJustCompleted ? newStreak : undefined });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.delete("/tasks/:id", authMiddleware, async (req, res) => {
-  try {
-    const taskId = Number(req.params.id);
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
-    if (!task) return res.status(404).json({ message: "Task not found" });
-    if (task.userId !== req.userId) return res.status(403).json({ message: "Forbidden" });
-    await prisma.task.delete({ where: { id: taskId } });
-    res.json({ message: "Task deleted" });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-// ── SHOP ─────────────────────────────────────────────────────────────────────
-app.get("/shop", authMiddleware, async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    const items = await prisma.shopItem.findMany({ where: { active: true }, orderBy: { price: "asc" } });
-    const purchases = await prisma.purchase.findMany({ where: { userId: req.userId }, select: { itemId: true } });
-    const pIds = new Set(purchases.map(p => p.itemId));
-    res.json(items.map(item => ({
-      ...item,
-      purchased: pIds.has(item.id),
-      repeatable: REPEATABLE_SHOP_EFFECTS.includes(item.effect),
-      locked: item.category !== "boost" && item.effect !== "name_change_scroll" && !user.hasEverFinishedMastery,
-    })));
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.post("/shop/:id/purchase", authMiddleware, async (req, res) => {
-  try {
-    const itemId = Number(req.params.id);
-    const item = await prisma.shopItem.findUnique({ where: { id: itemId } });
-    if (!item || !item.active) return res.status(404).json({ message: "Item not found" });
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (item.category !== "boost" && item.effect !== "name_change_scroll" && !user.hasEverFinishedMastery)
-      return res.status(403).json({ message: "Доступно после завершения пути Мастерства" });
-    if (user.gold < item.price) return res.status(400).json({ message: "Not enough gold" });
-    if (item.effect === "streak_freeze") {
-      await prisma.user.update({ where: { id: req.userId }, data: { gold: { decrement: item.price }, streakFreezeCount: { increment: 1 } } });
-      return res.status(201).json({ message: "Purchased" });
-    }
-    if (item.effect === "xp_boost_24h") {
-      await prisma.user.update({ where: { id: req.userId }, data: { gold: { decrement: item.price }, xpBoostExpiresAt: new Date(Date.now() + 86400000) } });
-      return res.status(201).json({ message: "Purchased" });
-    }
-    if (item.effect === "gold_boost_24h") {
-      await prisma.user.update({ where: { id: req.userId }, data: { gold: { decrement: item.price }, goldBoostExpiresAt: new Date(Date.now() + 86400000) } });
-      return res.status(201).json({ message: "Purchased" });
-    }
-    const existing = await prisma.purchase.findUnique({ where: { userId_itemId: { userId: req.userId, itemId } } });
-    if (existing) return res.status(400).json({ message: "Already purchased" });
-    const extraData = {};
-    if (item.effect === "xp_boost_permanent")  extraData.xpBoostPermanent  = true;
-    if (item.effect === "gold_boost_permanent") extraData.goldBoostPermanent = true;
-    await prisma.$transaction([
-      prisma.user.update({ where: { id: req.userId }, data: { gold: { decrement: item.price }, ...extraData } }),
-      prisma.purchase.create({ data: { userId: req.userId, itemId } }),
-    ]);
-    res.status(201).json({ message: "Purchased" });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.get("/shop/library", authMiddleware, async (req, res) => {
-  try {
-    const p = await prisma.purchase.findMany({ where: { userId: req.userId }, include: { item: true }, orderBy: { purchasedAt: "desc" } });
-    res.json(p.map(x => x.item));
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-// ── JOURNAL ──────────────────────────────────────────────────────────────────
-app.get("/journal", authMiddleware, async (req, res) => {
-  try {
-    const entries = await prisma.journalEntry.findMany({ where: { userId: req.userId }, orderBy: { createdAt: "desc" } });
-    res.json(entries);
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.post("/journal", authMiddleware, async (req, res) => {
-  try {
-    const { content } = req.body;
-    if (!content || !content.trim()) return res.status(400).json({ message: "Запись не может быть пустой" });
-    if (content.length > 5000) return res.status(400).json({ message: "Запись слишком длинная" });
-    const entry = await prisma.journalEntry.create({ data: { content: content.trim(), userId: req.userId } });
-    res.status(201).json(entry);
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-// ── GOALS ────────────────────────────────────────────────────────────────────
-app.get("/goals", authMiddleware, async (req, res) => {
-  try {
-    const goals = await prisma.goal.findMany({ where: { userId: req.userId }, orderBy: { createdAt: "desc" } });
-    res.json(goals);
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.post("/goals", authMiddleware, async (req, res) => {
-  try {
-    const { title, description, targetDate } = req.body;
-    if (!title || !title.trim()) return res.status(400).json({ message: "Название цели обязательно" });
-    const goal = await prisma.goal.create({ data: { title: title.trim(), description: description?.trim() || null, targetDate: targetDate ? new Date(targetDate) : null, userId: req.userId } });
-    res.status(201).json(goal);
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.patch("/goals/:id", authMiddleware, async (req, res) => {
-  try {
-    const goalId = Number(req.params.id);
-    const goal = await prisma.goal.findUnique({ where: { id: goalId } });
-    if (!goal || goal.userId !== req.userId) return res.status(404).json({ message: "Цель не найдена" });
-    const { completed, title, description, targetDate } = req.body;
-    const updated = await prisma.goal.update({ where: { id: goalId }, data: { ...(completed !== undefined ? { completed } : {}), ...(title ? { title: title.trim() } : {}), ...(description !== undefined ? { description: description?.trim() || null } : {}), ...(targetDate !== undefined ? { targetDate: targetDate ? new Date(targetDate) : null } : {}) } });
-    res.json(updated);
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.delete("/goals/:id", authMiddleware, async (req, res) => {
-  try {
-    const goalId = Number(req.params.id);
-    const goal = await prisma.goal.findUnique({ where: { id: goalId } });
-    if (!goal || goal.userId !== req.userId) return res.status(404).json({ message: "Цель не найдена" });
-    await prisma.goal.delete({ where: { id: goalId } });
-    res.json({ message: "Удалено" });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-// ── CLANS ────────────────────────────────────────────────────────────────────
-app.get("/clans/leaderboard", authMiddleware, async (req, res) => {
-  try {
-    const groups = await prisma.user.groupBy({ by: ["clanId"], where: { clanId: { not: null } }, _avg: { xp: true }, _count: { id: true } });
-    const clans = await prisma.clan.findMany({ where: { id: { in: groups.map(g => g.clanId) } } });
-    const cm = new Map(clans.map(c => [c.id, c]));
-    res.json(groups.map(g => { const c = cm.get(g.clanId); if (!c) return null; return { id: c.id, name: c.name, tag: c.tag, bannerIcon: c.bannerIcon, bannerColor: c.bannerColor, memberCount: g._count.id, avgXp: Math.round(g._avg.xp || 0) }; }).filter(Boolean).sort((a, b) => b.avgXp - a.avgXp).slice(0, 20));
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.get("/clans", authMiddleware, async (req, res) => {
-  try {
-    const clans = await prisma.clan.findMany({ include: { _count: { select: { members: true } } }, orderBy: { createdAt: "desc" } });
-    res.json(clans.map(c => ({ id: c.id, name: c.name, tag: c.tag, description: c.description, bannerIcon: c.bannerIcon, bannerColor: c.bannerColor, memberCount: c._count.members })));
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.post("/clans", authMiddleware, async (req, res) => {
-  try {
-    const actor = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (actor.level < CLAN_UNLOCK_LEVEL) return res.status(403).json({ message: `Кланы доступны с ${CLAN_UNLOCK_LEVEL} уровня` });
-    const { name, description, bannerIcon, bannerColor } = req.body;
-    if (!name?.trim()) return res.status(400).json({ message: "Name is required" });
-    if (await prisma.clan.findUnique({ where: { name: name.trim() } })) return res.status(400).json({ message: "Clan with this name already exists" });
-    const clan = await prisma.clan.create({ data: { name: name.trim(), description: description?.trim() || null, tag: await generateUniqueClanTag(), bannerIcon: CLAN_BANNER_ICONS.includes(bannerIcon) ? bannerIcon : CLAN_BANNER_ICONS[0], bannerColor: CLAN_BANNER_COLORS.includes(bannerColor) ? bannerColor : CLAN_BANNER_COLORS[0] } });
-    await prisma.user.update({ where: { id: req.userId }, data: { clanId: clan.id, clanRole: "leader" } });
-    res.status(201).json(clan);
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.post("/clans/:id/join", authMiddleware, async (req, res) => {
-  try {
-    const actor = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (actor.level < CLAN_UNLOCK_LEVEL) return res.status(403).json({ message: `Кланы доступны с ${CLAN_UNLOCK_LEVEL} уровня` });
-    const clan = await prisma.clan.findUnique({ where: { id: Number(req.params.id) } });
-    if (!clan) return res.status(404).json({ message: "Clan not found" });
-    await prisma.user.update({ where: { id: req.userId }, data: { clanId: clan.id, clanRole: "member" } });
-    res.json({ message: "Joined" });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
-
-app.post("/clans/leave", authMiddleware, async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (!user.clanId) return res.status(400).json({ message: "Not in a clan" });
-    const clanId = user.clanId;
-    if (user.clanRole === "leader") {
-      const others = await prisma.user.findMany({ where: { clanId, id: { not: req.userId } }, orderBy: { id: "asc" } });
-      if (others.length === 0) {
-        await prisma.user.update({ where: { id: req.userId }, data: { clanId: null, clanRole: null } });
-        await prisma.clanMessage.deleteMany({ where: { clanId } });
-        await prisma.clan.delete({ where: { id: clanId } });
-        return res.json({ message: "Left clan" });
+      if (completeRes.data.streakJustCompleted) {
+        setStreakModal({ streak: completeRes.data.newStreak });
       }
-      const s = others.find(m => m.clanRole === "co_leader") || others[0];
-      await prisma.user.update({ where: { id: s.id }, data: { clanRole: "leader" } });
-    }
-    await prisma.user.update({ where: { id: req.userId }, data: { clanId: null, clanRole: null } });
-    res.json({ message: "Left clan" });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+      if (completeRes.data.chestReward) {
+        setChestModal(completeRes.data.chestReward);
+      }
 
-app.get("/clans/me", authMiddleware, async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (!user.clanId) return res.json({ clan: null, members: [], myRole: null });
-    const clan = await prisma.clan.findUnique({ where: { id: user.clanId } });
-    const members = await prisma.user.findMany({ where: { clanId: user.clanId }, orderBy: [{ level: "desc" }, { xp: "desc" }], select: { id: true, email: true, name: true, level: true, xp: true, gold: true, streak: true, clanRole: true, lastActiveAt: true } });
-    const now = Date.now();
-    res.json({ clan, myRole: user.clanRole, members: members.map(m => ({ ...m, name: m.name || m.email.split("@")[0], isOnline: m.lastActiveAt ? now - new Date(m.lastActiveAt).getTime() < ONLINE_THRESHOLD_MS : false })) });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+      const res = await axios.get(`${API}/me`, authHeaders);
+      setUser(res.data);
 
-app.patch("/clans/members/:userId/role", authMiddleware, async (req, res) => {
-  try {
-    const targetId = Number(req.params.userId); const { role } = req.body;
-    if (!["co_leader", "member"].includes(role)) return res.status(400).json({ message: "Invalid role" });
-    const actor = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (actor.clanRole !== "leader") return res.status(403).json({ message: "Только лидер может менять роли" });
-    const target = await prisma.user.findUnique({ where: { id: targetId } });
-    if (!target || target.clanId !== actor.clanId) return res.status(404).json({ message: "Участник не найден" });
-    if (target.clanRole === "leader") return res.status(400).json({ message: "Нельзя изменить роль лидера" });
-    await prisma.user.update({ where: { id: targetId }, data: { clanRole: role } });
-    res.json({ message: "Updated" });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+      if (res.data.level > prevLevel) {
+        const newLevel = res.data.level;
+        let unlock = null;
+        if (newLevel >= CLAN_UNLOCK_LEVEL    && prevLevel < CLAN_UNLOCK_LEVEL)    unlock = "⚔️ Кланы разблокированы!";
+        if (newLevel >= MASTERY_UNLOCK_LEVEL && prevLevel < MASTERY_UNLOCK_LEVEL) unlock = "🌟 Ветка Мастерства разблокирована!";
+        setLevelUpInfo({ level: newLevel, unlock });
+      }
+    } catch (e) {
+      showToast(e.response?.data?.message || "Ошибка выполнения", "error");
+    } finally { setLoadingTaskId(null); }
+  };
 
-app.delete("/clans/members/:userId", authMiddleware, async (req, res) => {
-  try {
-    const targetId = Number(req.params.userId);
-    if (targetId === req.userId) return res.status(400).json({ message: "Используй кнопку «Покинуть клан»" });
-    const actor = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (!["leader", "co_leader"].includes(actor.clanRole)) return res.status(403).json({ message: "Недостаточно прав" });
-    const target = await prisma.user.findUnique({ where: { id: targetId } });
-    if (!target || target.clanId !== actor.clanId) return res.status(404).json({ message: "Участник не найден" });
-    if (target.clanRole === "leader") return res.status(400).json({ message: "Нельзя исключить лидера" });
-    if (actor.clanRole === "co_leader" && target.clanRole === "co_leader") return res.status(403).json({ message: "Соруководитель не может исключить другого соруководителя" });
-    await prisma.user.update({ where: { id: targetId }, data: { clanId: null, clanRole: null } });
-    res.json({ message: "Kicked" });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+  const deleteTask = async (id) => {
+    try {
+      await axios.delete(`${API}/tasks/${id}`, authHeaders);
+      await loadTasks();
+    } catch (e) { showToast(e.response?.data?.message || "Не удалось удалить", "error"); }
+  };
 
-app.get("/clans/me/messages", authMiddleware, async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (!user.clanId) return res.status(400).json({ message: "Not in a clan" });
-    const msgs = await prisma.clanMessage.findMany({ where: { clanId: user.clanId }, orderBy: { createdAt: "desc" }, take: 50, include: { user: { select: { name: true, email: true } } } });
-    res.json(msgs.reverse().map(m => ({ id: m.id, text: m.text, createdAt: m.createdAt, author: m.user.name || m.user.email.split("@")[0], userId: m.userId })));
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+  const purchaseItem = async (item) => {
+    try {
+      setShopLoadingId(item.id);
+      await axios.post(`${API}/shop/${item.id}/purchase`, {}, authHeaders);
+      await loadShop();
+      await loadLibrary();
+      await loadProfile();
+      setNewLibCount(n => n + 1);
+      showToast(`«${item.title}» добавлено в библиотеку 📚`, "success");
+    } catch (e) { showToast(e.response?.data?.message || "Не удалось купить", "error"); }
+    finally { setShopLoadingId(null); }
+  };
 
-app.post("/clans/me/messages", authMiddleware, async (req, res) => {
-  try {
-    const { text } = req.body;
-    if (!text?.trim()) return res.status(400).json({ message: "Message is empty" });
-    if (text.length > 500) return res.status(400).json({ message: "Message is too long" });
-    const user = await prisma.user.findUnique({ where: { id: req.userId } });
-    if (!user.clanId) return res.status(400).json({ message: "Not in a clan" });
-    const msg = await prisma.clanMessage.create({ data: { text: text.trim(), clanId: user.clanId, userId: req.userId } });
-    res.status(201).json(msg);
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+  useEffect(() => {
+    if (token) { loadProfile(); loadTasks(); }
+  }, [token]);
 
-// ── FRIENDS ──────────────────────────────────────────────────────────────────
-app.get("/friends", authMiddleware, async (req, res) => {
-  try {
-    const fs = await prisma.friendship.findMany({ where: { userId: req.userId }, include: { friend: { select: { id: true, email: true, name: true, level: true, gold: true, streak: true, clan: { select: { name: true } } } } } });
-    res.json(fs.map(f => ({ id: f.friend.id, name: f.friend.name || f.friend.email.split("@")[0], level: f.friend.level, gold: f.friend.gold, streak: f.friend.streak, clanName: f.friend.clan?.name || null })));
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+  useEffect(() => {
+    if (token && (view === "shop" || view === "library")) { loadShop(); loadLibrary(); }
+  }, [token, view]);
 
-app.post("/friends", authMiddleware, async (req, res) => {
-  try {
-    const { name } = req.body;
-    if (!name?.trim()) return res.status(400).json({ message: "Укажи ник" });
-    const target = await prisma.user.findUnique({ where: { name: name.trim() } });
-    if (!target) return res.status(404).json({ message: "Пользователь с таким ником не найден" });
-    if (target.id === req.userId) return res.status(400).json({ message: "Нельзя добавить себя в друзья" });
-    const ex = await prisma.friendship.findUnique({ where: { userId_friendId: { userId: req.userId, friendId: target.id } } });
-    if (ex) return res.status(400).json({ message: "Уже в друзьях" });
-    await prisma.$transaction([
-      prisma.friendship.create({ data: { userId: req.userId, friendId: target.id } }),
-      prisma.friendship.create({ data: { userId: target.id, friendId: req.userId } }),
-    ]);
-    res.status(201).json({ message: "Добавлено" });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+  const branchTasks    = tasks.filter(t => t.branch === activeBranch && (t.type === "required" || t.type === "recommended"));
+  const legendaryTasks = tasks.filter(t => t.type === "legendary" && !t.completed);
+  const customTasks    = tasks.filter(t => t.type === "custom");
+  const tasksByType    = {
+    required:    branchTasks.filter(t => t.type === "required"),
+    recommended: branchTasks.filter(t => t.type === "recommended"),
+  };
+  const customSlotsLeft = Math.max(0, customQuestsMax - customQuestsCreatedToday);
+  const rootStyle = { "--accent": effectiveTheme.accent, "--accent-glow": effectiveTheme.glow };
 
-app.delete("/friends/:id", authMiddleware, async (req, res) => {
-  try {
-    const friendId = Number(req.params.id);
-    await prisma.$transaction([
-      prisma.friendship.deleteMany({ where: { userId: req.userId, friendId } }),
-      prisma.friendship.deleteMany({ where: { userId: friendId, friendId: req.userId } }),
-    ]);
-    res.json({ message: "Удалено" });
-  } catch (e) { console.error(e); res.status(500).json({ message: "Server error" }); }
-});
+  if (!token) {
+    return (
+      <div className="auth-screen" style={{ "--accent": QUESTS_NAV_THEME.accent, "--accent-glow": QUESTS_NAV_THEME.glow }}>
+        <div className="auth-card">
+          <p className="auth-eyebrow">Геймификация жизни</p>
+          <h1 className="brand-title">Habit RPG</h1>
+          <p className="auth-sub">Твой путь начинается здесь</p>
+          <label className="field-label">Почта</label>
+          <input className="input" placeholder="you@mail.com" value={email} onChange={e => setEmail(e.target.value)} />
+          <label className="field-label">Пароль</label>
+          <input className="input" placeholder="••••••" type="password" value={password} onChange={e => setPassword(e.target.value)} />
+          <div className="auth-actions">
+            <button className="btn btn-ghost" onClick={register}>Создать аккаунт</button>
+            <button className="btn btn-primary" onClick={login}>Войти</button>
+          </div>
+        </div>
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      </div>
+    );
+  }
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`SERVER STARTED ON ${PORT}`));
+  return (
+    <div className="app-shell" style={rootStyle}>
+      <div className="app-container">
+
+        <header className="topbar">
+          <div className="nav-dropdown-wrapper">
+            <button className="nav-toggle-btn" onClick={() => setNavOpen(v => !v)}
+              style={{ background: effectiveTheme.accent, boxShadow: `0 8px 20px ${effectiveTheme.glow}` }}>
+              {navOpen ? "✕" : "☰"}
+            </button>
+
+            {navOpen && (
+              <div className="nav-dropdown-menu">
+                {NAV_ITEMS.map(item => {
+                  const myLevel = user?.level || 1;
+                  const locked  = item.lockLevel && myLevel < item.lockLevel;
+                  const isActive = view === item.key;
+                  return (
+                    <button key={item.key}
+                      className={`nav-dropdown-item ${isActive && !locked ? "active" : ""} ${locked ? "locked" : ""}`}
+                      style={isActive && !locked ? { background: item.theme.accent } : undefined}
+                      onClick={() => {
+                        if (locked) { showToast(item.lockMessage, "error"); return; }
+                        setView(item.key);
+                        setNavOpen(false);
+                        if (item.key === "library") setNewLibCount(0);
+                      }}>
+                      <span style={{ position:"relative" }}>
+                        {locked ? "🔒" : item.icon}
+                        {item.badge > 0 && (
+                          <span style={{ position:"absolute", top:-4, right:-6, background:"#eab308", borderRadius:"50%", width:14, height:14, fontSize:9, display:"inline-flex", alignItems:"center", justifyContent:"center", color:"#000", fontWeight:"bold" }}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </span>
+                      {" "}{item.label}
+                      {item.badge > 0 && (
+                        <span style={{ marginLeft:"auto", background:"#eab308", color:"#000", borderRadius:8, padding:"1px 6px", fontSize:11, fontWeight:700 }}>
+                          {item.badge} новых
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="topbar-eyebrow">Геймификация жизни</p>
+            <h1 className="brand-title">Habit RPG</h1>
+          </div>
+
+          <button className="rules-btn" onClick={() => setRulesOpen(true)}>?</button>
+        </header>
+
+        {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
+
+        {user && (
+          <PlayerCard
+            user={user}
+            onLogout={logout}
+            onOpenScroll={() => setShowScrollModal(true)}
+            onGoToShop={() => { setView("shop"); }}
+          />
+        )}
+
+        {view === "shop"    && <Shop items={shopItems} gold={user?.gold || 0} loadingId={shopLoadingId} onPurchase={purchaseItem} streakFreezeCount={user?.streakFreezeCount || 0} />}
+        {view === "library" && <Library library={library} onViewed={() => setNewLibCount(0)} />}
+        {view === "clan"    && <Clan token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level || 1} />}
+        {view === "friends" && <Friends token={token} showToast={showToast} askConfirm={askConfirm} />}
+        {view === "mastery" && <Mastery token={token} showToast={showToast} askConfirm={askConfirm} myLevel={user?.level || 1} onFinished={loadProfile} />}
+        {view === "journal" && <Journal token={token} showToast={showToast} />}
+        {view === "goals"   && <Goals   token={token} showToast={showToast} askConfirm={askConfirm} />}
+
+        {view === "quests" && (
+          <>
+            {legendaryTasks.length > 0 && (
+              <section className="legendary-section">
+                <div className="section-eyebrow"><span>🏆</span> Легендарный квест недели</div>
+                {legendaryTasks.map(t => (
+                  <QuestCard key={t.id} task={t} loading={loadingTaskId === t.id}
+                    onComplete={() => confirmComplete(t)} onDelete={() => {}} showDelete={false} />
+                ))}
+              </section>
+            )}
+
+            <nav className="branch-tabs">
+              {TAB_BRANCHES.map(b => (
+                <button key={b.key}
+                  className={`branch-tab ${activeBranch === b.key ? "active" : ""}`}
+                  style={activeBranch === b.key ? { background: b.accent, boxShadow: `0 8px 20px ${b.glow}` } : undefined}
+                  onClick={() => setActiveBranch(b.key)}>
+                  <span className="branch-icon">{b.icon}</span>{b.label}
+                </button>
+              ))}
+            </nav>
+
+            <div className="branch-content" key={activeBranch}>
+              {activeBranch === "custom" ? (
+                <section className="quest-section">
+                  <div className="section-eyebrow"><span>✏️</span> Свои квесты</div>
+                  <p className="quest-limit-note">
+                    {customSlotsLeft > 0
+                      ? `Осталось ${customSlotsLeft} из ${customQuestsMax} квестов на сегодня`
+                      : "Лимит на сегодня исчерпан — новые слоты появятся завтра"}
+                  </p>
+                  <div className="new-quest-form" style={{ flexWrap:"wrap" }}>
+                    <select className="select" value={newTaskBranch} onChange={e => setNewTaskBranch(e.target.value)} disabled={customSlotsLeft === 0}>
+                      {BRANCHES.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
+                    </select>
+                    <input className="input" placeholder="Название квеста"
+                      value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
+                      disabled={customSlotsLeft === 0} />
+                    <select className="select" value={newTaskDifficulty} onChange={e => setNewTaskDifficulty(e.target.value)} disabled={customSlotsLeft === 0}>
+                      {DIFFICULTIES.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+                    </select>
+                    <button className="btn btn-primary" onClick={createTask} disabled={customSlotsLeft === 0}>
+                      Добавить
+                    </button>
+                  </div>
+                  {customTasks.length === 0 ? (
+                    <p className="empty-state">Нет своих квестов — добавь первый выше.</p>
+                  ) : (
+                    <div className="quest-list">
+                      {customTasks.map(t => (
+                        <QuestCard key={t.id} task={t} loading={loadingTaskId === t.id}
+                          onComplete={() => confirmComplete(t)}
+                          onDelete={() => askConfirm({
+                            title:"Удалить квест?", text:"Слот не вернётся.",
+                            confirmLabel:"Удалить", onConfirm:() => deleteTask(t.id),
+                          })}
+                          showDelete={!t.completed} />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ) : (
+                <>
+                  {["required","recommended"].map(type => (
+                    <section className="quest-section" key={type}>
+                      <div className="section-eyebrow">
+                        <span>{TYPE_META[type].icon}</span>{TYPE_META[type].label}
+                      </div>
+                      {tasksByType[type].length === 0 ? (
+                        <p className="empty-state">Квесты обновятся в начале нового дня.</p>
+                      ) : (
+                        <div className="quest-list">
+                          {tasksByType[type].map(t => (
+                            <QuestCard key={t.id} task={t} loading={loadingTaskId === t.id}
+                              onComplete={() => confirmComplete(t)}
+                              onDelete={() => deleteTask(t.id)} showDelete={false} />
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  ))}
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Modals ── */}
+
+      {confirmDialog && (
+        <div className="modal-overlay" onClick={() => setConfirmDialog(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <p className="modal-eyebrow">Подтверждение</p>
+            <h3 className="modal-title">{confirmDialog.title}</h3>
+            <p className="modal-text">{confirmDialog.text}</p>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setConfirmDialog(null)}>Отмена</button>
+              <button className="btn btn-primary" onClick={() => {
+                const fn = confirmDialog.onConfirm;
+                setConfirmDialog(null);
+                fn();
+              }}>{confirmDialog.confirmLabel}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {levelUpInfo && (
+        <div className="modal-overlay" onClick={() => setLevelUpInfo(null)}>
+          <div className="modal-card level-up-card" onClick={e => e.stopPropagation()}>
+            <div className="level-up-badge">{levelUpInfo.level}</div>
+            <p className="modal-eyebrow">Новый уровень</p>
+            <h3 className="modal-title">Уровень повышен!</h3>
+            <p className="modal-text">Ты прокачался до {levelUpInfo.level} уровня. Продолжай в том же духе.</p>
+            {levelUpInfo.unlock && <div className="level-up-unlock">{levelUpInfo.unlock}</div>}
+            <button className="btn btn-primary" onClick={() => setLevelUpInfo(null)}>Отлично</button>
+          </div>
+        </div>
+      )}
+
+      {streakModal && (
+        <div className="modal-overlay" onClick={() => setStreakModal(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:42, textAlign:"center", marginBottom:8 }}>🔥</div>
+            <p className="modal-eyebrow">Серия</p>
+            <h3 className="modal-title">Все обязательные квесты выполнены!</h3>
+            <p className="modal-text">
+              Серия: {streakModal.streak} {streakModal.streak === 1 ? "день" : streakModal.streak < 5 ? "дня" : "дней"} подряд. Так держать!
+            </p>
+            <button className="btn btn-primary" onClick={() => setStreakModal(null)}>Огонь 🔥</button>
+          </div>
+        </div>
+      )}
+
+      {chestModal && (
+        <div className="modal-overlay" onClick={() => setChestModal(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:56, textAlign:"center", marginBottom:8 }}>{chestModal.icon}</div>
+            <p className="modal-eyebrow">Награда за серию</p>
+            <h3 className="modal-title">{chestModal.name}!</h3>
+            <p className="modal-text">
+              Серия {chestModal.threshold} дней подряд — ты заслужил это!
+            </p>
+            <div style={{ display:"flex", gap:16, justifyContent:"center", margin:"12px 0" }}>
+              {chestModal.gold > 0 && (
+                <span style={{ fontSize:18, fontWeight:700, color:"#fcd34d" }}>💰 +{chestModal.gold}</span>
+              )}
+              {chestModal.xp > 0 && (
+                <span style={{ fontSize:18, fontWeight:700, color:"#818cf8" }}>⚡ +{chestModal.xp} XP</span>
+              )}
+            </div>
+            <button className="btn btn-primary" onClick={() => setChestModal(null)}>Забрать 🎉</button>
+          </div>
+        </div>
+      )}
+
+      {showNicknameModal && (
+        <NicknameModal
+          token={token}
+          onDone={(name) => {
+            setShowNicknameModal(false);
+            setUser(u => ({ ...u, name, nameSet: true }));
+          }}
+        />
+      )}
+
+      {showScrollModal && (
+        <div className="modal-overlay" onClick={() => { setShowScrollModal(false); setScrollName(""); setScrollError(""); }}>
+          <div className="modal-card" style={{ maxWidth:360 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:36, textAlign:"center", marginBottom:8 }}>📜</div>
+            <p className="modal-eyebrow">Свиток прошлого</p>
+            <h3 className="modal-title">Смена имени</h3>
+            <p className="modal-text">Свиток будет использован и исчезнет навсегда. Введи новый ник.</p>
+            <input
+              className="input"
+              placeholder="Новый ник"
+              value={scrollName}
+              onChange={e => setScrollName(e.target.value)}
+              maxLength={30}
+              autoFocus
+            />
+            {scrollError && <p style={{ color:"#f87171", fontSize:13, margin:"6px 0 0" }}>{scrollError}</p>}
+            <div className="modal-actions" style={{ marginTop:16 }}>
+              <button className="btn btn-ghost" onClick={() => {
+                setShowScrollModal(false); setScrollName(""); setScrollError("");
+              }}>Отмена</button>
+              <button className="btn btn-primary" disabled={scrollBusy || !scrollName.trim()}
+                onClick={async () => {
+                  try {
+                    setScrollBusy(true); setScrollError("");
+                    await axios.post(`${API}/me/use-scroll`, { name: scrollName }, authHeaders);
+                    setUser(u => ({ ...u, name: scrollName.trim() }));
+                    setShowScrollModal(false); setScrollName("");
+                    showToast("Имя изменено!", "success");
+                  } catch (e) {
+                    setScrollError(e.response?.data?.message || "Ошибка");
+                  } finally { setScrollBusy(false); }
+                }}>
+                {scrollBusy ? "..." : "Применить свиток"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rulesOpen && (
+        <div className="modal-overlay" onClick={() => setRulesOpen(false)}>
+          <div className="modal-card rules-card" onClick={e => e.stopPropagation()}>
+            <Rules />
+            <button className="btn btn-primary" onClick={() => setRulesOpen(false)}>Понятно</button>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+    </div>
+  );
+}
+
+function QuestCard({ task, loading, onComplete, onDelete, showDelete }) {
+  const difficulty = getDifficultyMeta(task.difficulty);
+  return (
+    <div className={`quest-card ${task.completed ? "completed" : ""}`} style={{ opacity: loading ? 0.55 : 1 }}>
+      <div className="quest-main">
+        <h4 className="quest-title">{task.title}</h4>
+        <div className="quest-meta">
+          <span className="difficulty-pill">
+            <span className="difficulty-dot" style={{ background: difficulty.color }} />
+            {difficulty.label}
+          </span>
+          <span className="quest-reward">+{task.xpReward} XP · +{task.goldReward} золота</span>
+        </div>
+      </div>
+      <div className="quest-actions">
+        {!task.completed ? (
+          <button className="btn btn-primary btn-sm" disabled={loading} onClick={onComplete}>
+            {loading ? "..." : "Выполнить"}
+          </button>
+        ) : (
+          <span className="completed-label">Выполнено</span>
+        )}
+        {showDelete && <button className="btn btn-danger btn-sm" onClick={onDelete}>Удалить</button>}
+      </div>
+    </div>
+  );
+}

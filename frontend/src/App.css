@@ -1796,3 +1796,28 @@ body {
   font-size: 12px;
   margin: 0;
 }
+/* ── PlayerCard tooltips ── */
+.pc-tooltip {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.9);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #fff;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.player-card { position: relative; }
+
+.player-stat-btn {
+  cursor: pointer;
+  transition: opacity 0.15s;
+  user-select: none;
+}
+.player-stat-btn:hover { opacity: 0.75; }
