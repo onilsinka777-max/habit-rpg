@@ -9,10 +9,11 @@ import Rules from "./components/Rules";
 import Mastery from "./components/Mastery";
 import Journal from "./components/Journal";
 import Goals from "./components/Goals";
+import NicknameModal from "./components/NicknameModal";
 import ToastContainer from "./components/Toast";
 import "./App.css";
 
-const API = "https://habit-rpg-production.up.railway.app";
+const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 const BRANCHES = [
   { key:"discipline",       label:"Дисциплина",  icon:"🛡️", accent:"#8d8cf8", glow:"rgba(141,140,248,0.35)" },
@@ -43,14 +44,10 @@ const NAV_ITEMS = [
   { key:"friends", label:"Друзья",     icon:"🤝", theme:FRIENDS_THEME },
   { key:"journal", label:"Дневник",    icon:"📔", theme:JOURNAL_THEME },
   { key:"goals",   label:"Цели",       icon:"🎯", theme:GOALS_THEME   },
-  {
-    key:"clan",    label:"Клан",       icon:"⚔️", theme:CLAN_THEME,
-    lockLevel:CLAN_UNLOCK_LEVEL, lockMessage:"Кланы доступны с 10 уровня",
-  },
-  {
-    key:"mastery", label:"Мастерство", icon:"🌟", theme:MASTERY_THEME,
-    lockLevel:MASTERY_UNLOCK_LEVEL, lockMessage:"Ветка развития доступна с 25 уровня",
-  },
+  { key:"clan",    label:"Клан",       icon:"⚔️", theme:CLAN_THEME,
+    lockLevel:CLAN_UNLOCK_LEVEL, lockMessage:"Кланы доступны с 10 уровня" },
+  { key:"mastery", label:"Мастерство", icon:"🌟", theme:MASTERY_THEME,
+    lockLevel:MASTERY_UNLOCK_LEVEL, lockMessage:"Ветка развития доступна с 25 уровня" },
 ];
 
 const TYPE_META = {
@@ -92,16 +89,20 @@ export default function App() {
   const [library,       setLibrary]       = useState([]);
   const [shopLoadingId, setShopLoadingId] = useState(null);
 
-  const [toasts,        setToasts]        = useState([]);
-  const [confirmDialog, setConfirmDialog] = useState(null);
-  const [levelUpInfo,   setLevelUpInfo]   = useState(null);
-  const [streakModal,   setStreakModal]   = useState(null);
+  const [toasts,             setToasts]             = useState([]);
+  const [confirmDialog,      setConfirmDialog]      = useState(null);
+  const [levelUpInfo,        setLevelUpInfo]        = useState(null);
+  const [streakModal,        setStreakModal]         = useState(null);
+  const [showNicknameModal,  setShowNicknameModal]  = useState(false);
+  const [showScrollModal,    setShowScrollModal]    = useState(false);
+  const [scrollName,         setScrollName]         = useState("");
+  const [scrollError,        setScrollError]        = useState("");
+  const [scrollBusy,         setScrollBusy]         = useState(false);
 
   const currentNavItem = NAV_ITEMS.find(n => n.key === view);
-  const branchTheme = TAB_BRANCHES.find(b => b.key === activeBranch) || BRANCHES[0];
+  const branchTheme    = TAB_BRANCHES.find(b => b.key === activeBranch) || BRANCHES[0];
   const effectiveTheme = view === "quests" ? branchTheme : (currentNavItem?.theme || QUESTS_NAV_THEME);
-
-  const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+  const authHeaders    = { headers: { Authorization: `Bearer ${token}` } };
 
   const showToast = (message, type = "error") => {
     const id = Date.now() + Math.random();
@@ -117,6 +118,7 @@ export default function App() {
     try {
       const res = await axios.get(`${API}/me`, authHeaders);
       setUser(res.data);
+      if (!res.data.nameSet) setShowNicknameModal(true);
       if (res.data.dailyBonusJustClaimed) {
         showToast(`С возвращением! +${res.data.dailyBonusGold} золота, +${res.data.dailyBonusXp} опыта`, "success");
       }
@@ -170,23 +172,12 @@ export default function App() {
     setToken(""); setUser(null); setTasks([]);
   };
 
-  const updateName = async (name) => {
-    try {
-      await axios.patch(`${API}/me`, { name }, authHeaders);
-      await loadProfile();
-    } catch (e) { showToast(e.response?.data?.message || "Не удалось обновить имя", "error"); }
-  };
-
   const createTask = async () => {
     if (!newTaskTitle.trim()) return;
     try {
-      const res = await axios.post(`${API}/tasks`, {
-        title: newTaskTitle, branch: newTaskBranch, difficulty: newTaskDifficulty,
-      }, authHeaders);
+      const res = await axios.post(`${API}/tasks`, { title: newTaskTitle, branch: newTaskBranch, difficulty: newTaskDifficulty }, authHeaders);
       setNewTaskTitle(""); setNewTaskDifficulty("easy");
-      if (res.data.customQuestsCreatedToday !== undefined) {
-        setCustomQuestsCreatedToday(res.data.customQuestsCreatedToday);
-      }
+      if (res.data.customQuestsCreatedToday !== undefined) setCustomQuestsCreatedToday(res.data.customQuestsCreatedToday);
       await loadTasks();
     } catch (e) { showToast(e.response?.data?.message || "Не удалось создать квест", "error"); }
   };
@@ -205,20 +196,12 @@ export default function App() {
     try {
       setLoadingTaskId(id);
       const prevLevel = user?.level || 1;
-
       const completeRes = await axios.patch(`${API}/tasks/${id}/complete`, {}, authHeaders);
       await loadTasks();
-
-      if (completeRes.data.freezeConsumed) {
-        showToast("Заморозка стрика сработала — серия не сброшена!", "success");
-      }
-      if (completeRes.data.streakJustCompleted) {
-        setStreakModal({ streak: completeRes.data.newStreak });
-      }
-
+      if (completeRes.data.freezeConsumed) showToast("Заморозка стрика сработала — серия не сброшена!", "success");
+      if (completeRes.data.streakJustCompleted) setStreakModal({ streak: completeRes.data.newStreak });
       const res = await axios.get(`${API}/me`, authHeaders);
       setUser(res.data);
-
       if (res.data.level > prevLevel) {
         const newLevel = res.data.level;
         let unlock = null;
@@ -226,9 +209,8 @@ export default function App() {
         if (newLevel >= MASTERY_UNLOCK_LEVEL && prevLevel < MASTERY_UNLOCK_LEVEL) unlock = "🌟 Ветка Мастерства разблокирована!";
         setLevelUpInfo({ level: newLevel, unlock });
       }
-    } catch (e) {
-      showToast(e.response?.data?.message || "Ошибка выполнения", "error");
-    } finally { setLoadingTaskId(null); }
+    } catch (e) { showToast(e.response?.data?.message || "Ошибка выполнения", "error"); }
+    finally { setLoadingTaskId(null); }
   };
 
   const deleteTask = async (id) => {
@@ -243,27 +225,21 @@ export default function App() {
       setShopLoadingId(item.id);
       await axios.post(`${API}/shop/${item.id}/purchase`, {}, authHeaders);
       await loadShop(); await loadLibrary(); await loadProfile();
+      showToast(`«${item.title}» куплено!`, "success");
     } catch (e) { showToast(e.response?.data?.message || "Не удалось купить", "error"); }
     finally { setShopLoadingId(null); }
   };
 
-  useEffect(() => {
-    if (token) { loadProfile(); loadTasks(); }
-  }, [token]);
-
-  useEffect(() => {
-    if (token && (view === "shop" || view === "library")) { loadShop(); loadLibrary(); }
-  }, [token, view]);
+  useEffect(() => { if (token) { loadProfile(); loadTasks(); } }, [token]);
+  useEffect(() => { if (token && (view === "shop" || view === "library")) { loadShop(); loadLibrary(); } }, [token, view]);
 
   const branchTasks    = tasks.filter(t => t.branch === activeBranch && (t.type === "required" || t.type === "recommended"));
   const legendaryTasks = tasks.filter(t => t.type === "legendary" && !t.completed);
   const customTasks    = tasks.filter(t => t.type === "custom");
-
-  const tasksByType = {
+  const tasksByType    = {
     required:    branchTasks.filter(t => t.type === "required"),
     recommended: branchTasks.filter(t => t.type === "recommended"),
   };
-
   const customSlotsLeft = Math.max(0, customQuestsMax - customQuestsCreatedToday);
   const rootStyle = { "--accent": effectiveTheme.accent, "--accent-glow": effectiveTheme.glow };
 
@@ -298,7 +274,6 @@ export default function App() {
               style={{ background: effectiveTheme.accent, boxShadow: `0 8px 20px ${effectiveTheme.glow}` }}>
               {navOpen ? "✕" : "☰"}
             </button>
-
             {navOpen && (
               <div className="nav-dropdown-menu">
                 {NAV_ITEMS.map(item => {
@@ -309,13 +284,10 @@ export default function App() {
                     <button key={item.key}
                       className={`nav-dropdown-item ${isActive && !locked ? "active" : ""} ${locked ? "locked" : ""}`}
                       style={isActive && !locked ? { background: item.theme.accent } : undefined}
-                      title={locked ? item.lockMessage : undefined}
                       onClick={() => {
                         if (locked) { showToast(item.lockMessage, "error"); return; }
-                        setView(item.key);
-                        setNavOpen(false);
-                      }}
-                    >
+                        setView(item.key); setNavOpen(false);
+                      }}>
                       <span>{locked ? "🔒" : item.icon}</span> {item.label}
                     </button>
                   );
@@ -323,18 +295,22 @@ export default function App() {
               </div>
             )}
           </div>
-
           <div>
             <p className="topbar-eyebrow">Геймификация жизни</p>
             <h1 className="brand-title">Habit RPG</h1>
           </div>
-
-          <button className="rules-btn" onClick={() => setRulesOpen(true)} title="Как это работает">?</button>
+          <button className="rules-btn" onClick={() => setRulesOpen(true)}>?</button>
         </header>
 
         {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
 
-        {user && <PlayerCard user={user} onLogout={logout} onUpdateName={updateName} />}
+        {user && (
+          <PlayerCard
+            user={user}
+            onLogout={logout}
+            onOpenScroll={() => setShowScrollModal(true)}
+          />
+        )}
 
         {view === "shop"    && <Shop items={shopItems} gold={user?.gold || 0} loadingId={shopLoadingId} onPurchase={purchaseItem} streakFreezeCount={user?.streakFreezeCount || 0} />}
         {view === "library" && <Library library={library} />}
@@ -361,10 +337,8 @@ export default function App() {
                 <button key={b.key}
                   className={`branch-tab ${activeBranch === b.key ? "active" : ""}`}
                   style={activeBranch === b.key ? { background: b.accent, boxShadow: `0 8px 20px ${b.glow}` } : undefined}
-                  onClick={() => setActiveBranch(b.key)}
-                >
-                  <span className="branch-icon">{b.icon}</span>
-                  {b.label}
+                  onClick={() => setActiveBranch(b.key)}>
+                  <span className="branch-icon">{b.icon}</span>{b.label}
                 </button>
               ))}
             </nav>
@@ -373,30 +347,19 @@ export default function App() {
               {activeBranch === "custom" ? (
                 <section className="quest-section">
                   <div className="section-eyebrow"><span>✏️</span> Свои квесты</div>
-
                   <p className="quest-limit-note">
-                    {customSlotsLeft > 0
-                      ? `Осталось ${customSlotsLeft} из ${customQuestsMax} квестов на сегодня`
-                      : "Лимит на сегодня исчерпан — новые слоты появятся завтра"}
+                    {customSlotsLeft > 0 ? `Осталось ${customSlotsLeft} из ${customQuestsMax} квестов на сегодня` : "Лимит на сегодня исчерпан — новые слоты появятся завтра"}
                   </p>
-
                   <div className="new-quest-form" style={{ flexWrap:"wrap" }}>
-                    <select className="select" value={newTaskBranch}
-                      onChange={e => setNewTaskBranch(e.target.value)} disabled={customSlotsLeft === 0}>
+                    <select className="select" value={newTaskBranch} onChange={e => setNewTaskBranch(e.target.value)} disabled={customSlotsLeft === 0}>
                       {BRANCHES.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
                     </select>
-                    <input className="input" placeholder="Название квеста"
-                      value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)}
-                      disabled={customSlotsLeft === 0} />
-                    <select className="select" value={newTaskDifficulty}
-                      onChange={e => setNewTaskDifficulty(e.target.value)} disabled={customSlotsLeft === 0}>
+                    <input className="input" placeholder="Название квеста" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} disabled={customSlotsLeft === 0} />
+                    <select className="select" value={newTaskDifficulty} onChange={e => setNewTaskDifficulty(e.target.value)} disabled={customSlotsLeft === 0}>
                       {DIFFICULTIES.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
                     </select>
-                    <button className="btn btn-primary" onClick={createTask} disabled={customSlotsLeft === 0}>
-                      Добавить
-                    </button>
+                    <button className="btn btn-primary" onClick={createTask} disabled={customSlotsLeft === 0}>Добавить</button>
                   </div>
-
                   {customTasks.length === 0 ? (
                     <p className="empty-state">Нет своих квестов — добавь первый выше.</p>
                   ) : (
@@ -404,10 +367,7 @@ export default function App() {
                       {customTasks.map(t => (
                         <QuestCard key={t.id} task={t} loading={loadingTaskId === t.id}
                           onComplete={() => confirmComplete(t)}
-                          onDelete={() => askConfirm({
-                            title:"Удалить квест?", text:"Слот не вернётся.",
-                            confirmLabel:"Удалить", onConfirm:() => deleteTask(t.id),
-                          })}
+                          onDelete={() => askConfirm({ title:"Удалить квест?", text:"Слот не вернётся.", confirmLabel:"Удалить", onConfirm:() => deleteTask(t.id) })}
                           showDelete={!t.completed} />
                       ))}
                     </div>
@@ -418,8 +378,7 @@ export default function App() {
                   {["required","recommended"].map(type => (
                     <section className="quest-section" key={type}>
                       <div className="section-eyebrow">
-                        <span>{TYPE_META[type].icon}</span>
-                        {TYPE_META[type].label}
+                        <span>{TYPE_META[type].icon}</span>{TYPE_META[type].label}
                       </div>
                       {tasksByType[type].length === 0 ? (
                         <p className="empty-state">Квесты обновятся в начале нового дня.</p>
@@ -427,8 +386,7 @@ export default function App() {
                         <div className="quest-list">
                           {tasksByType[type].map(t => (
                             <QuestCard key={t.id} task={t} loading={loadingTaskId === t.id}
-                              onComplete={() => confirmComplete(t)}
-                              onDelete={() => deleteTask(t.id)} showDelete={false} />
+                              onComplete={() => confirmComplete(t)} onDelete={() => deleteTask(t.id)} showDelete={false} />
                           ))}
                         </div>
                       )}
@@ -441,7 +399,8 @@ export default function App() {
         )}
       </div>
 
-      {/* Confirm */}
+      {/* ── Modals ── */}
+
       {confirmDialog && (
         <div className="modal-overlay" onClick={() => setConfirmDialog(null)}>
           <div className="modal-card" onClick={e => e.stopPropagation()}>
@@ -450,17 +409,12 @@ export default function App() {
             <p className="modal-text">{confirmDialog.text}</p>
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={() => setConfirmDialog(null)}>Отмена</button>
-              <button className="btn btn-primary" onClick={() => {
-                const fn = confirmDialog.onConfirm;
-                setConfirmDialog(null);
-                fn();
-              }}>{confirmDialog.confirmLabel}</button>
+              <button className="btn btn-primary" onClick={() => { const fn = confirmDialog.onConfirm; setConfirmDialog(null); fn(); }}>{confirmDialog.confirmLabel}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Level up */}
       {levelUpInfo && (
         <div className="modal-overlay" onClick={() => setLevelUpInfo(null)}>
           <div className="modal-card level-up-card" onClick={e => e.stopPropagation()}>
@@ -474,22 +428,54 @@ export default function App() {
         </div>
       )}
 
-      {/* Streak */}
       {streakModal && (
         <div className="modal-overlay" onClick={() => setStreakModal(null)}>
           <div className="modal-card" onClick={e => e.stopPropagation()}>
             <div style={{ fontSize:42, textAlign:"center", marginBottom:8 }}>🔥</div>
             <p className="modal-eyebrow">Серия</p>
             <h3 className="modal-title">Все обязательные квесты выполнены!</h3>
-            <p className="modal-text">
-              Серия: {streakModal.streak} {streakModal.streak === 1 ? "день" : streakModal.streak < 5 ? "дня" : "дней"} подряд. Так держать!
-            </p>
+            <p className="modal-text">Серия: {streakModal.streak} {streakModal.streak === 1 ? "день" : streakModal.streak < 5 ? "дня" : "дней"} подряд. Так держать!</p>
             <button className="btn btn-primary" onClick={() => setStreakModal(null)}>Огонь 🔥</button>
           </div>
         </div>
       )}
 
-      {/* Rules */}
+      {showNicknameModal && (
+        <NicknameModal
+          token={token}
+          onDone={(name) => { setShowNicknameModal(false); setUser(u => ({ ...u, name, nameSet: true })); }}
+        />
+      )}
+
+      {showScrollModal && (
+        <div className="modal-overlay" onClick={() => { setShowScrollModal(false); setScrollName(""); setScrollError(""); }}>
+          <div className="modal-card" style={{ maxWidth:360 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:36, textAlign:"center", marginBottom:8 }}>📜</div>
+            <p className="modal-eyebrow">Свиток прошлого</p>
+            <h3 className="modal-title">Смена имени</h3>
+            <p className="modal-text">Свиток будет использован и исчезнет навсегда. Введи новый ник.</p>
+            <input className="input" placeholder="Новый ник" value={scrollName} onChange={e => setScrollName(e.target.value)} maxLength={30} autoFocus />
+            {scrollError && <p style={{ color:"#f87171", fontSize:13, margin:"6px 0 0" }}>{scrollError}</p>}
+            <div className="modal-actions" style={{ marginTop:16 }}>
+              <button className="btn btn-ghost" onClick={() => { setShowScrollModal(false); setScrollName(""); setScrollError(""); }}>Отмена</button>
+              <button className="btn btn-primary" disabled={scrollBusy || !scrollName.trim()}
+                onClick={async () => {
+                  try {
+                    setScrollBusy(true); setScrollError("");
+                    await axios.post(`${API}/me/use-scroll`, { name: scrollName }, authHeaders);
+                    setUser(u => ({ ...u, name: scrollName.trim() }));
+                    setShowScrollModal(false); setScrollName("");
+                    showToast("Имя изменено!", "success");
+                  } catch (e) { setScrollError(e.response?.data?.message || "Ошибка"); }
+                  finally { setScrollBusy(false); }
+                }}>
+                {scrollBusy ? "..." : "Применить свиток"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {rulesOpen && (
         <div className="modal-overlay" onClick={() => setRulesOpen(false)}>
           <div className="modal-card rules-card" onClick={e => e.stopPropagation()}>
@@ -526,9 +512,7 @@ function QuestCard({ task, loading, onComplete, onDelete, showDelete }) {
         ) : (
           <span className="completed-label">Выполнено</span>
         )}
-        {showDelete && (
-          <button className="btn btn-danger btn-sm" onClick={onDelete}>Удалить</button>
-        )}
+        {showDelete && <button className="btn btn-danger btn-sm" onClick={onDelete}>Удалить</button>}
       </div>
     </div>
   );
