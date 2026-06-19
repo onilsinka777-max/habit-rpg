@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id                       Int            @id @default(autoincrement())
+  email                    String         @unique
+  password                 String
+  name                     String?        @unique
+  level                    Int            @default(1)
+  xp                       Int            @default(0)
+  gold                     Int            @default(0)
+  streak                   Int            @default(0)
+  streakFreezeCount        Int            @default(0)
+  streakUpdatedDate        DateTime?
+  customQuestsCreatedToday Int            @default(0)
+  customQuestsResetDate    DateTime?
+  masteryPath              String?
+  masteryNodeIndex         Int            @default(0)
+  masteryChoices           String?
+  masteryStatusChangesLeft Int            @default(1)
+  hasEverFinishedMastery   Boolean        @default(false)
+  lastMasteryQuestDate     DateTime?
+  xpBoostExpiresAt         DateTime?
+  goldBoostExpiresAt       DateTime?
+  xpBoostPermanent         Boolean        @default(false)
+  goldBoostPermanent       Boolean        @default(false)
+  lastTaskDate             DateTime?
+  lastLoginBonusDate       DateTime?
+  lastActiveAt             DateTime?
+  clanId                   Int?
+  clanRole                 String?
+  clan                     Clan?          @relation(fields: [clanId], references: [id])
+  clanMessages             ClanMessage[]
+  tasks                    Task[]
+  purchases                Purchase[]
+  friendshipsFrom          Friendship[]   @relation("FriendshipUser")
+  friendshipsTo            Friendship[]   @relation("FriendshipFriend")
+  journalEntries           JournalEntry[]
+  goals                    Goal[]
+  createdAt                DateTime       @default(now())
+}
+
+model JournalEntry {
+  id        Int      @id @default(autoincrement())
+  content   String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Goal {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?
+  targetDate  DateTime?
+  completed   Boolean   @default(false)
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id])
+  createdAt   DateTime  @default(now())
+}
+
+model Task {
+  id           Int       @id @default(autoincrement())
+  title        String
+  description  String?
+  branch       String
+  type         String    @default("custom")
+  difficulty   String    @default("easy")
+  xpReward     Int       @default(10)
+  goldReward   Int       @default(5)
+  completed    Boolean   @default(false)
+  isDaily      Boolean   @default(false)
+  expiresAt    DateTime?
+  penalized    Boolean   @default(false)
+  userId       Int
+  user         User      @relation(fields: [userId], references: [id])
+  createdAt    DateTime  @default(now())
+}
+
+model QuestTemplate {
+  id           Int       @id @default(autoincrement())
+  title        String
+  description  String?
+  branch       String
+  type         String
+  difficulty   String
+  minLevel     Int       @default(1)
+  maxLevel     Int?
+  xpReward     Int
+  goldReward   Int
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+}
+
+model LegendaryQuestTemplate {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  branch      String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model ShopItem {
+  id           Int        @id @default(autoincrement())
+  title        String
+  description  String?
+  category     String
+  price        Int
+  content      String?
+  contentUrl   String?
+  effect       String?
+  active       Boolean    @default(true)
+  purchases    Purchase[]
+  createdAt    DateTime   @default(now())
+}
+
+model Purchase {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  user          User      @relation(fields: [userId], references: [id])
+  itemId        Int
+  item          ShopItem  @relation(fields: [itemId], references: [id])
+  purchasedAt   DateTime  @default(now())
+
+  @@unique([userId, itemId])
+}
+
+model Clan {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  tag         String        @unique
+  description String?
+  bannerIcon  String        @default("🏋️")
+  bannerColor String        @default("#fb923c")
+  createdAt   DateTime      @default(now())
+  members     User[]
+  messages    ClanMessage[]
+}
+
+model ClanMessage {
+  id        Int      @id @default(autoincrement())
+  text      String
+  clanId    Int
+  clan      Clan     @relation(fields: [clanId], references: [id])
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Friendship {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation("FriendshipUser", fields: [userId], references: [id])
+  friendId  Int
+  friend    User     @relation("FriendshipFriend", fields: [friendId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, friendId])
+}
