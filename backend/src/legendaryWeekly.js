@@ -21,6 +21,11 @@ async function ensureWeeklyLegendaryQuest(userId) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user.hasEverFinishedMastery) return;
 
+  // Clean up legendary quests from previous weeks
+  await prisma.task.deleteMany({
+    where: { userId, type: "legendary", expiresAt: { lt: getStartOfWeek() } },
+  });
+
   const startOfWeek = getStartOfWeek();
 
   const existing = await prisma.task.findFirst({

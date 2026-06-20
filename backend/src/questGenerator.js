@@ -1,9 +1,34 @@
 const prisma = require("./prisma");
 const {
   BRANCHES, weightedRandomDifficulty, startOfToday, endOfToday,
-  getRequiredPenaltyGold,
+  getRequiredPenaltyGold, DIFFICULTY_REWARDS,
   DAILY_REQUIRED_PER_BRANCH, DAILY_RECOMMENDED_PER_BRANCH,
 } = require("./constants");
+
+function buildQuestFromTemplate(template, userLevel) {
+  let title = template.title;
+  let description = template.description || null;
+  let difficulty = template.difficulty;
+  let xpReward = template.xpReward;
+  let goldReward = template.goldReward;
+
+  if (template.baseReps && template.repScaling != null) {
+    const actualReps = template.baseReps + Math.floor(userLevel * template.repScaling);
+    title = title.replace(/\{reps\}/g, actualReps);
+    if (description) description = description.replace(/\{reps\}/g, actualReps);
+
+    const base = template.baseReps;
+    const baseDiff = template.baseDifficulty || template.difficulty;
+    if (actualReps > base * 1.67) difficulty = "hard";
+    else if (actualReps > base * 1.25) difficulty = "medium";
+    else difficulty = baseDiff;
+
+    xpReward = DIFFICULTY_REWARDS[difficulty]?.xp || xpReward;
+    goldReward = DIFFICULTY_REWARDS[difficulty]?.gold || goldReward;
+  }
+
+  return { title, description, difficulty, xpReward, goldReward };
+}
 
 function shuffle(arr) {
   const a = [...arr];
@@ -83,9 +108,17 @@ async function ensureDailyQuests(userId) {
   for (const branch of BRANCHES) {
     for (const type of ["required", "recommended"]) {
       const existing = activeDaily.filter((t) => t.branch === branch && t.type === type);
-      const existingTitles = new Set(existing.map((t) => t.title));
       const needed = TARGET_COUNTS[type] - existing.length;
-      if (needed <= 0) continue;
+      if (needed < 0) {
+        // Trim excess quests (keep completed ones, delete non-completed excess)
+        const toDelete = existing.filter(t => !t.completed).slice(0, -needed);
+        if (toDelete.length > 0) {
+          await prisma.task.deleteMany({ where: { id: { in: toDelete.map(t => t.id) } } });
+        }
+        continue;
+      }
+      if (needed === 0) continue;
+      const existingTitles = new Set(existing.map((t) => t.title));
 
       const allTemplates = await findTemplatesForLevel(branch, type, user.level);
       const pool = shuffle(allTemplates.filter((t) => !existingTitles.has(t.title)));
@@ -96,15 +129,16 @@ async function ensureDailyQuests(userId) {
         if (idx === -1) idx = 0;
         const [template] = pool.splice(idx, 1);
 
+        const built = buildQuestFromTemplate(template, user.level);
         await prisma.task.create({
           data: {
-            title: template.title,
-            description: template.description,
+            title: built.title,
+            description: built.description,
             branch: template.branch,
             type: template.type,
-            difficulty: template.difficulty,
-            xpReward: template.xpReward,
-            goldReward: template.goldReward,
+            difficulty: built.difficulty,
+            xpReward: built.xpReward,
+            goldReward: built.goldReward,
             isDaily: true,
             expiresAt: endOfToday(),
             userId,

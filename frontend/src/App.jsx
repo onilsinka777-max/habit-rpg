@@ -9,7 +9,33 @@ import Rules from "./components/Rules";
 import Mastery from "./components/Mastery";
 import Journal from "./components/Journal";
 import Goals from "./components/Goals";
+import Pet from "./components/Pet";
+import Achievements from "./components/Achievements";
+import Stats from "./components/Stats";
+import Pomodoro from "./components/Pomodoro";
+import Avatar from "./components/Avatar";
+import ThemePicker from "./components/ThemePicker";
+import AmbientMusic from "./components/AmbientMusic";
 import NicknameModal from "./components/NicknameModal";
+import NotificationBell from "./components/NotificationBell";
+import Season from "./components/Season";
+import QuestChains from "./components/QuestChains";
+import WorldMap from "./components/WorldMap";
+import Profile from "./components/Profile";
+import Feed from "./components/Feed";
+import WeeklyReport from "./components/WeeklyReport";
+import OnboardingTest from "./components/OnboardingTest";
+import DarkScreen from "./components/DarkScreen";
+import Marathons from "./components/Marathons";
+import Gratitude from "./components/Gratitude";
+import League from "./components/League";
+import NpcPage from "./components/NpcPage";
+import SkillTree from "./components/SkillTree";
+import AiCoach from "./components/AiCoach";
+import SmartSearch from "./components/SmartSearch";
+import OnePctWidget from "./components/OnePctWidget";
+import AdButton from "./components/AdButton";
+import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
 import ToastContainer from "./components/Toast";
 import "./App.css";
 
@@ -36,18 +62,51 @@ const MASTERY_THEME = { accent:"#c084fc", glow:"rgba(192,132,252,0.35)" };
 const JOURNAL_THEME = { accent:"#a78bfa", glow:"rgba(167,139,250,0.35)" };
 const GOALS_THEME   = { accent:"#34d399", glow:"rgba(52,211,153,0.35)"  };
 const QUESTS_NAV_THEME = { accent:"#8d8cf8", glow:"rgba(141,140,248,0.35)" };
+const PET_THEME     = { accent:"#fb7878", glow:"rgba(251,120,120,0.35)" };
+const ACH_THEME     = { accent:"#eab308", glow:"rgba(234,179,8,0.35)"   };
+const STATS_THEME   = { accent:"#38bdf8", glow:"rgba(56,189,248,0.35)"  };
+const POMO_THEME    = { accent:"#f87171", glow:"rgba(248,113,113,0.35)" };
+
+const SEASON_THEME    = { accent:"#f5b637", glow:"rgba(245,182,55,0.35)"  };
+const CHAINS_THEME    = { accent:"#c084fc", glow:"rgba(192,132,252,0.35)" };
+const MAP_THEME       = { accent:"#34d399", glow:"rgba(52,211,153,0.35)"  };
+const FEED_THEME      = { accent:"#f472b6", glow:"rgba(244,114,182,0.35)" };
+const REPORT_THEME    = { accent:"#38bdf8", glow:"rgba(56,189,248,0.35)"  };
+const PROFILE_THEME   = { accent:"#8d8cf8", glow:"rgba(141,140,248,0.35)" };
+const MARATHON_THEME  = { accent:"#fb7878", glow:"rgba(251,120,120,0.35)" };
+const LEAGUE_THEME    = { accent:"#f5b637", glow:"rgba(245,182,55,0.35)"  };
+const GRATITUDE_THEME = { accent:"#34d399", glow:"rgba(52,211,153,0.35)"  };
+const NPC_THEME       = { accent:"#c084fc", glow:"rgba(192,132,252,0.35)" };
+const SKILLS_THEME    = { accent:"#eab308", glow:"rgba(234,179,8,0.35)"   };
+const COACH_THEME     = { accent:"#6366f1", glow:"rgba(99,102,241,0.35)"  };
 
 const NAV_ITEMS = [
-  { key:"quests",  label:"Квесты",     icon:"🗺️", theme:QUESTS_NAV_THEME },
-  { key:"shop",    label:"Магазин",    icon:"🛒", theme:SHOP_THEME   },
-  { key:"library", label:"Библиотека", icon:"📚", theme:LIBRARY_THEME },
-  { key:"friends", label:"Друзья",     icon:"🤝", theme:FRIENDS_THEME },
-  { key:"journal", label:"Дневник",    icon:"📔", theme:JOURNAL_THEME },
-  { key:"goals",   label:"Цели",       icon:"🎯", theme:GOALS_THEME   },
-  { key:"clan",    label:"Клан",       icon:"⚔️", theme:CLAN_THEME,
+  { key:"quests",       label:"Квесты",          icon:"🗺️", theme:QUESTS_NAV_THEME },
+  { key:"chains",       label:"Цепочки",          icon:"⛓️", theme:CHAINS_THEME   },
+  { key:"worldmap",     label:"Карта мира",       icon:"🗾", theme:MAP_THEME      },
+  { key:"marathons",    label:"Марафоны",          icon:"🏃", theme:MARATHON_THEME },
+  { key:"season",       label:"Сезон",            icon:"🌅", theme:SEASON_THEME   },
+  { key:"league",       label:"Лиги",             icon:"🏆", theme:LEAGUE_THEME   },
+  { key:"shop",         label:"Магазин",          icon:"🛒", theme:SHOP_THEME     },
+  { key:"library",      label:"Библиотека",       icon:"📚", theme:LIBRARY_THEME  },
+  { key:"skills",       label:"Навыки",           icon:"⚡", theme:SKILLS_THEME   },
+  { key:"npc",          label:"Наставники",        icon:"👤", theme:NPC_THEME      },
+  { key:"friends",      label:"Друзья",           icon:"🤝", theme:FRIENDS_THEME  },
+  { key:"feed",         label:"Лента",            icon:"📡", theme:FEED_THEME     },
+  { key:"gratitude",    label:"Благодарности",     icon:"🌿", theme:GRATITUDE_THEME},
+  { key:"journal",      label:"Дневник",          icon:"📔", theme:JOURNAL_THEME  },
+  { key:"goals",        label:"Цели",             icon:"🎯", theme:GOALS_THEME    },
+  { key:"clan",         label:"Клан",             icon:"⚔️", theme:CLAN_THEME,
     lockLevel:CLAN_UNLOCK_LEVEL, lockMessage:"Кланы доступны с 10 уровня" },
-  { key:"mastery", label:"Мастерство", icon:"🌟", theme:MASTERY_THEME,
+  { key:"mastery",      label:"Мастерство",       icon:"🌟", theme:MASTERY_THEME,
     lockLevel:MASTERY_UNLOCK_LEVEL, lockMessage:"Ветка развития доступна с 25 уровня" },
+  { key:"pet",          label:"Питомец",          icon:"🐾", theme:PET_THEME      },
+  { key:"achievements", label:"Достижения",       icon:"🏅", theme:ACH_THEME      },
+  { key:"stats",        label:"Статистика",       icon:"📊", theme:STATS_THEME    },
+  { key:"pomodoro",     label:"Помодоро",         icon:"⏱️", theme:POMO_THEME     },
+  { key:"report",       label:"Недельный отчёт",  icon:"📈", theme:REPORT_THEME   },
+  { key:"profile",      label:"Мой профиль",      icon:"👤", theme:PROFILE_THEME  },
+  { key:"ai-coach",     label:"AI Коуч",          icon:"🤖", theme:COACH_THEME    },
 ];
 
 const TYPE_META = {
@@ -69,6 +128,12 @@ export default function App() {
   const [token,    setToken]    = useState(localStorage.getItem("token") || "");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
+  const [theme,    setTheme]    = useState(() => {
+    const saved = localStorage.getItem("theme") || "dark-fantasy";
+    document.documentElement.setAttribute("data-theme", saved);
+    return saved;
+  });
+  const [soundOn,  setSoundOn]  = useState(isSoundEnabled);
 
   const [user,  setUser]  = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -88,6 +153,9 @@ export default function App() {
   const [shopItems,     setShopItems]     = useState([]);
   const [library,       setLibrary]       = useState([]);
   const [shopLoadingId, setShopLoadingId] = useState(null);
+  const [searchOpen,    setSearchOpen]    = useState(false);
+  const [showOnboarding,setShowOnboarding]= useState(false);
+  const [darkScreen,    setDarkScreen]    = useState(null);
 
   const [toasts,             setToasts]             = useState([]);
   const [confirmDialog,      setConfirmDialog]      = useState(null);
@@ -121,6 +189,14 @@ export default function App() {
       if (!res.data.nameSet) setShowNicknameModal(true);
       if (res.data.dailyBonusJustClaimed) {
         showToast(`С возвращением! +${res.data.dailyBonusGold} золота, +${res.data.dailyBonusXp} опыта`, "success");
+      }
+      if (!res.data.onboardingDone) {
+        setShowOnboarding(true);
+      } else if (res.data.lastActiveQuestDate) {
+        try {
+          const inact = await axios.get(`${API}/me/inactivity`, authHeaders);
+          if (inact.data.inactive) setDarkScreen(inact.data);
+        } catch {}
       }
     } catch (e) { console.error(e); }
   };
@@ -175,8 +251,8 @@ export default function App() {
   const createTask = async () => {
     if (!newTaskTitle.trim()) return;
     try {
-      const res = await axios.post(`${API}/tasks`, { title: newTaskTitle, branch: newTaskBranch, difficulty: newTaskDifficulty }, authHeaders);
-      setNewTaskTitle(""); setNewTaskDifficulty("easy");
+      const res = await axios.post(`${API}/tasks`, { title: newTaskTitle }, authHeaders);
+      setNewTaskTitle("");
       if (res.data.customQuestsCreatedToday !== undefined) setCustomQuestsCreatedToday(res.data.customQuestsCreatedToday);
       await loadTasks();
     } catch (e) { showToast(e.response?.data?.message || "Не удалось создать квест", "error"); }
@@ -198,11 +274,17 @@ export default function App() {
       const prevLevel = user?.level || 1;
       const completeRes = await axios.patch(`${API}/tasks/${id}/complete`, {}, authHeaders);
       await loadTasks();
+      playQuestComplete();
       if (completeRes.data.freezeConsumed) showToast("Заморозка стрика сработала — серия не сброшена!", "success");
-      if (completeRes.data.streakJustCompleted) setStreakModal({ streak: completeRes.data.newStreak });
+      if (completeRes.data.streakJustCompleted) { setStreakModal({ streak: completeRes.data.newStreak }); playStreakComplete(); }
+      if (completeRes.data.petCreated) showToast("🥚 Питомец появился! Зайди во вкладку «Питомец»", "success");
+      for (const ach of (completeRes.data.newAchievements || [])) {
+        showToast(`${ach.icon} Достижение: «${ach.label}»`, "success");
+      }
       const res = await axios.get(`${API}/me`, authHeaders);
       setUser(res.data);
       if (res.data.level > prevLevel) {
+        playLevelUp();
         const newLevel = res.data.level;
         let unlock = null;
         if (newLevel >= CLAN_UNLOCK_LEVEL    && prevLevel < CLAN_UNLOCK_LEVEL)    unlock = "⚔️ Кланы разблокированы!";
@@ -233,8 +315,23 @@ export default function App() {
   useEffect(() => { if (token) { loadProfile(); loadTasks(); } }, [token]);
   useEffect(() => { if (token && (view === "shop" || view === "library")) { loadShop(); loadLibrary(); } }, [token, view]);
 
+  useEffect(() => {
+    const handler = (e) => {
+      if (!token) return;
+      if (e.ctrlKey && e.key === "k") { e.preventDefault(); setSearchOpen(v => !v); return; }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [token]);
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
+
   const branchTasks    = tasks.filter(t => t.branch === activeBranch && (t.type === "required" || t.type === "recommended"));
-  const legendaryTasks = tasks.filter(t => t.type === "legendary" && !t.completed);
+  const legendaryTasks = tasks.filter(t => t.type === "legendary" && !t.completed && (!t.expiresAt || new Date(t.expiresAt) > new Date()));
   const customTasks    = tasks.filter(t => t.type === "custom");
   const tasksByType    = {
     required:    branchTasks.filter(t => t.type === "required"),
@@ -247,16 +344,16 @@ export default function App() {
     return (
       <div className="auth-screen" style={{ "--accent": QUESTS_NAV_THEME.accent, "--accent-glow": QUESTS_NAV_THEME.glow }}>
         <div className="auth-card">
-          <p className="auth-eyebrow">Геймификация жизни</p>
-          <h1 className="brand-title">Habit RPG</h1>
-          <p className="auth-sub">Твой путь начинается здесь</p>
+          <h1 className="brand-title">LevelUp</h1>
+          <p className="auth-eyebrow">ГЕЙМИФИКАЦИЯ ЖИЗНИ</p>
+          <p className="auth-sub">ПУТЬ ИГРОКА НАЧИНАЕТСЯ ЗДЕСЬ</p>
           <label className="field-label">Почта</label>
-          <input className="input" placeholder="you@mail.com" value={email} onChange={e => setEmail(e.target.value)} />
+          <input className="input" placeholder="you@mail.com" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && login()} />
           <label className="field-label">Пароль</label>
-          <input className="input" placeholder="••••••" type="password" value={password} onChange={e => setPassword(e.target.value)} />
+          <input className="input" placeholder="••••••" type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && login()} />
           <div className="auth-actions">
-            <button className="btn btn-ghost" onClick={register}>Создать аккаунт</button>
-            <button className="btn btn-primary" onClick={login}>Войти</button>
+            <button className="btn btn-ghost" type="button" onClick={register}>Создать аккаунт</button>
+            <button className="btn btn-primary" type="button" onClick={login}>Войти</button>
           </div>
         </div>
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
@@ -296,10 +393,20 @@ export default function App() {
             )}
           </div>
           <div>
-            <p className="topbar-eyebrow">Геймификация жизни</p>
-            <h1 className="brand-title">Habit RPG</h1>
+            <p className="topbar-eyebrow">ГЕЙМИФИКАЦИЯ ЖИЗНИ</p>
+            <h1 className="brand-title">LevelUp</h1>
           </div>
-          <button className="rules-btn" onClick={() => setRulesOpen(true)}>?</button>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
+            <ThemePicker currentTheme={theme} onChange={setTheme} token={token} />
+            <button className="rules-btn" title={soundOn ? "Звук вкл" : "Звук выкл"}
+              onClick={() => { const next = !soundOn; setSoundOn(next); setSound(next); }}
+              style={{ fontSize:16 }}>
+              {soundOn ? "🔊" : "🔇"}
+            </button>
+            <button className="rules-btn" title="Поиск (Ctrl+K)" onClick={() => setSearchOpen(true)} style={{ fontSize:16 }}>🔍</button>
+            {token && <NotificationBell token={token} />}
+            <button className="rules-btn" onClick={() => setRulesOpen(true)}>?</button>
+          </div>
         </header>
 
         {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
@@ -309,19 +416,64 @@ export default function App() {
             user={user}
             onLogout={logout}
             onOpenScroll={() => setShowScrollModal(true)}
+            onGoToShop={() => setView("shop")}
+            onGoToProfile={() => setView("profile")}
           />
         )}
 
-        {view === "shop"    && <Shop items={shopItems} gold={user?.gold || 0} loadingId={shopLoadingId} onPurchase={purchaseItem} streakFreezeCount={user?.streakFreezeCount || 0} />}
-        {view === "library" && <Library library={library} />}
+        {view === "shop"    && <Shop items={shopItems} gold={user?.gold || 0} loadingId={shopLoadingId} onPurchase={purchaseItem} streakFreezeCount={user?.streakFreezeCount || 0} token={token} showToast={showToast} onProfileRefresh={loadProfile} />}
+        {view === "library" && <Library library={library} token={token} showToast={showToast} onProfileRefresh={loadProfile} />}
         {view === "clan"    && <Clan token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level || 1} />}
         {view === "friends" && <Friends token={token} showToast={showToast} askConfirm={askConfirm} />}
         {view === "mastery" && <Mastery token={token} showToast={showToast} askConfirm={askConfirm} myLevel={user?.level || 1} onFinished={loadProfile} />}
-        {view === "journal" && <Journal token={token} showToast={showToast} />}
-        {view === "goals"   && <Goals   token={token} showToast={showToast} askConfirm={askConfirm} />}
+        {view === "journal"       && <Journal      token={token} showToast={showToast} />}
+        {view === "goals"         && <Goals        token={token} showToast={showToast} askConfirm={askConfirm} />}
+        {view === "pet"           && <Pet          token={token} showToast={showToast} userStreak={user?.streak||0} />}
+        {view === "achievements"  && <Achievements token={token} showToast={showToast} />}
+        {view === "stats"         && <Stats        token={token} />}
+        {view === "pomodoro"      && <Pomodoro     token={token} showToast={showToast} onXpGained={loadProfile} />}
+        {view === "season"        && <Season       token={token} showToast={showToast} />}
+        {view === "chains"        && <QuestChains  token={token} showToast={showToast} askConfirm={askConfirm} />}
+        {view === "worldmap"      && <WorldMap     token={token} userLevel={user?.level || 1} showToast={showToast} />}
+        {view === "profile"       && <Profile      token={token} showToast={showToast} userId={null} currentUserId={user?.id} />}
+        {view === "feed"          && <Feed         token={token} showToast={showToast} />}
+        {view === "report"        && <WeeklyReport token={token} showToast={showToast} />}
+        {view === "marathons"     && <Marathons    token={token} showToast={showToast} />}
+        {view === "gratitude"     && <Gratitude    token={token} showToast={showToast} />}
+        {view === "league"        && <League       token={token} showToast={showToast} />}
+        {view === "npc"           && <NpcPage      token={token} showToast={showToast} />}
+        {view === "skills"        && <SkillTree    token={token} showToast={showToast} />}
+        {view === "ai-coach"      && <AiCoach      token={token} showToast={showToast} />}
+
+        {searchOpen && (
+          <SmartSearch
+            token={token}
+            onNavigate={(key) => setView(key)}
+            onClose={() => setSearchOpen(false)}
+          />
+        )}
+
+        {showOnboarding && (
+          <OnboardingTest
+            token={token}
+            onComplete={() => { setShowOnboarding(false); loadProfile(); }}
+          />
+        )}
+
+        {darkScreen && !showOnboarding && (
+          <DarkScreen
+            days={darkScreen.days}
+            xpLost={darkScreen.xpLost}
+            token={token}
+            onChallenge={() => { setDarkScreen(null); loadTasks(); showToast("Квест возрождения добавлен!", "success"); }}
+            onClose={() => setDarkScreen(null)}
+          />
+        )}
 
         {view === "quests" && (
           <>
+            <AdButton token={token} compact onGoldEarned={() => { loadProfile(); }} />
+
             {legendaryTasks.length > 0 && (
               <section className="legendary-section">
                 <div className="section-eyebrow"><span>🏆</span> Легендарный квест недели</div>
@@ -351,15 +503,16 @@ export default function App() {
                     {customSlotsLeft > 0 ? `Осталось ${customSlotsLeft} из ${customQuestsMax} квестов на сегодня` : "Лимит на сегодня исчерпан — новые слоты появятся завтра"}
                   </p>
                   <div className="new-quest-form" style={{ flexWrap:"wrap" }}>
-                    <select className="select" value={newTaskBranch} onChange={e => setNewTaskBranch(e.target.value)} disabled={customSlotsLeft === 0}>
-                      {BRANCHES.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
-                    </select>
-                    <input className="input" placeholder="Название квеста" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} disabled={customSlotsLeft === 0} />
-                    <select className="select" value={newTaskDifficulty} onChange={e => setNewTaskDifficulty(e.target.value)} disabled={customSlotsLeft === 0}>
-                      {DIFFICULTIES.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
-                    </select>
-                    <button className="btn btn-primary" onClick={createTask} disabled={customSlotsLeft === 0}>Добавить</button>
+                    <input className="input" placeholder="Название квеста" value={newTaskTitle}
+                      onChange={e => setNewTaskTitle(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && createTask()}
+                      disabled={customSlotsLeft === 0}
+                      style={{ flex:1 }} />
+                    <button className="btn btn-primary" onClick={createTask} disabled={customSlotsLeft === 0 || !newTaskTitle.trim()}>Добавить</button>
                   </div>
+                  <p style={{ fontSize:11, color:"rgba(255,255,255,0.3)", margin:"4px 0 8px" }}>
+                    Сложность: средняя · Ветка назначается автоматически · Квест истекает в конце дня
+                  </p>
                   {customTasks.length === 0 ? (
                     <p className="empty-state">Нет своих квестов — добавь первый выше.</p>
                   ) : (
@@ -486,27 +639,50 @@ export default function App() {
       )}
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      <AmbientMusic />
     </div>
   );
 }
 
 function QuestCard({ task, loading, onComplete, onDelete, showDelete }) {
-  const difficulty = getDifficultyMeta(task.difficulty);
+  const isLegendary = task.type === "legendary";
+  const difficulty  = getDifficultyMeta(task.difficulty);
+  const legendaryStyle = isLegendary ? {
+    boxShadow : "0 0 20px rgba(245,182,55,0.55), 0 0 40px rgba(245,182,55,0.2)",
+    border     : "2px solid #f5b637",
+    background : "linear-gradient(135deg,rgba(245,182,55,0.12) 0%,rgba(30,27,50,0.95) 100%)",
+  } : {};
   return (
-    <div className={`quest-card ${task.completed ? "completed" : ""}`} style={{ opacity: loading ? 0.55 : 1 }}>
+    <div className={`quest-card ${task.completed ? "completed" : ""} ${isLegendary ? "legendary-card" : ""}`}
+      style={{ opacity: loading ? 0.55 : 1, ...legendaryStyle }}>
       <div className="quest-main">
-        <h4 className="quest-title">{task.title}</h4>
+        {isLegendary && (
+          <div style={{ fontSize:11, fontWeight:800, color:"#f5b637", marginBottom:5, letterSpacing:1.5,
+            display:"flex", alignItems:"center", gap:5 }}>
+            <span>⚔️</span> ЛЕГЕНДАРНЫЙ
+          </div>
+        )}
+        <h4 className="quest-title" style={isLegendary ? { color:"#fde68a" } : {}}>{task.title}</h4>
+        {task.description && (
+          <p style={{ fontSize:12, color:"rgba(255,255,255,0.45)", margin:"3px 0 0", lineHeight:1.4 }}>{task.description}</p>
+        )}
         <div className="quest-meta">
-          <span className="difficulty-pill">
-            <span className="difficulty-dot" style={{ background: difficulty.color }} />
-            {difficulty.label}
+          {!isLegendary && (
+            <span className="difficulty-pill">
+              <span className="difficulty-dot" style={{ background: difficulty.color }} />
+              {difficulty.label}
+            </span>
+          )}
+          <span className="quest-reward" style={isLegendary ? { color:"#f5b637", fontWeight:700, fontSize:13 } : {}}>
+            +{task.xpReward} XP · +{task.goldReward} золота
           </span>
-          <span className="quest-reward">+{task.xpReward} XP · +{task.goldReward} золота</span>
+          {isLegendary && <span style={{ fontSize:10, color:"rgba(245,182,55,0.7)", fontStyle:"italic" }}>x3 награда</span>}
         </div>
       </div>
       <div className="quest-actions">
         {!task.completed ? (
-          <button className="btn btn-primary btn-sm" disabled={loading} onClick={onComplete}>
+          <button className="btn btn-sm" disabled={loading} onClick={onComplete}
+            style={isLegendary ? { background:"#f5b637", color:"#1e1b32", fontWeight:700 } : { background:"var(--accent)" }}>
             {loading ? "..." : "Выполнить"}
           </button>
         ) : (

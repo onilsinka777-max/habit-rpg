@@ -8,46 +8,91 @@ datasource db {
 }
 
 model User {
-  id                       Int            @id @default(autoincrement())
-  email                    String         @unique
+  id                       Int              @id @default(autoincrement())
+  email                    String           @unique
   password                 String
-  name                     String?        @unique
-  nameSet Boolean @default(false)
-  level                    Int            @default(1)
-  xp                       Int            @default(0)
-  gold                     Int            @default(0)
-  streak                   Int            @default(0)
-  streakFreezeCount        Int            @default(0)
+  name                     String?          @unique
+  nameSet                  Boolean          @default(false)
+  title                    String           @default("Новичок")
+  avatarStyle              String           @default("default")
+  avatarFrame              String           @default("none")
+  nicknameEffect           String           @default("none")
+  level                    Int              @default(1)
+  xp                       Int              @default(0)
+  gold                     Int              @default(0)
+  streak                   Int              @default(0)
+  streakFreezeCount        Int              @default(0)
   streakUpdatedDate        DateTime?
-  customQuestsCreatedToday Int            @default(0)
+  customQuestsCreatedToday Int              @default(0)
   customQuestsResetDate    DateTime?
   masteryPath              String?
-  masteryNodeIndex         Int            @default(0)
+  masteryNodeIndex         Int              @default(0)
   masteryChoices           String?
-  masteryStatusChangesLeft Int            @default(1)
-  hasEverFinishedMastery   Boolean        @default(false)
+  masteryStatusChangesLeft Int              @default(1)
+  hasEverFinishedMastery   Boolean          @default(false)
   lastMasteryQuestDate     DateTime?
   xpBoostExpiresAt         DateTime?
   goldBoostExpiresAt       DateTime?
-  xpBoostPermanent         Boolean        @default(false)
-  goldBoostPermanent       Boolean        @default(false)
+  xpBoostPermanent         Boolean          @default(false)
+  goldBoostPermanent       Boolean          @default(false)
   lastTaskDate             DateTime?
   lastLoginBonusDate       DateTime?
   lastActiveAt             DateTime?
+  lastLoginAt              DateTime?
+  lastActiveQuestDate      DateTime?
+  weeklyXp                 Int              @default(0)
+  weeklyXpUpdatedAt        DateTime?
   clanId                   Int?
   clanRole                 String?
-  clan                     Clan?          @relation(fields: [clanId], references: [id])
+  lastChestStreak          Int              @default(0)
+  dailyGiftSentAt          DateTime?
+  dailyGiftSentTo          Int?
+  onboardingDone           Boolean          @default(false)
+  onboardingData           String?
+  hiddenClass              String?
+  aiCoachAdvice            String?
+  aiCoachUpdatedAt         DateTime?
+  lastJournalBonusDate     DateTime?
+  lastGratitudeBonusDate   DateTime?
+  lastPomodoroBonusDate    DateTime?
+  lastGoalBonusDate        DateTime?
+  firstQuestBonusDate      DateTime?
+  lastAdWatchedAt          DateTime?
+  adWatchesToday           Int              @default(0)
+  clan                     Clan?            @relation(fields: [clanId], references: [id])
   clanMessages             ClanMessage[]
   tasks                    Task[]
   purchases                Purchase[]
-  friendshipsFrom          Friendship[]   @relation("FriendshipUser")
-  friendshipsTo            Friendship[]   @relation("FriendshipFriend")
+  friendshipsFrom          Friendship[]     @relation("FriendshipUser")
+  friendshipsTo            Friendship[]     @relation("FriendshipFriend")
   journalEntries           JournalEntry[]
   goals                    Goal[]
-  createdAt                DateTime       @default(now())
-  lastChestStreak      Int            @default(0)
-  friendRequestsFrom   FriendRequest[] @relation("RequestsFrom")
-  friendRequestsTo     FriendRequest[] @relation("RequestsTo")
+  friendRequestsFrom       FriendRequest[]  @relation("RequestsFrom")
+  friendRequestsTo         FriendRequest[]  @relation("RequestsTo")
+  pet                      Pet?
+  achievements             Achievement[]
+  sentMessages             DirectMessage[]  @relation("DMFrom")
+  receivedMessages         DirectMessage[]  @relation("DMTo")
+  notifications            Notification[]
+  coopQuestsCreated        CoopQuest[]      @relation("CoopCreator")
+  coopQuestsReceived       CoopQuest[]      @relation("CoopPartner")
+  reactionsGiven           Reaction[]       @relation("ReactorUser")
+  reactionsReceived        Reaction[]       @relation("TargetUser")
+  activityFeed             ActivityFeed[]
+  userArtifacts            UserArtifact[]
+  seasonProgress           SeasonProgress[]
+  chainProgress            QuestChainProgress[]
+  gratitudes               Gratitude[]
+  marathonProgress         MarathonProgress[]
+  userLeague               UserLeague?
+  duelsAsChallenger        Duel[]           @relation("DuelChallenger")
+  duelsAsChallenged        Duel[]           @relation("DuelChallenged")
+  sharedStreaksAs1         SharedStreak[]   @relation("SharedStreakUser1")
+  sharedStreaksAs2         SharedStreak[]   @relation("SharedStreakUser2")
+  npcInteractions          NpcInteraction[]
+  userSkills               UserSkill[]
+  easterEggs               EasterEggUnlock[]
+  createdAt                DateTime         @default(now())
 }
 
 model JournalEntry {
@@ -70,36 +115,40 @@ model Goal {
 }
 
 model Task {
-  id           Int       @id @default(autoincrement())
-  title        String
-  description  String?
-  branch       String
-  type         String    @default("custom")
-  difficulty   String    @default("easy")
-  xpReward     Int       @default(10)
-  goldReward   Int       @default(5)
-  completed    Boolean   @default(false)
-  isDaily      Boolean   @default(false)
-  expiresAt    DateTime?
-  penalized    Boolean   @default(false)
-  userId       Int
-  user         User      @relation(fields: [userId], references: [id])
-  createdAt    DateTime  @default(now())
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?
+  branch      String
+  type        String    @default("custom")
+  difficulty  String    @default("easy")
+  xpReward    Int       @default(10)
+  goldReward  Int       @default(5)
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  isDaily     Boolean   @default(false)
+  expiresAt   DateTime?
+  penalized   Boolean   @default(false)
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id])
+  createdAt   DateTime  @default(now())
 }
 
 model QuestTemplate {
-  id           Int       @id @default(autoincrement())
-  title        String
-  description  String?
-  branch       String
-  type         String
-  difficulty   String
-  minLevel     Int       @default(1)
-  maxLevel     Int?
-  xpReward     Int
-  goldReward   Int
-  active       Boolean   @default(true)
-  createdAt    DateTime  @default(now())
+  id            Int      @id @default(autoincrement())
+  title         String
+  description   String?
+  branch        String
+  type          String
+  difficulty    String
+  minLevel      Int      @default(1)
+  maxLevel      Int?
+  xpReward      Int
+  goldReward    Int
+  active        Boolean  @default(true)
+  baseReps      Int?
+  repScaling    Float?
+  baseDifficulty String?
+  createdAt     DateTime @default(now())
 }
 
 model LegendaryQuestTemplate {
@@ -112,26 +161,27 @@ model LegendaryQuestTemplate {
 }
 
 model ShopItem {
-  id           Int        @id @default(autoincrement())
-  title        String
-  description  String?
-  category     String
-  price        Int
-  content      String?
-  contentUrl   String?
-  effect       String?
-  active       Boolean    @default(true)
-  purchases    Purchase[]
-  createdAt    DateTime   @default(now())
+  id          Int        @id @default(autoincrement())
+  title       String
+  description String?
+  category    String
+  price       Int
+  content     String?
+  contentUrl  String?
+  effect      String?
+  active      Boolean    @default(true)
+  purchases   Purchase[]
+  createdAt   DateTime   @default(now())
 }
 
 model Purchase {
-  id            Int       @id @default(autoincrement())
-  userId        Int
-  user          User      @relation(fields: [userId], references: [id])
-  itemId        Int
-  item          ShopItem  @relation(fields: [itemId], references: [id])
-  purchasedAt   DateTime  @default(now())
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  itemId      Int
+  item        ShopItem @relation(fields: [itemId], references: [id])
+  purchasedAt DateTime @default(now())
+  quantity    Int      @default(1)
 
   @@unique([userId, itemId])
 }
@@ -143,9 +193,13 @@ model Clan {
   description String?
   bannerIcon  String        @default("🏋️")
   bannerColor String        @default("#fb923c")
+  warBannerActive Boolean   @default(false)
   createdAt   DateTime      @default(now())
   members     User[]
   messages    ClanMessage[]
+  clanWarsAs1 ClanWar[]     @relation("ClanWarTeam1")
+  clanWarsAs2 ClanWar[]     @relation("ClanWarTeam2")
+  warScores   ClanWarScore[]
 }
 
 model ClanMessage {
@@ -178,4 +232,378 @@ model FriendRequest {
   createdAt  DateTime @default(now())
 
   @@unique([fromUserId, toUserId])
+}
+
+model Pet {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  name      String   @default("Питомец")
+  mood      Int      @default(50)
+  lastFed   DateTime @default(now())
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Achievement {
+  id         Int        @id @default(autoincrement())
+  userId     Int
+  type       String
+  unlockedAt DateTime   @default(now())
+  user       User       @relation(fields: [userId], references: [id])
+  reactions  Reaction[]
+
+  @@unique([userId, type])
+}
+
+model DirectMessage {
+  id         Int      @id @default(autoincrement())
+  fromUserId Int
+  toUserId   Int
+  text       String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  fromUser   User     @relation("DMFrom", fields: [fromUserId], references: [id])
+  toUser     User     @relation("DMTo", fields: [toUserId], references: [id])
+}
+
+// ── NOTIFICATIONS ──────────────────────────────────────────────────────────────
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  title     String
+  text      String
+  read      Boolean  @default(false)
+  relatedId Int?
+  createdAt DateTime @default(now())
+}
+
+// ── COOP QUESTS ───────────────────────────────────────────────────────────────
+model CoopQuest {
+  id          Int      @id @default(autoincrement())
+  creatorId   Int
+  creator     User     @relation("CoopCreator", fields: [creatorId], references: [id])
+  partnerId   Int
+  partner     User     @relation("CoopPartner", fields: [partnerId], references: [id])
+  title       String
+  branch      String
+  status      String   @default("pending")
+  expiresAt   DateTime?
+  rewardGold  Int      @default(50)
+  rewardXp    Int      @default(75)
+  creatorDone Boolean  @default(false)
+  partnerDone Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+// ── REACTIONS ─────────────────────────────────────────────────────────────────
+model Reaction {
+  id            Int         @id @default(autoincrement())
+  userId        Int
+  user          User        @relation("ReactorUser", fields: [userId], references: [id])
+  targetUserId  Int
+  targetUser    User        @relation("TargetUser", fields: [targetUserId], references: [id])
+  achievementId Int?
+  achievement   Achievement? @relation(fields: [achievementId], references: [id])
+  emoji         String
+  createdAt     DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+// ── ACTIVITY FEED ─────────────────────────────────────────────────────────────
+model ActivityFeed {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  data      String
+  createdAt DateTime @default(now())
+}
+
+// ── CLAN WARS ─────────────────────────────────────────────────────────────────
+model ClanWar {
+  id        Int            @id @default(autoincrement())
+  clan1Id   Int
+  clan1     Clan           @relation("ClanWarTeam1", fields: [clan1Id], references: [id])
+  clan2Id   Int
+  clan2     Clan           @relation("ClanWarTeam2", fields: [clan2Id], references: [id])
+  startDate DateTime       @default(now())
+  endDate   DateTime
+  status    String         @default("active")
+  winnerId  Int?
+  scores    ClanWarScore[]
+  createdAt DateTime       @default(now())
+}
+
+model ClanWarScore {
+  id     Int     @id @default(autoincrement())
+  warId  Int
+  war    ClanWar @relation(fields: [warId], references: [id])
+  clanId Int
+  clan   Clan    @relation(fields: [clanId], references: [id])
+  score  Int     @default(0)
+}
+
+// ── SEASONS ───────────────────────────────────────────────────────────────────
+model Season {
+  id        Int              @id @default(autoincrement())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  theme     String           @default("dawn")
+  active    Boolean          @default(false)
+  progress  SeasonProgress[]
+  createdAt DateTime         @default(now())
+}
+
+model SeasonProgress {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id])
+  seasonId        Int
+  season          Season   @relation(fields: [seasonId], references: [id])
+  xp              Int      @default(0)
+  questsCompleted Int      @default(0)
+
+  @@unique([userId, seasonId])
+}
+
+// ── QUEST CHAINS ──────────────────────────────────────────────────────────────
+model QuestChain {
+  id          Int                  @id @default(autoincrement())
+  title       String
+  description String?
+  branch      String
+  totalSteps  Int                  @default(5)
+  rewardGold  Int                  @default(500)
+  rewardXp    Int                  @default(1000)
+  rewardTitle String?
+  icon        String               @default("⛓️")
+  active      Boolean              @default(true)
+  steps       String               // JSON array of step descriptions
+  progress    QuestChainProgress[]
+  createdAt   DateTime             @default(now())
+}
+
+model QuestChainProgress {
+  id          Int        @id @default(autoincrement())
+  userId      Int
+  user        User       @relation(fields: [userId], references: [id])
+  chainId     Int
+  chain       QuestChain @relation(fields: [chainId], references: [id])
+  currentStep Int        @default(0)
+  completed   Boolean    @default(false)
+  startedAt   DateTime   @default(now())
+  completedAt DateTime?
+
+  @@unique([userId, chainId])
+}
+
+// ── ARTIFACTS ─────────────────────────────────────────────────────────────────
+model Artifact {
+  id          Int           @id @default(autoincrement())
+  name        String
+  description String
+  effect      String
+  value       Float         @default(0)
+  price       Int
+  rarity      String        @default("common")
+  icon        String        @default("💎")
+  active      Boolean       @default(true)
+  userArtifacts UserArtifact[]
+  createdAt   DateTime      @default(now())
+}
+
+model UserArtifact {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  artifactId   Int
+  artifact     Artifact @relation(fields: [artifactId], references: [id])
+  equippedSlot String?
+  equippedAt   DateTime?
+  boughtAt     DateTime @default(now())
+
+  @@unique([userId, artifactId])
+}
+
+// ── WEEKLY SHOP ITEM ──────────────────────────────────────────────────────────
+model WeeklyShopItem {
+  id            Int      @id @default(autoincrement())
+  itemName      String
+  description   String
+  effect        String
+  price         Int
+  availableFrom DateTime
+  availableTo   DateTime
+  icon          String   @default("🌟")
+  rarity        String   @default("rare")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+}
+
+// ── CRAFT RECIPES ─────────────────────────────────────────────────────────────
+model CraftRecipe {
+  id             Int    @id @default(autoincrement())
+  name           String
+  ingredients    String // JSON array of {effect, quantity}
+  resultEffect   String
+  resultQuantity Int    @default(1)
+  resultName     String
+  active         Boolean @default(true)
+}
+
+// ── QUEST TEMPLATE ADAPTIVE ───────────────────────────────────────────────────
+// (baseReps, repScaling, baseDifficulty added to QuestTemplate above)
+// QuestTemplate already exists — fields added in place
+
+// ── MARATHONS ─────────────────────────────────────────────────────────────────
+model Marathon {
+  id           Int               @id @default(autoincrement())
+  title        String
+  description  String
+  branch       String
+  durationDays Int
+  rewardGold   Int               @default(1000)
+  rewardXp     Int               @default(2000)
+  icon         String            @default("🔥")
+  active       Boolean           @default(true)
+  progress     MarathonProgress[]
+  createdAt    DateTime          @default(now())
+}
+
+model MarathonProgress {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id])
+  marathonId  Int
+  marathon    Marathon  @relation(fields: [marathonId], references: [id])
+  startedAt   DateTime  @default(now())
+  currentDay  Int       @default(0)
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  lastCheckIn DateTime?
+  failed      Boolean   @default(false)
+
+  @@unique([userId, marathonId])
+}
+
+// ── GRATITUDE ─────────────────────────────────────────────────────────────────
+model Gratitude {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  text1     String
+  text2     String
+  text3     String
+  createdAt DateTime @default(now())
+}
+
+// ── LEAGUES ───────────────────────────────────────────────────────────────────
+model UserLeague {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  user        User     @relation(fields: [userId], references: [id])
+  leagueName  String   @default("Бронза")
+  weeklyXp    Int      @default(0)
+  weekStart   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ── DUELS ─────────────────────────────────────────────────────────────────────
+model Duel {
+  id               Int      @id @default(autoincrement())
+  challengerId     Int
+  challenger       User     @relation("DuelChallenger", fields: [challengerId], references: [id])
+  challengedId     Int
+  challenged       User     @relation("DuelChallenged", fields: [challengedId], references: [id])
+  status           String   @default("pending")
+  startDate        DateTime?
+  endDate          DateTime?
+  challengerScore  Int      @default(0)
+  challengedScore  Int      @default(0)
+  winnerId         Int?
+  rewardGold       Int      @default(150)
+  createdAt        DateTime @default(now())
+}
+
+// ── SHARED STREAK ─────────────────────────────────────────────────────────────
+model SharedStreak {
+  id          Int      @id @default(autoincrement())
+  user1Id     Int
+  user1       User     @relation("SharedStreakUser1", fields: [user1Id], references: [id])
+  user2Id     Int
+  user2       User     @relation("SharedStreakUser2", fields: [user2Id], references: [id])
+  streak      Int      @default(0)
+  lastUpdated DateTime @default(now())
+  active      Boolean  @default(false)
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+
+  @@unique([user1Id, user2Id])
+}
+
+// ── NPC ───────────────────────────────────────────────────────────────────────
+model NpcInteraction {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id])
+  npcId           String
+  lastInteractedAt DateTime @default(now())
+  questsGiven     Int      @default(0)
+
+  @@unique([userId, npcId])
+}
+
+// ── SKILL TREE ────────────────────────────────────────────────────────────────
+model Skill {
+  id            Int         @id @default(autoincrement())
+  name          String
+  description   String
+  branch        String
+  tier          Int
+  requires      String      @default("[]") // JSON array of skill IDs
+  effect        String
+  value         Float       @default(0)
+  icon          String      @default("⚡")
+  goldCost      Int         @default(100)
+  levelRequired Int         @default(1)
+  active        Boolean     @default(true)
+  userSkills    UserSkill[]
+}
+
+model UserSkill {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  skillId     Int
+  skill       Skill    @relation(fields: [skillId], references: [id])
+  unlockedAt  DateTime @default(now())
+
+  @@unique([userId, skillId])
+}
+
+// ── EASTER EGGS ───────────────────────────────────────────────────────────────
+model EasterEgg {
+  id          Int               @id @default(autoincrement())
+  key         String            @unique
+  title       String
+  description String
+  icon        String            @default("🎯")
+  rewardGold  Int               @default(50)
+  rewardXp    Int               @default(0)
+  unlocks     EasterEggUnlock[]
+}
+
+model EasterEggUnlock {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id])
+  eggId       Int
+  egg         EasterEgg @relation(fields: [eggId], references: [id])
+  unlockedAt  DateTime  @default(now())
+
+  @@unique([userId, eggId])
 }

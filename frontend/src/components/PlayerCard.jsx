@@ -1,6 +1,7 @@
 import { useState } from "react";
+import Avatar from "./Avatar";
 
-export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop }) {
+export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, onGoToProfile }) {
   const xpToNext  = user?.xpToNextLevel || 100;
   const xpPercent = Math.min(((user?.xp || 0) / xpToNext) * 100, 100);
   const [tooltip, setTooltip] = useState(null);
@@ -20,21 +21,37 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop })
         </div>
       )}
 
-      <div className="player-level-badge"
-        onClick={() => showTip(tooltip === "level" ? null : "level")}
-        onMouseEnter={() => showTip("level")}
-        onMouseLeave={hideTip}
-        style={{ cursor:"pointer" }}>
-        <span className="player-level-number">{user.level}</span>
-        <span className="player-level-caption">уровень</span>
+      <div onClick={() => onGoToProfile ? onGoToProfile() : showTip(tooltip === "level" ? null : "level")}
+        onMouseEnter={() => showTip("level")} onMouseLeave={hideTip}
+        style={{ cursor:"pointer", position:"relative" }} title="Открыть профиль">
+        <Avatar level={user.level} frame={user.avatarFrame || "none"} size={64} />
+        <div style={{
+          position:"absolute", bottom:-8, left:"50%", transform:"translateX(-50%)",
+          background:"var(--accent,#8d8cf8)", borderRadius:999, minWidth:26,
+          padding:"2px 7px", textAlign:"center",
+          fontSize:12, fontWeight:900, color:"#0b0e17",
+          zIndex:10, boxShadow:"0 2px 8px rgba(0,0,0,0.5)",
+          whiteSpace:"nowrap",
+        }}>{user.level} ур.</div>
       </div>
 
       <div className="player-info">
         <div className="player-row">
           <span className="player-email">
-            {user.name}
+            {user.title && user.title !== "Новичок" && (
+              <span style={{ fontSize:11, fontWeight:700, color:"#eab308", marginRight:6,
+                background:"rgba(234,179,8,0.12)", borderRadius:5, padding:"1px 6px" }}>
+                {user.title}
+              </span>
+            )}
+            <span className={user.nicknameEffect ? `nick-${user.nicknameEffect}` : ""}>{user.name}</span>
             {user.masteryStatusLabel && (
               <span className="player-status-label"> · {user.masteryStatusLabel}</span>
+            )}
+            {user.autoClass && (
+              <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginLeft:6 }}>
+                [{user.autoClass}]
+              </span>
             )}
           </span>
           <button className="btn btn-ghost btn-sm" onClick={onLogout}>Выйти</button>
