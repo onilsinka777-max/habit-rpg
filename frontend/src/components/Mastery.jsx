@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const API = "https://habit-rpg-production.up.railway.app";
+const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 // ── Координаты узлов для каждого пути ────────────────────────────────────────
 // viewBox: 0 0 360 600

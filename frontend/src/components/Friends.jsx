@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import Chat from "./Chat";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export default function Friends({ token, showToast, askConfirm }) {
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
-  const [friends,  setFriends]  = useState([]);
-  const [requests, setRequests] = useState([]);
-  const [name,     setName]     = useState("");
-  const [busy,     setBusy]     = useState(false);
-  const [tab,      setTab]      = useState("friends");
+  const [friends,    setFriends]    = useState([]);
+  const [requests,   setRequests]   = useState([]);
+  const [name,       setName]       = useState("");
+  const [busy,       setBusy]       = useState(false);
+  const [tab,        setTab]        = useState("friends");
+  const [chatFriend, setChatFriend] = useState(null);
 
   const load = async () => {
     try {
@@ -66,6 +68,10 @@ export default function Friends({ token, showToast, askConfirm }) {
     });
   };
 
+  if (chatFriend) {
+    return <Chat token={token} showToast={showToast} friend={chatFriend} onBack={() => setChatFriend(null)} />;
+  }
+
   return (
     <section className="quest-section">
       <div className="section-eyebrow"><span>🤝</span> Друзья</div>
@@ -121,7 +127,10 @@ export default function Friends({ token, showToast, askConfirm }) {
                     {f.clanName && <span>⚔️ {f.clanName}</span>}
                   </div>
                 </div>
-                <button className="btn btn-danger btn-sm" onClick={() => removeFriend(f)}>✕</button>
+                <div style={{ display:"flex", gap:6 }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setChatFriend(f)}>💬</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => removeFriend(f)}>✕</button>
+                </div>
               </div>
             ))}
           </div>
