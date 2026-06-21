@@ -4,8 +4,30 @@
   box-sizing: border-box;
 }
 
+@keyframes titleShimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+.levelup-title {
+  background: linear-gradient(90deg, #8d8cf8, #f5b637, #f472b6, #8d8cf8);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: titleShimmer 3s linear infinite;
+}
+
+@keyframes bgPulse {
+  0%   { background-color: #0f0f1a; }
+  50%  { background-color: #12082a; }
+  100% { background-color: #0f0f1a; }
+}
+
 body {
   margin: 0;
+  background-color: #0f0f1a;
+  animation: bgPulse 20s ease-in-out infinite;
 }
 
 .app-shell,

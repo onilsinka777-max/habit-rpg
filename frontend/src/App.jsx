@@ -38,6 +38,7 @@ import OnePctWidget from "./components/OnePctWidget";
 import LegendPath from "./components/LegendPath";
 import LoadingScreen from "./components/LoadingScreen";
 import WelcomeNPC from "./components/WelcomeNPC";
+import ThemeChoiceScreen from "./components/ThemeChoiceScreen";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
 import ToastContainer from "./components/Toast";
 import "./App.css";
@@ -129,8 +130,9 @@ function getDifficultyMeta(key) {
 }
 
 export default function App() {
-  const [loadingDone, setLoadingDone] = useState(false);
-  const [npcDone, setNpcDone]         = useState(() => !!localStorage.getItem("welcome_npc_done"));
+  const [loadingDone,   setLoadingDone]   = useState(false);
+  const [themeChosen,   setThemeChosen]   = useState(() => !!localStorage.getItem("theme_chosen"));
+  const [npcDone,       setNpcDone]       = useState(() => !!localStorage.getItem("welcome_npc_done"));
   const [token,    setToken]    = useState(localStorage.getItem("token") || "");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
@@ -196,7 +198,7 @@ export default function App() {
       if (res.data.dailyBonusJustClaimed) {
         showToast(`С возвращением! +${res.data.dailyBonusGold} золота, +${res.data.dailyBonusXp} опыта`, "success");
       }
-      if (!res.data.onboardingDone) {
+      if (!res.data.onboardingDone && !localStorage.getItem("onboarding_dismissed")) {
         setShowOnboarding(true);
       } else if (res.data.lastActiveQuestDate) {
         try {
@@ -235,18 +237,27 @@ export default function App() {
   };
 
   const register = async () => {
+    if (!email.trim() || !password.trim()) { showToast("Введи почту и пароль", "error"); return; }
     try {
+      console.log("[register] POST", `${API}/auth/register`, { email });
       await axios.post(`${API}/auth/register`, { email, password });
-      showToast("Аккаунт создан, теперь войди", "success");
+      showToast("Аккаунт создан! Теперь войди", "success");
     } catch (e) { showToast(e.response?.data?.message || "Ошибка регистрации", "error"); }
   };
 
   const login = async () => {
+    if (!email.trim() || !password.trim()) { showToast("Введи почту и пароль", "error"); return; }
     try {
+      console.log("[login] POST", `${API}/auth/login`, { email });
       const res = await axios.post(`${API}/auth/login`, { email, password });
+      console.log("[login] success, token:", res.data.token?.slice(0, 20) + "...");
       localStorage.setItem("token", res.data.token);
       setToken(res.data.token);
-    } catch (e) { showToast(e.response?.data?.message || "Ошибка входа", "error"); }
+    } catch (e) {
+      console.error("[login] error:", e.response?.status, e.response?.data);
+      const msg = e.response?.data?.message || e.message || "Ошибка входа";
+      showToast(msg === "Invalid credentials" ? "Неверная почта или пароль" : msg, "error");
+    }
   };
 
   const logout = () => {
@@ -354,6 +365,7 @@ export default function App() {
   const rootStyle = { "--accent": effectiveTheme.accent, "--accent-glow": effectiveTheme.glow };
 
   if (!loadingDone) return <LoadingScreen onDone={() => setLoadingDone(true)} />;
+  if (!themeChosen) return <ThemeChoiceScreen onChosen={(id) => { setTheme(id); setThemeChosen(true); }} />;
 
   if (!token) {
     return (
@@ -383,7 +395,7 @@ export default function App() {
         <header className="topbar">
           <div>
             <p className="topbar-eyebrow">ГЕЙМИФИКАЦИЯ ЖИЗНИ</p>
-            <h1 className="brand-title">LevelUp</h1>
+            <h1 className="brand-title levelup-title">LevelUp</h1>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
             {onlineCount !== null && (
@@ -475,16 +487,6 @@ export default function App() {
             onChallenge={() => { setDarkScreen(null); loadTasks(); showToast("Квест возрождения добавлен!", "success"); }}
             onClose={() => setDarkScreen(null)}
           />
-        )}
-
-        {/* Newbie boost banner */}
-        {user?.newbieBoostActive && (
-          <div style={{ background:"linear-gradient(90deg,rgba(141,140,248,0.12),rgba(245,182,55,0.08))", border:"1px solid rgba(245,182,55,0.25)", borderRadius:10, padding:"8px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ fontSize:16 }}>⚡</span>
-            <span style={{ fontSize:12, color:"rgba(255,255,255,0.8)" }}>
-              <strong style={{ color:"#f5b637" }}>Бонус новичка: ×2 XP</strong> — активен ещё {Math.max(0,Math.ceil((new Date(user.newbieBoostExpiresAt)-Date.now())/(1000*3600)))} ч.
-            </span>
-          </div>
         )}
 
         {/* Combo counter */}

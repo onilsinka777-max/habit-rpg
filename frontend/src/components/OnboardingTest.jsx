@@ -51,6 +51,11 @@ export default function OnboardingTest({ token, onComplete }) {
   const [busy, setBusy]       = useState(false);
   const auth = { headers: { Authorization: `Bearer ${token}` } };
 
+  const dismiss = () => {
+    localStorage.setItem("onboarding_dismissed", "1");
+    onComplete();
+  };
+
   const select = async (option) => {
     const q = QUESTIONS[step];
     const newAnswers = { ...answers, [q.key]: option };
@@ -138,6 +143,13 @@ export default function OnboardingTest({ token, onComplete }) {
             </button>
           ))}
         </div>
+
+        <button onClick={dismiss} style={{
+          marginTop:20, background:"none", border:"none", color:"rgba(255,255,255,0.3)",
+          fontSize:13, cursor:"pointer", width:"100%", padding:8,
+        }}>
+          Позже — пропустить выбор класса
+        </button>
       </div>
     </div>
   );

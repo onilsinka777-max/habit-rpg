@@ -124,8 +124,7 @@ app.post("/auth/register",async(req,res)=>{
   try{
     const{email,password}=req.body;
     if(await prisma.user.findUnique({where:{email}}))return res.status(400).json({message:"User already exists"});
-    const newbieBoostExpiresAt=new Date(Date.now()+72*60*60*1000);
-    const user=await prisma.user.create({data:{email,password:await bcrypt.hash(password,10),gold:50,newbieBoostExpiresAt}});
+    const user=await prisma.user.create({data:{email,password:await bcrypt.hash(password,10),gold:50}});
     // Welcome quest
     await prisma.task.create({data:{title:"Добро пожаловать, Герой!",description:"Выполни этот квест и получи стартовый бонус.",branch:"discipline",type:"custom",difficulty:"easy",xpReward:100,goldReward:50,expiresAt:new Date(Date.now()+7*24*60*60*1000),userId:user.id}}).catch(()=>{});
     res.status(201).json({id:user.id,email:user.email});
@@ -190,8 +189,6 @@ app.get("/me",authMiddleware,async(req,res)=>{
     lastActiveQuestDate:user.lastActiveQuestDate||null,
     hiddenClass:user.hiddenClass||null,
     lastLoginAt:user.lastLoginAt||null,
-    newbieBoostActive:!!(user.newbieBoostExpiresAt&&new Date(user.newbieBoostExpiresAt)>now),
-    newbieBoostExpiresAt:user.newbieBoostExpiresAt||null,
     comboCount:user.comboCount||0,
   });
   // Update lastLoginAt
@@ -342,9 +339,7 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const now=new Date();const today=startOfToday();
     const xpBActive=cu.xpBoostExpiresAt&&new Date(cu.xpBoostExpiresAt)>now;
     const gBActive=cu.goldBoostExpiresAt&&new Date(cu.goldBoostExpiresAt)>now;
-    // ── Newbie boost (72h double XP after registration) ──────────────────────
-    const newbieActive=cu.newbieBoostExpiresAt&&new Date(cu.newbieBoostExpiresAt)>now;
-    const xpM=(xpBActive?1.5:1)*(cu.xpBoostPermanent?1.25:1)*(newbieActive?2:1);
+    const xpM=(xpBActive?1.5:1)*(cu.xpBoostPermanent?1.25:1);
     const goldM=(gBActive?1.5:1)*(cu.goldBoostPermanent?1.25:1);
     const autoClass=cu.masteryPath?null:await computeAutoClass(req.userId);
     const mMult=getMasteryMultipliers(cu.masteryPath||autoClass,task.branch);
