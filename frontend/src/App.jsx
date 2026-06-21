@@ -39,6 +39,8 @@ import LegendPath from "./components/LegendPath";
 import LoadingScreen from "./components/LoadingScreen";
 import WelcomeNPC from "./components/WelcomeNPC";
 import ThemeChoiceScreen from "./components/ThemeChoiceScreen";
+import SectionTabs from "./components/SectionTabs";
+import Chess from "./components/Chess";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
 import ToastContainer from "./components/Toast";
 import "./App.css";
@@ -419,7 +421,7 @@ export default function App() {
         {user && view === "quests" && (() => {
           const hour = new Date().getHours();
           const greet = hour < 6 ? "🌙 Ночной воин" : hour < 12 ? "🌅 Доброе утро" : hour < 18 ? "☀️ Добрый день" : "🌆 Добрый вечер";
-          const classLabel = user.autoClassLabel || "Герой";
+          const classLabel = user.autoClassLabel || "Игрок";
           const dayNum = user.streak || 1;
           return (
             <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", padding:"4px 0 8px", lineHeight:1.4 }}>
@@ -439,30 +441,78 @@ export default function App() {
           />
         )}
 
-        {view === "shop"    && <Shop items={shopItems} gold={user?.gold || 0} loadingId={shopLoadingId} onPurchase={purchaseItem} streakFreezeCount={user?.streakFreezeCount || 0} token={token} showToast={showToast} onProfileRefresh={loadProfile} />}
-        {view === "library" && <Library library={library} token={token} showToast={showToast} onProfileRefresh={loadProfile} />}
-        {view === "clan"    && <Clan token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level || 1} />}
-        {view === "friends" && <Friends token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} />}
-        {view === "mastery" && <Mastery token={token} showToast={showToast} askConfirm={askConfirm} myLevel={user?.level || 1} onFinished={loadProfile} />}
-        {view === "journal"       && <Journal      token={token} showToast={showToast} />}
-        {view === "goals"         && <Goals        token={token} showToast={showToast} askConfirm={askConfirm} />}
-        {view === "pet"           && <Pet          token={token} showToast={showToast} userStreak={user?.streak||0} />}
-        {view === "achievements"  && <Achievements token={token} showToast={showToast} />}
-        {view === "stats"         && <Stats        token={token} />}
-        {view === "pomodoro"      && <Pomodoro     token={token} showToast={showToast} onXpGained={loadProfile} />}
-        {view === "season"        && <Season       token={token} showToast={showToast} />}
-        {view === "chains"        && <QuestChains  token={token} showToast={showToast} askConfirm={askConfirm} />}
-        {view === "worldmap"      && <WorldMap     token={token} userLevel={user?.level || 1} showToast={showToast} />}
-        {view === "profile"       && <Profile      token={token} showToast={showToast} userId={null} currentUserId={user?.id} />}
-        {view === "feed"          && <Feed         token={token} showToast={showToast} />}
-        {view === "report"        && <WeeklyReport token={token} showToast={showToast} />}
-        {view === "marathons"     && <Marathons    token={token} showToast={showToast} />}
-        {view === "gratitude"     && <Gratitude    token={token} showToast={showToast} />}
-        {view === "league"        && <League       token={token} showToast={showToast} />}
-        {view === "npc"           && <NpcPage      token={token} showToast={showToast} />}
-        {view === "skills"        && <SkillTree    token={token} showToast={showToast} />}
-        {view === "ai-coach"      && <AiCoach      token={token} showToast={showToast} />}
-        {view === "legend-path"   && <LegendPath   token={token} showToast={showToast} userLevel={user?.level||1} />}
+        {/* ── МИР ──────────────────────────────────────────────────────── */}
+        {["worldmap","mastery","skills","league","chains","marathons","season","legend-path"].includes(view) && (
+          <>
+            <SectionTabs tabs={[
+              {key:"worldmap",    label:"Карта",         icon:"🗺️"},
+              {key:"chains",      label:"Цепочки",       icon:"⛓️"},
+              {key:"marathons",   label:"Марафоны",      icon:"🏃"},
+              {key:"mastery",     label:"Мастерство",    icon:"🌟"},
+              {key:"skills",      label:"Навыки",        icon:"⚡"},
+              {key:"league",      label:"Лиги",          icon:"🏆"},
+              {key:"season",      label:"Сезон",         icon:"🌅"},
+              {key:"legend-path", label:"Легенда",       icon:"👑"},
+            ]} active={view} onChange={setView} />
+            {view === "worldmap"    && <WorldMap   token={token} userLevel={user?.level||1} showToast={showToast} />}
+            {view === "chains"      && <QuestChains token={token} showToast={showToast} askConfirm={askConfirm} />}
+            {view === "marathons"   && <Marathons   token={token} showToast={showToast} />}
+            {view === "mastery"     && <Mastery     token={token} showToast={showToast} askConfirm={askConfirm} myLevel={user?.level||1} onFinished={loadProfile} />}
+            {view === "skills"      && <SkillTree   token={token} showToast={showToast} />}
+            {view === "league"      && <League      token={token} showToast={showToast} />}
+            {view === "season"      && <Season      token={token} showToast={showToast} />}
+            {view === "legend-path" && <LegendPath  token={token} showToast={showToast} userLevel={user?.level||1} />}
+          </>
+        )}
+
+        {/* ── СОЦИАЛКА ─────────────────────────────────────────────────── */}
+        {["friends","clan","feed","npc","gratitude","chess"].includes(view) && (
+          <>
+            <SectionTabs tabs={[
+              {key:"friends",   label:"Друзья",       icon:"🤝"},
+              {key:"clan",      label:"Клан",         icon:"⚔️"},
+              {key:"chess",     label:"Шахматы",      icon:"♟️"},
+              {key:"feed",      label:"Лента",        icon:"📡"},
+              {key:"npc",       label:"Наставники",   icon:"🧙"},
+              {key:"gratitude", label:"Благодарность",icon:"🌿"},
+            ]} active={view} onChange={setView} />
+            {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} onChessInvite={() => setView("chess")} />}
+            {view === "clan"      && <Clan     token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level||1} />}
+            {view === "chess"     && <Chess    token={token} showToast={showToast} />}
+            {view === "feed"      && <Feed     token={token} showToast={showToast} />}
+            {view === "npc"       && <NpcPage  token={token} showToast={showToast} />}
+            {view === "gratitude" && <Gratitude token={token} showToast={showToast} />}
+          </>
+        )}
+
+        {/* ── ПРОФИЛЬ ──────────────────────────────────────────────────── */}
+        {["profile","achievements","stats","shop","library","journal","goals","pet","pomodoro","report","ai-coach"].includes(view) && (
+          <>
+            <SectionTabs tabs={[
+              {key:"profile",      label:"Обзор",         icon:"🪪"},
+              {key:"achievements", label:"Достижения",    icon:"🏅"},
+              {key:"stats",        label:"Статистика",    icon:"📊"},
+              {key:"shop",         label:"Магазин",       icon:"🛒"},
+              {key:"library",      label:"Библиотека",    icon:"📚"},
+              {key:"journal",      label:"Дневник",       icon:"📔"},
+              {key:"goals",        label:"Цели",          icon:"🎯"},
+              {key:"pet",          label:"Питомец",       icon:"🐾"},
+              {key:"pomodoro",     label:"Помодоро",      icon:"⏱️"},
+              {key:"ai-coach",     label:"AI Коуч",       icon:"🤖"},
+            ]} active={view} onChange={setView} />
+            {view === "profile"      && <Profile     token={token} showToast={showToast} userId={null} currentUserId={user?.id} />}
+            {view === "achievements" && <Achievements token={token} showToast={showToast} />}
+            {view === "stats"        && <Stats        token={token} />}
+            {view === "shop"         && <Shop items={shopItems} gold={user?.gold||0} loadingId={shopLoadingId} onPurchase={purchaseItem} streakFreezeCount={user?.streakFreezeCount||0} token={token} showToast={showToast} onProfileRefresh={loadProfile} />}
+            {view === "library"      && <Library      library={library} token={token} showToast={showToast} onProfileRefresh={loadProfile} />}
+            {view === "journal"      && <Journal      token={token} showToast={showToast} />}
+            {view === "goals"        && <Goals        token={token} showToast={showToast} askConfirm={askConfirm} />}
+            {view === "pet"          && <Pet          token={token} showToast={showToast} userStreak={user?.streak||0} />}
+            {view === "pomodoro"     && <Pomodoro     token={token} showToast={showToast} onXpGained={loadProfile} />}
+            {view === "report"       && <WeeklyReport token={token} showToast={showToast} />}
+            {view === "ai-coach"     && <AiCoach      token={token} showToast={showToast} />}
+          </>
+        )}
 
         {searchOpen && (
           <SmartSearch

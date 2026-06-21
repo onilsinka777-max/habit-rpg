@@ -24,7 +24,7 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, o
       <div onClick={() => onGoToProfile ? onGoToProfile() : showTip(tooltip === "level" ? null : "level")}
         onMouseEnter={() => showTip("level")} onMouseLeave={hideTip}
         style={{ cursor:"pointer", position:"relative" }} title="Открыть профиль">
-        <Avatar level={user.level} frame={user.avatarFrame || "none"} size={64} />
+        <Avatar level={user.level} frame={user.avatarFrame || "none"} size={64} name={user.name || user.email || "?"} />
         <div style={{
           position:"absolute", bottom:-8, left:"50%", transform:"translateX(-50%)",
           background:"var(--accent,#8d8cf8)", borderRadius:999, minWidth:26,
@@ -47,11 +47,6 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, o
             <span className={user.nicknameEffect ? `nick-${user.nicknameEffect}` : ""}>{user.name}</span>
             {user.masteryStatusLabel && (
               <span className="player-status-label"> · {user.masteryStatusLabel}</span>
-            )}
-            {user.autoClass && (
-              <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginLeft:6 }}>
-                [{user.autoClass}]
-              </span>
             )}
           </span>
           <button className="btn btn-ghost btn-sm" onClick={onLogout}>Выйти</button>

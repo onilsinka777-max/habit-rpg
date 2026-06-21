@@ -19,14 +19,13 @@
 }
 
 @keyframes bgPulse {
-  0%   { background-color: #0f0f1a; }
-  50%  { background-color: #12082a; }
-  100% { background-color: #0f0f1a; }
+  0%,100% { background-color: #0d0d0d; }
+  50%     { background-color: #0f0a1a; }
 }
 
 body {
   margin: 0;
-  background-color: #0f0f1a;
+  background-color: #0d0d0d;
   animation: bgPulse 20s ease-in-out infinite;
 }
 
@@ -1887,17 +1886,23 @@ body {
    ТЕМЫ ИНТЕРФЕЙСА (1.2)
    =================================================================== */
 
-/* --- Dark Fantasy (default) ---------------------------------------- */
+/* --- Solo Leveling (единственная тема) ----------------------------- */
 :root,
-[data-theme="dark-fantasy"] {
-  --theme-bg:        #0b0e17;
-  --theme-card:      #141925;
-  --theme-element:   #161b29;
-  --theme-input:     #0f1420;
-  --theme-border:    rgba(255,255,255,0.06);
-  --theme-text:      #f1f5f9;
-  --theme-text-2:    #cbd5e1;
-  --theme-muted:     #94a3b8;
+[data-theme="dark-fantasy"],
+[data-theme="solo-leveling"],
+[data-theme="cosmic"] {
+  --theme-bg:        #0d0d0d;
+  --theme-card:      #111118;
+  --theme-element:   #1e1b4b;
+  --theme-input:     #0a0a14;
+  --theme-border:    rgba(124,58,237,0.18);
+  --theme-text:      #e2e8f0;
+  --theme-text-2:    #c4b5fd;
+  --theme-muted:     #a78bfa;
+  --sl-accent:       #7c3aed;
+  --sl-accent-glow:  rgba(124,58,237,0.4);
+  --sl-gold:         #a78bfa;
+  --sl-secondary:    #1e1b4b;
 }
 
 /* --- Light --------------------------------------------------------- */

@@ -24,9 +24,33 @@ const LOCATIONS = [
     questTitle:"Испытание легенды",   questDesc:"Выполни все обязательные квесты дня без единого пропуска" },
   { id:10, name:"Вершина Бесконечности", icon:"👑", unlock:75, x:87, y:12, branch:"knowledge",
     questTitle:"За пределами",        questDesc:"Обучи кого-то тому, что умеешь лучше всего" },
+  { id:11, name:"Забытые руины",      icon:"🏚️", unlock:35, x:38, y:20, branch:"knowledge",
+    questTitle:"Тайны древних",       questDesc:"Изучи историю одного великого человека и запиши 3 урока" },
+  { id:12, name:"Ледяные пики",       icon:"🏔️", unlock:45, x:25, y:12, branch:"fitness",
+    questTitle:"Покорение высоты",    questDesc:"Выполни комплекс на выносливость: бег или скакалка 20 минут" },
+  { id:13, name:"Тёмный лес",         icon:"🌑", unlock:55, x:42, y:38, branch:"self_development",
+    questTitle:"Встреча с тенью",     questDesc:"Запиши свои страхи и придумай действие против каждого" },
+  { id:14, name:"Огненные равнины",   icon:"🔥", unlock:60, x:60, y:12, branch:"fitness",
+    questTitle:"Горящий путь",        questDesc:"Тренировка максимальной интенсивности 30 минут" },
+  { id:15, name:"Небесный архипелаг", icon:"🌈", unlock:65, x:70, y:20, branch:"self_development",
+    questTitle:"Между небом и землёй",questDesc:"Создай 3-месячный план развития с конкретными шагами" },
+  { id:16, name:"Пустота",            icon:"🌌", unlock:70, x:10, y:20, branch:"discipline",
+    questTitle:"Ничто и всё",         questDesc:"Проведи 30 минут в полной тишине без телефона и мыслей" },
+  { id:17, name:"Врата богов",        icon:"⛩️", unlock:80, x:50, y:8,  branch:"knowledge",
+    questTitle:"Последний экзамен",   questDesc:"Напиши эссе на тему своего пути и главных уроков" },
+  { id:18, name:"Хрустальный дворец", icon:"💎", unlock:85, x:60, y:35, branch:"self_development",
+    questTitle:"Совершенство формы",  questDesc:"Реализуй задачу которую откладывал дольше всего" },
+  { id:19, name:"Конец времён",       icon:"🕰️", unlock:90, x:30, y:5,  branch:"discipline",
+    questTitle:"Последняя черта",     questDesc:"Выполни 50 обязательных квестов без единого пропуска" },
+  { id:20, name:"Начало всего",       icon:"🌅", unlock:100, x:50, y:50, branch:"self_development",
+    questTitle:"Рождение заново",     questDesc:"Напиши манифест своей новой жизни — кто ты теперь" },
 ];
 
-const PATHS = [[1,2],[2,3],[2,7],[3,4],[4,5],[5,6],[5,8],[6,10],[7,8],[8,9],[9,10],[1,7]];
+const PATHS = [
+  [1,2],[2,3],[2,7],[3,4],[4,5],[5,6],[5,8],[6,10],[7,8],[8,9],[9,10],[1,7],
+  [2,11],[11,12],[12,16],[3,12],[4,14],[5,17],[6,17],[7,13],[8,15],[9,16],[10,17],
+  [11,13],[13,18],[14,15],[15,20],[16,19],[17,20],[18,20],[19,20],
+];
 
 const BRANCH_COLORS  = { discipline:"#8d8cf8", fitness:"#fb7878", self_development:"#34d399", knowledge:"#38bdf8" };
 const BRANCH_LABELS  = { discipline:"Дисциплина", fitness:"Фитнес", self_development:"Саморазвитие", knowledge:"Знания" };

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const API = "https://habit-rpg-production.up.railway.app";
+const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);

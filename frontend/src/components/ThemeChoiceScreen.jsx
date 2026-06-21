@@ -1,14 +1,14 @@
 const THEMES = [
   {
     id: "dark-fantasy",
-    label: "Dark Fantasy",
+    label: "Тёмное фэнтези",
     desc: "Тёмное фэнтези — классика. Фиолетовые акценты, магическая атмосфера.",
     colors: ["#1e1b32", "#8d8cf8", "#f5b637"],
     icon: "🧙",
   },
   {
     id: "solo-leveling",
-    label: "Solo Leveling",
+    label: "Соло Левелинг",
     desc: "Стиль охотника. Чёрный минимализм, синие неоновые вспышки.",
     colors: ["#03060f", "#3b82f6", "#60a5fa"],
     icon: "⚔️",

@@ -61,7 +61,7 @@ const ACHIEVEMENT_META={
   social_first:  {label:"Первый союзник",  desc:"Добавь первого друга",              icon:"🤝", xpReward:50},
 };
 
-function computeTitle(count){if(count>=4)return"Легенда";if(count>=1)return"Герой";return"Новичок";}
+function computeTitle(count){if(count>=4)return"Легенда";if(count>=1)return"Игрок";return"Новичок";}
 
 function computePetState(pet,streak){
   const h=(Date.now()-new Date(pet.lastFed).getTime())/3600000;
@@ -1662,9 +1662,30 @@ app.post("/npc/:id/interact",authMiddleware,async(req,res)=>{
   try{
     const npc=getNpc(req.params.id);
     if(!npc)return res.status(404).json({message:"NPC не найден"});
-    const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true}});
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true,streak:true}});
     if(user.level<npc.unlockLevel)return res.status(403).json({message:`Откроется на уровне ${npc.unlockLevel}`});
     const now=new Date();
+    // ── NPC requirement checks ────────────────────────────────────────────────
+    const NPC_REQS={
+      kai:{type:"streak",value:3,desc:"3 дня стрика подряд"},
+      rex:{type:"quests_completed",branch:"fitness",value:5,desc:"5 выполненных квестов фитнеса"},
+      lyra:{type:"quests_completed",branch:"knowledge",value:3,desc:"3 выполненных квеста знаний"},
+      eco:{type:"streak",value:5,desc:"5 дней стрика подряд"},
+      orm:{type:"quests_completed",value:10,desc:"10 выполненных квестов"},
+    };
+    const req_=NPC_REQS[npc.id];
+    if(req_){
+      if(req_.type==="streak"){
+        if((user.streak||0)<req_.value)
+          return res.status(400).json({message:`Условие не выполнено`,requirement:req_.desc,current:user.streak||0});
+      }else if(req_.type==="quests_completed"){
+        const where={userId:req.userId,completed:true};
+        if(req_.branch)where.branch=req_.branch;
+        const count=await prisma.task.count({where});
+        if(count<req_.value)
+          return res.status(400).json({message:`Условие не выполнено`,requirement:req_.desc,current:count});
+      }
+    }
     const interaction=await prisma.npcInteraction.findUnique({where:{userId_npcId:{userId:req.userId,npcId:npc.id}}});
     if(interaction&&(now-interaction.lastInteractedAt)<7*24*3600*1000){
       const daysLeft=Math.ceil((7*24*3600*1000-(now-interaction.lastInteractedAt))/(24*3600*1000));
@@ -1821,6 +1842,65 @@ app.post("/legend-path/claim-daily",authMiddleware,async(req,res)=>{
     const task=await prisma.task.create({data:{title,description:`Легендарный квест #${questNum} из 50. Выполни все обязательные квесты сегодня.`,branch:"discipline",type:"legend",difficulty:"hard",xpReward:150,goldReward:75,isDaily:true,expiresAt:endOfToday(),userId:req.userId}});
     res.json({task,questNum});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+// ── CHESS ─────────────────────────────────────────────────────────────────────
+const INIT_BOARD="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+app.post("/chess/invite/:friendId",authMiddleware,async(req,res)=>{
+  try{
+    const friendId=Number(req.params.friendId);
+    const existing=await prisma.chessGame.findFirst({where:{OR:[{player1Id:req.userId,player2Id:friendId},{player1Id:friendId,player2Id:req.userId}],status:"active"}});
+    if(existing)return res.status(400).json({message:"Игра уже идёт",gameId:existing.id});
+    const game=await prisma.chessGame.create({data:{player1Id:req.userId,player2Id:friendId,board:INIT_BOARD}});
+    res.status(201).json(game);
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+app.get("/chess/game/:id",authMiddleware,async(req,res)=>{
+  try{
+    const game=await prisma.chessGame.findUnique({where:{id:Number(req.params.id)},include:{player1:{select:{id:true,name:true,email:true}},player2:{select:{id:true,name:true,email:true}}}});
+    if(!game)return res.status(404).json({message:"Игра не найдена"});
+    if(game.player1Id!==req.userId&&game.player2Id!==req.userId)return res.status(403).json({message:"Доступ запрещён"});
+    res.json(game);
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+app.get("/chess/my-games",authMiddleware,async(req,res)=>{
+  try{
+    const games=await prisma.chessGame.findMany({where:{OR:[{player1Id:req.userId},{player2Id:req.userId}]},include:{player1:{select:{id:true,name:true,email:true}},player2:{select:{id:true,name:true,email:true}}},orderBy:{updatedAt:"desc"},take:20});
+    res.json(games);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+app.post("/chess/game/:id/move",authMiddleware,async(req,res)=>{
+  try{
+    const game=await prisma.chessGame.findUnique({where:{id:Number(req.params.id)}});
+    if(!game)return res.status(404).json({message:"Игра не найдена"});
+    if(game.status!=="active")return res.status(400).json({message:"Игра завершена"});
+    const isP1=game.player1Id===req.userId;
+    const isP2=game.player2Id===req.userId;
+    if(!isP1&&!isP2)return res.status(403).json({message:"Вы не участник"});
+    const myColor=isP1?"white":"black";
+    if(game.currentTurn!==myColor)return res.status(400).json({message:"Не ваш ход"});
+    const{board,from,to,status,result}=req.body;
+    const nextTurn=myColor==="white"?"black":"white";
+    const updated=await prisma.chessGame.update({
+      where:{id:game.id},
+      data:{board,currentTurn:nextTurn,status:status||"active",result:result||null,updatedAt:new Date()},
+      include:{player1:{select:{id:true,name:true}},player2:{select:{id:true,name:true}}},
+    });
+    if(status==="finished"&&result){
+      const winnerId=result==="white"?game.player1Id:result==="black"?game.player2Id:null;
+      const loserId=winnerId?(winnerId===game.player1Id?game.player2Id:game.player1Id):null;
+      const updates=[];
+      if(result==="draw"){
+        updates.push(prisma.user.update({where:{id:game.player1Id},data:{xp:{increment:10}}}));
+        updates.push(prisma.user.update({where:{id:game.player2Id},data:{xp:{increment:10}}}));
+      }else if(winnerId){
+        updates.push(prisma.user.update({where:{id:winnerId},data:{xp:{increment:15}}}));
+        if(loserId)updates.push(prisma.user.update({where:{id:loserId},data:{xp:{increment:5}}}));
+      }
+      if(updates.length)await prisma.$transaction(updates);
+    }
+    res.json(updated);
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
 });
 
 app.get("/debug/db",async(req,res)=>{

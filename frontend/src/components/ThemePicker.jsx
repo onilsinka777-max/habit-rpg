@@ -1,8 +1,8 @@
 import { useState } from "react";
 
 const THEMES = [
-  { id: "dark-fantasy",  label: "Dark Fantasy",  swatch: "#1e1b32", icon: "🧙" },
-  { id: "solo-leveling", label: "Solo Leveling",  swatch: "#03060f", icon: "⚔️" },
+  { id: "dark-fantasy",  label: "Тёмное фэнтези", swatch: "#1e1b32", icon: "🧙" },
+  { id: "solo-leveling", label: "Соло Левелинг",  swatch: "#03060f", icon: "⚔️" },
   { id: "cosmic",        label: "Космос",         swatch: "#050818", icon: "🌌" },
 ];
 

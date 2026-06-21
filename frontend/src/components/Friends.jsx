@@ -4,7 +4,7 @@ import Chat from "./Chat";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-export default function Friends({ token, showToast, askConfirm, myStreak }) {
+export default function Friends({ token, showToast, askConfirm, myStreak, onChessInvite }) {
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
   const [friends,    setFriends]    = useState([]);
   const [requests,   setRequests]   = useState([]);
@@ -131,7 +131,17 @@ export default function Friends({ token, showToast, askConfirm, myStreak }) {
                   </div>
                 </div>
                 <div style={{ display:"flex", gap:6 }}>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setChatFriend(f)}>💬</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setChatFriend(f)} title="Чат">💬</button>
+                  {onChessInvite && (
+                    <button className="btn btn-ghost btn-sm" title="Сыграть в шахматы"
+                      onClick={async () => {
+                        try {
+                          await axios.post(`${API}/chess/invite/${f.id}`, {}, authHeaders);
+                          showToast("Игра создана!", "success");
+                          onChessInvite();
+                        } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
+                      }}>♟</button>
+                  )}
                   <button className="btn btn-danger btn-sm" onClick={() => removeFriend(f)}>✕</button>
                 </div>
               </div>

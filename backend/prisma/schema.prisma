@@ -96,6 +96,8 @@ model User {
   npcInteractions          NpcInteraction[]
   userSkills               UserSkill[]
   easterEggs               EasterEggUnlock[]
+  chessAsPlayer1           ChessGame[]      @relation("ChessPlayer1")
+  chessAsPlayer2           ChessGame[]      @relation("ChessPlayer2")
   createdAt                DateTime         @default(now())
 }
 
@@ -615,4 +617,19 @@ model EasterEggUnlock {
   unlockedAt  DateTime  @default(now())
 
   @@unique([userId, eggId])
+}
+
+// ── CHESS ─────────────────────────────────────────────────────────────────────
+model ChessGame {
+  id          Int      @id @default(autoincrement())
+  player1Id   Int
+  player1     User     @relation("ChessPlayer1", fields: [player1Id], references: [id])
+  player2Id   Int
+  player2     User     @relation("ChessPlayer2", fields: [player2Id], references: [id])
+  board       String   @default("start")
+  currentTurn String   @default("white")
+  status      String   @default("active")
+  result      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

@@ -14,6 +14,8 @@ node prisma/seedShop.js                   # seed shop items
 node prisma/seedLegendary.js              # seed legendary quest templates
 node prisma/seedMegaUpdate.js             # seed seasons, quest chains, artifacts, shop wave1
 node prisma/seedWave2.js                  # seed marathons, skills (20), easter eggs (10)
+node prisma/seedBoosters.js               # seed booster shop items
+node prisma/seedChainUpdate.js            # seed 4 epic quest chains with lore/stepReqs
 lsof -ti:3001 | xargs kill -9            # force-kill old server
 ```
 
@@ -65,7 +67,7 @@ Hotkeys: `F` toggles FocusMode overlay, `Ctrl+K` opens SmartSearch, `ESC` closes
 
 **Streak**: Increments when all required tasks for today are completed. Streak Freeze extends by 1 day if a day was missed. Chest rewards at milestones 7/14/21/28 days.
 
-**XP & level-up**: `applyXpGain(xp, level, gain)` loops level-ups. XP to next level = `100 + (level-1)*20`. XP multipliers stack: active boost (×1.5) × permanent boost (×1.25) × mastery bonus (×1.1 for primary branches). Skill tree bonuses apply on top.
+**XP & level-up**: `applyXpGain(xp, level, gain)` loops level-ups. XP to next level = `300 + (level-1)*20` (lvl1=300, lvl10=480, lvl20=680). XP multipliers stack: active boost (×1.5) × permanent boost (×1.25) × mastery bonus (×1.1 for primary branches). Skill tree bonuses apply on top.
 
 **Onboarding**: First-time users see `OnboardingTest.jsx` — 5 questions → suggested class. Result saved in `user.onboardingDone` + `user.onboardingData` (JSON).
 
@@ -87,7 +89,11 @@ Hotkeys: `F` toggles FocusMode overlay, `Ctrl+K` opens SmartSearch, `ESC` closes
 
 **Smart Search**: `GET /search?q=...` searches tasks, friends, achievements, sections. Frontend `SmartSearch.jsx` opens with Ctrl+K, navigates with arrows, Enter confirms.
 
-**Shop lock**: Items with `category !== "boost"` and `effect !== "name_change_scroll"` are locked until `user.hasEverFinishedMastery === true`.
+**Shop lock**: Items with `category !== "boost"` and `effect !== "name_change_scroll"` are locked until `user.hasEverFinishedMastery === true`. Themes are all free (no purchase required).
+
+**Navigation**: `BottomNav.jsx` has 4 tabs (Квесты/Мир/Социалка/Профиль); each tab navigates to its section home page, `≡` button opens a submenu sheet. Loading: `LoadingScreen.jsx` (once per session via `sessionStorage`). First-run: `ThemeChoiceScreen.jsx` (once via `localStorage:theme_chosen`), then `WelcomeNPC.jsx` (once via `localStorage:welcome_npc_done`).
+
+**Onboarding dismiss**: `localStorage:onboarding_dismissed` prevents OnboardingTest from re-showing after user clicks "Позже".
 
 **Mastery**: Unlocks at level 25. User chooses a path (warrior/sage/leader/balance). DAG of 25 nodes + legendary node in `constants.js` → `MASTERY_GRAPH`. Finishing sets `hasEverFinishedMastery = true`.
 

@@ -1,68 +1,96 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
-
 const WORK_SEC  = 25 * 60;
 const BREAK_SEC = 5  * 60;
 
 function fmt(sec) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  const m = String(Math.floor(sec / 60)).padStart(2, "0");
+  const s = String(sec % 60).padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = "sine"; osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.8);
+  } catch {}
+}
+
+function notify(title, body) {
+  if (Notification.permission === "granted") {
+    new Notification(title, { body, icon: "/favicon.ico" });
+  } else if (Notification.permission !== "denied") {
+    Notification.requestPermission().then(p => {
+      if (p === "granted") new Notification(title, { body });
+    });
+  }
 }
 
 export default function Pomodoro({ token, showToast, onXpGained }) {
-  const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
-  const [phase,    setPhase]    = useState("work");  // "work" | "break"
+  const auth = { headers: { Authorization: `Bearer ${token}` } };
+  const [phase,    setPhase]    = useState("work");
   const [timeLeft, setTimeLeft] = useState(WORK_SEC);
   const [running,  setRunning]  = useState(false);
   const [count,    setCount]    = useState(0);
-  const intervalRef = useRef(null);
+  const [flash,    setFlash]    = useState(false);
+  const intervalRef  = useRef(null);
+  const phaseEndedRef = useRef(false);
 
-  const tick = () => {
-    setTimeLeft(t => {
-      if (t <= 1) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-        setRunning(false);
-        handlePhaseEnd();
-        return 0;
-      }
-      return t - 1;
-    });
-  };
+  // Watch for timer reaching 0
+  useEffect(() => {
+    if (timeLeft === 0 && !phaseEndedRef.current) {
+      phaseEndedRef.current = true;
+      handlePhaseEnd();
+    }
+    if (timeLeft > 0) phaseEndedRef.current = false;
+  }, [timeLeft]);
 
-  const handlePhaseEnd = () => {
-    setPhase(p => {
-      if (p === "work") {
+  const handlePhaseEnd = useCallback(() => {
+    beep();
+    setFlash(true);
+    setTimeout(() => setFlash(false), 1200);
+
+    setPhase(prev => {
+      const next = prev === "work" ? "break" : "work";
+      setTimeLeft(next === "work" ? WORK_SEC : BREAK_SEC);
+      if (prev === "work") {
         setCount(c => c + 1);
         awardXp();
-        return "break";
+        notify("🍅 Помодоро завершён!", "Отличная работа! Время перерыва.");
       } else {
-        return "work";
+        notify("☕ Перерыв закончен", "Пора вернуться к работе!");
       }
+      return next;
     });
-  };
+    setRunning(false);
+    clearInterval(intervalRef.current);
+    intervalRef.current = null;
+  }, []);
 
   const awardXp = async () => {
     try {
-      const res = await axios.post(`${API}/tasks/pomodoro-complete`, {}, authHeaders);
-      showToast(`Помодоро завершён! +${res.data.xpGained} XP`, "success");
+      const res = await axios.post(`${API}/tasks/pomodoro-complete`, {}, auth);
+      showToast(`Помодоро засчитан! +${res.data.xpGained || 15} XP`, "success");
       if (onXpGained) onXpGained();
-    } catch (e) { console.error(e); }
+    } catch { /* endpoint might not exist, silent */ }
   };
 
-  useEffect(() => {
-    setTimeLeft(phase === "work" ? WORK_SEC : BREAK_SEC);
-    setRunning(false);
-    clearInterval(intervalRef.current);
-  }, [phase]);
-
   const start = () => {
-    if (running) return;
+    if (running || timeLeft === 0) return;
     setRunning(true);
-    intervalRef.current = setInterval(tick, 1000);
+    intervalRef.current = setInterval(() => {
+      setTimeLeft(t => Math.max(0, t - 1));
+    }, 1000);
+    // Request notification permission on first start
+    if (Notification.permission === "default") Notification.requestPermission();
   };
 
   const pause = () => {
@@ -73,7 +101,15 @@ export default function Pomodoro({ token, showToast, onXpGained }) {
 
   const reset = () => {
     pause();
+    phaseEndedRef.current = false;
     setTimeLeft(phase === "work" ? WORK_SEC : BREAK_SEC);
+  };
+
+  const switchPhase = (p) => {
+    pause();
+    phaseEndedRef.current = false;
+    setPhase(p);
+    setTimeLeft(p === "work" ? WORK_SEC : BREAK_SEC);
   };
 
   useEffect(() => () => clearInterval(intervalRef.current), []);
@@ -84,24 +120,38 @@ export default function Pomodoro({ token, showToast, onXpGained }) {
   const r = 72, circ = 2 * Math.PI * r;
 
   return (
-    <section className="quest-section">
+    <section className="quest-section" style={{ position:"relative" }}>
+      {/* Flash overlay */}
+      {flash && (
+        <div style={{
+          position:"fixed", inset:0, zIndex:8999, pointerEvents:"none",
+          background:"rgba(248,113,113,0.25)",
+          animation:"flashOut 1.2s ease forwards",
+        }} />
+      )}
+      <style>{`@keyframes flashOut{0%{opacity:1}100%{opacity:0}}`}</style>
+
       <div className="section-eyebrow"><span>⏱️</span> Помодоро</div>
 
       {/* Ring timer */}
       <div style={{ display:"flex", flexDirection:"column", alignItems:"center", padding:"24px 0" }}>
-        <svg width={180} height={180} style={{ transform:"rotate(-90deg)" }}>
-          <circle cx={90} cy={90} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={10} />
-          <circle cx={90} cy={90} r={r} fill="none" stroke={accent}
-            strokeWidth={10} strokeDasharray={circ}
-            strokeDashoffset={circ - (circ * progress / 100)}
-            strokeLinecap="round"
-            style={{ transition:"stroke-dashoffset 1s linear, stroke 0.4s" }} />
-        </svg>
-        <div style={{ marginTop:-124, fontSize:42, fontWeight:800, color:"#f1f5f9", fontFamily:"monospace" }}>
-          {fmt(timeLeft)}
-        </div>
-        <div style={{ marginTop:4, fontSize:13, color:"rgba(255,255,255,0.45)" }}>
-          {phase === "work" ? "Работа" : "Перерыв"}
+        <div style={{ position:"relative", width:180, height:180 }}>
+          <svg width={180} height={180} style={{ transform:"rotate(-90deg)", position:"absolute", top:0, left:0 }}>
+            <circle cx={90} cy={90} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={10} />
+            <circle cx={90} cy={90} r={r} fill="none" stroke={accent}
+              strokeWidth={10} strokeDasharray={circ}
+              strokeDashoffset={circ - (circ * progress / 100)}
+              strokeLinecap="round"
+              style={{ transition:"stroke-dashoffset 1s linear, stroke 0.4s" }} />
+          </svg>
+          <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+            <div style={{ fontSize:40, fontWeight:800, color:"#f1f5f9", fontFamily:"monospace", lineHeight:1 }}>
+              {fmt(timeLeft)}
+            </div>
+            <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginTop:4 }}>
+              {phase === "work" ? "Работа" : "Перерыв"}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -115,14 +165,14 @@ export default function Pomodoro({ token, showToast, onXpGained }) {
         <button className="btn btn-ghost" onClick={reset}>↩ Сброс</button>
       </div>
 
-      {/* Phase toggle */}
+      {/* Phase tabs */}
       <div style={{ display:"flex", gap:8, justifyContent:"center", marginBottom:20 }}>
-        {["work","break"].map(p => (
-          <button key={p}
-            className={`branch-tab ${phase===p?"active":""}`}
-            style={phase===p?{background:p==="work"?"#f87171":"#34d399",boxShadow:`0 4px 12px ${p==="work"?"rgba(248,113,113,0.3)":"rgba(52,211,153,0.3)"}`}:undefined}
-            onClick={() => setPhase(p)}>
-            {p === "work" ? "🍅 25 мин" : "☕ 5 мин"}
+        {[{id:"work",label:"🍅 25 мин"},{id:"break",label:"☕ 5 мин"}].map(p => (
+          <button key={p.id}
+            className={`branch-tab ${phase===p.id?"active":""}`}
+            style={phase===p.id?{background:p.id==="work"?"#f87171":"#34d399",boxShadow:`0 4px 12px ${p.id==="work"?"rgba(248,113,113,0.3)":"rgba(52,211,153,0.3)"}`}:undefined}
+            onClick={() => switchPhase(p.id)}>
+            {p.label}
           </button>
         ))}
       </div>
@@ -135,11 +185,12 @@ export default function Pomodoro({ token, showToast, onXpGained }) {
               width:12, height:12, borderRadius:"50%",
               background: i < count ? "#f87171" : "rgba(255,255,255,0.1)",
               transition:"background 0.3s",
+              boxShadow: i < count ? "0 0 6px rgba(248,113,113,0.5)" : "none",
             }} />
           ))}
         </div>
         <p style={{ fontSize:13, color:"rgba(255,255,255,0.4)", margin:0 }}>
-          {count === 0 ? "Начни первый помодоро" : `Выполнено помодоро: ${count} (+${count*10} XP)`}
+          {count === 0 ? "Начни первый помодоро!" : `Выполнено: ${count} помодоро · +${count * 15} XP`}
         </p>
       </div>
     </section>
