@@ -1709,6 +1709,8 @@ app.get("/search",authMiddleware,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
+app.get("/health",(req,res)=>res.json({status:"ok"}));
+
 const PORT=process.env.PORT||3001;
 console.log(`Starting server on PORT=${PORT}, NODE_ENV=${process.env.NODE_ENV}, DB=${process.env.DATABASE_URL||"file:./dev.db"}`);
 app.listen(PORT,"0.0.0.0",()=>console.log(`SERVER STARTED ON ${PORT}`));

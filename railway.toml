@@ -5,5 +5,7 @@ buildCommand = "npm install && npx prisma generate"
 [deploy]
 preDeployCommand = "npx prisma generate"
 startCommand = "node src/server.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
