@@ -126,7 +126,7 @@ app.post("/auth/register",async(req,res)=>{
     if(await prisma.user.findUnique({where:{email}}))return res.status(400).json({message:"User already exists"});
     const user=await prisma.user.create({data:{email,password:await bcrypt.hash(password,10)}});
     res.status(201).json({id:user.id,email:user.email});
-  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+  }catch(e){console.error(e);res.status(500).json({message:"Server error",debug:e.message,code:e.code});}
 });
 
 app.post("/auth/login",async(req,res)=>{
@@ -1710,6 +1710,12 @@ app.get("/search",authMiddleware,async(req,res)=>{
 });
 
 app.get("/health",(req,res)=>res.json({status:"ok"}));
+app.get("/debug/db",async(req,res)=>{
+  try{
+    const count=await prisma.user.count();
+    res.json({status:"ok",users:count,db:process.env.DATABASE_URL});
+  }catch(e){res.status(500).json({status:"error",message:e.message,code:e.code});}
+});
 
 const PORT=process.env.PORT||3001;
 console.log(`Starting server on PORT=${PORT}, NODE_ENV=${process.env.NODE_ENV}, DB=${process.env.DATABASE_URL||"file:./dev.db"}`);
