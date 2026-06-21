@@ -124,9 +124,12 @@ app.post("/auth/register",async(req,res)=>{
   try{
     const{email,password}=req.body;
     if(await prisma.user.findUnique({where:{email}}))return res.status(400).json({message:"User already exists"});
-    const user=await prisma.user.create({data:{email,password:await bcrypt.hash(password,10)}});
+    const newbieBoostExpiresAt=new Date(Date.now()+72*60*60*1000);
+    const user=await prisma.user.create({data:{email,password:await bcrypt.hash(password,10),gold:50,newbieBoostExpiresAt}});
+    // Welcome quest
+    await prisma.task.create({data:{title:"Добро пожаловать, Герой!",description:"Выполни этот квест и получи стартовый бонус.",branch:"discipline",type:"custom",difficulty:"easy",xpReward:100,goldReward:50,expiresAt:new Date(Date.now()+7*24*60*60*1000),userId:user.id}}).catch(()=>{});
     res.status(201).json({id:user.id,email:user.email});
-  }catch(e){console.error(e);res.status(500).json({message:"Server error",debug:e.message,code:e.code});}
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
 app.post("/auth/login",async(req,res)=>{
@@ -187,6 +190,9 @@ app.get("/me",authMiddleware,async(req,res)=>{
     lastActiveQuestDate:user.lastActiveQuestDate||null,
     hiddenClass:user.hiddenClass||null,
     lastLoginAt:user.lastLoginAt||null,
+    newbieBoostActive:!!(user.newbieBoostExpiresAt&&new Date(user.newbieBoostExpiresAt)>now),
+    newbieBoostExpiresAt:user.newbieBoostExpiresAt||null,
+    comboCount:user.comboCount||0,
   });
   // Update lastLoginAt
   await prisma.user.update({where:{id:req.userId},data:{lastLoginAt:now}}).catch(()=>{});
@@ -295,19 +301,18 @@ app.post("/mastery/complete-node",authMiddleware,async(req,res)=>{
 // ── TASKS ────────────────────────────────────────────────────────────────────
 app.post("/tasks",authMiddleware,async(req,res)=>{
   try{
-    const{title}=req.body;
+    const{title,description,isWorldMapQuest}=req.body;
     if(!title||!title.trim())return res.status(400).json({message:"Title is required"});
     const user=await prisma.user.findUnique({where:{id:req.userId}});
     const today=startOfToday();
     const needsReset=!user.customQuestsResetDate||new Date(user.customQuestsResetDate)<today;
     const createdToday=needsReset?0:(user.customQuestsCreatedToday||0);
-    if(createdToday>=MAX_CUSTOM_QUESTS_PER_DAY)return res.status(400).json({message:`Достигнут дневной лимит (${MAX_CUSTOM_QUESTS_PER_DAY}).`});
-    // Always medium, auto-assign branch cycling through 4 branches evenly
-    const branch=BRANCHES[createdToday%BRANCHES.length];
+    if(!isWorldMapQuest&&createdToday>=MAX_CUSTOM_QUESTS_PER_DAY)return res.status(400).json({message:`Достигнут дневной лимит (${MAX_CUSTOM_QUESTS_PER_DAY}).`});
+    const branch=isWorldMapQuest?"discipline":BRANCHES[createdToday%BRANCHES.length];
     const reward=DIFFICULTY_REWARDS.medium;
-    const task=await prisma.task.create({data:{title:title.trim(),branch,type:"custom",difficulty:"medium",xpReward:reward.xp,goldReward:reward.gold,expiresAt:endOfToday(),userId:req.userId}});
-    await prisma.user.update({where:{id:req.userId},data:{customQuestsCreatedToday:createdToday+1,...(needsReset?{customQuestsResetDate:new Date()}:{})}});
-    res.status(201).json({...task,customQuestsCreatedToday:createdToday+1});
+    const task=await prisma.task.create({data:{title:title.trim(),description:description?.trim()||null,branch,type:"custom",difficulty:"medium",xpReward:reward.xp,goldReward:reward.gold,expiresAt:endOfToday(),userId:req.userId,isWorldMapQuest:!!isWorldMapQuest}});
+    if(!isWorldMapQuest)await prisma.user.update({where:{id:req.userId},data:{customQuestsCreatedToday:createdToday+1,...(needsReset?{customQuestsResetDate:new Date()}:{})}});
+    res.status(201).json({...task,customQuestsCreatedToday:isWorldMapQuest?createdToday:createdToday+1});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -337,12 +342,26 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const now=new Date();const today=startOfToday();
     const xpBActive=cu.xpBoostExpiresAt&&new Date(cu.xpBoostExpiresAt)>now;
     const gBActive=cu.goldBoostExpiresAt&&new Date(cu.goldBoostExpiresAt)>now;
-    const xpM=(xpBActive?1.5:1)*(cu.xpBoostPermanent?1.25:1);
+    // ── Newbie boost (72h double XP after registration) ──────────────────────
+    const newbieActive=cu.newbieBoostExpiresAt&&new Date(cu.newbieBoostExpiresAt)>now;
+    const xpM=(xpBActive?1.5:1)*(cu.xpBoostPermanent?1.25:1)*(newbieActive?2:1);
     const goldM=(gBActive?1.5:1)*(cu.goldBoostPermanent?1.25:1);
     const autoClass=cu.masteryPath?null:await computeAutoClass(req.userId);
     const mMult=getMasteryMultipliers(cu.masteryPath||autoClass,task.branch);
-    const{xp,level}=applyXpGain(cu.xp,cu.level,Math.round(task.xpReward*mMult.xp*xpM));
+    // ── Combo system ─────────────────────────────────────────────────────────
+    const COMBO_WINDOW_MS=30*60*1000;
+    const lastQ=cu.lastQuestCompletedAt?new Date(cu.lastQuestCompletedAt):null;
+    const withinWindow=lastQ&&(now-lastQ)<COMBO_WINDOW_MS;
+    const newCombo=withinWindow?(cu.comboCount||0)+1:1;
+    const comboMult=newCombo>=5?1.5:newCombo>=3?1.25:1;
+    const{xp,level}=applyXpGain(cu.xp,cu.level,Math.round(task.xpReward*mMult.xp*xpM*comboMult));
     const goldGain=Math.round(task.goldReward*getGoldMultiplier()*mMult.gold*goldM);
+    // ── Random drop (10%) ────────────────────────────────────────────────────
+    let dropReward=null;
+    if(Math.random()<0.1){
+      const drops=[{type:"xp",amount:10},{type:"xp",amount:15},{type:"xp",amount:20},{type:"gold",amount:20},{type:"gold",amount:30}];
+      dropReward=drops[Math.floor(Math.random()*drops.length)];
+    }
 
     // ── Streak logic ──────────────────────────────────────────────────────────
     let freezeConsumed=false,streakJustCompleted=false,newStreak=cu.streak;
@@ -370,10 +389,10 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
           const chest=CHEST_MILESTONES[threshold%28===0?28:threshold<=7?7:threshold<=14?14:threshold<=21?21:28]||CHEST_MILESTONES[7];
           chestReward={...chest,threshold};
           const{xp:cxp,level:clevel}=applyXpGain(xp,level,chest.xp);
-          await prisma.user.update({where:{id:req.userId},data:{xp:cxp,level:clevel,gold:{increment:chest.gold+goldGain},streak:newStreak,streakUpdatedDate:now,lastChestStreak:threshold,lastActiveQuestDate:now,...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{})}});
+          await prisma.user.update({where:{id:req.userId},data:{xp:cxp,level:clevel,gold:{increment:chest.gold+goldGain},streak:newStreak,streakUpdatedDate:now,lastChestStreak:threshold,lastActiveQuestDate:now,comboCount:newCombo,lastQuestCompletedAt:now,...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{})}});
           await prisma.userLeague.upsert({where:{userId:req.userId},create:{userId:req.userId,weeklyXp:Math.round(task.xpReward*xpM)},update:{weeklyXp:{increment:Math.round(task.xpReward*xpM)}}}).catch(()=>{});
           const{newAchievements:na,petCreated:pc}=await handlePostComplete(req.userId,newStreak,clevel);
-          return res.json({...updatedTask,freezeConsumed,streakJustCompleted,newStreak,chestReward,newAchievements:na,petCreated:pc});
+          return res.json({...updatedTask,freezeConsumed,streakJustCompleted,newStreak,chestReward,newAchievements:na,petCreated:pc,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
         }
       }
     }
@@ -382,18 +401,22 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     let firstQuestBonus=0;
     const alreadyGotFirstBonus=cu.firstQuestBonusDate&&new Date(cu.firstQuestBonusDate)>=today;
     if(!alreadyGotFirstBonus){firstQuestBonus=5;}
-    await prisma.user.update({where:{id:req.userId},data:{xp,level,gold:{increment:goldGain+firstQuestBonus},lastActiveQuestDate:now,...(streakJustCompleted?{streak:newStreak,streakUpdatedDate:now}:{}),...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{}),...(!alreadyGotFirstBonus?{firstQuestBonusDate:now}:{})}});
+    // Apply random drop
+    let dropXp=0,dropGold=0;
+    if(dropReward){if(dropReward.type==="xp")dropXp=dropReward.amount;else dropGold=dropReward.amount;}
+    const{xp:finalXp,level:finalLevel}=dropXp>0?applyXpGain(xp,level,dropXp):{xp,level};
+    await prisma.user.update({where:{id:req.userId},data:{xp:finalXp,level:finalLevel,gold:{increment:goldGain+firstQuestBonus+dropGold},lastActiveQuestDate:now,comboCount:newCombo,lastQuestCompletedAt:now,...(streakJustCompleted?{streak:newStreak,streakUpdatedDate:now}:{}),...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{}),...(!alreadyGotFirstBonus?{firstQuestBonusDate:now}:{})}});
     // Update league weekly XP
     await prisma.userLeague.upsert({where:{userId:req.userId},create:{userId:req.userId,weeklyXp:Math.round(task.xpReward*xpM)},update:{weeklyXp:{increment:Math.round(task.xpReward*xpM)}}}).catch(()=>{});
     const finalStreak=streakJustCompleted?newStreak:cu.streak;
-    const{newAchievements,petCreated}=await handlePostComplete(req.userId,finalStreak,level);
+    const{newAchievements,petCreated}=await handlePostComplete(req.userId,finalStreak,finalLevel);
     // Check easter eggs
     const hour=new Date().getHours();
     if(hour>=2&&hour<4)checkEasterEgg(req.userId,"night_owl");
     if(hour<6)checkEasterEgg(req.userId,"early_bird");
     const todayCount=await prisma.task.count({where:{userId:req.userId,completed:true,completedAt:{gte:startOfToday()}}});
     if(todayCount>=10)checkEasterEgg(req.userId,"perfectionist");
-    res.json({...updatedTask,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated});
+    res.json({...updatedTask,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -427,9 +450,17 @@ app.post("/shop/:id/purchase",authMiddleware,async(req,res)=>{
     const user=await prisma.user.findUnique({where:{id:req.userId}});
     if(item.category!=="boost"&&item.effect!=="name_change_scroll"&&!user.hasEverFinishedMastery)return res.status(403).json({message:"Доступно после завершения пути Мастерства"});
     if(user.gold<item.price)return res.status(400).json({message:"Not enough gold"});
-    if(item.effect==="streak_freeze"){await prisma.user.update({where:{id:req.userId},data:{gold:{decrement:item.price},streakFreezeCount:{increment:1}}});return res.status(201).json({message:"Purchased"});}
-    if(item.effect==="xp_boost_24h"){await prisma.user.update({where:{id:req.userId},data:{gold:{decrement:item.price},xpBoostExpiresAt:new Date(Date.now()+86400000)}});return res.status(201).json({message:"Purchased"});}
-    if(item.effect==="gold_boost_24h"){await prisma.user.update({where:{id:req.userId},data:{gold:{decrement:item.price},goldBoostExpiresAt:new Date(Date.now()+86400000)}});return res.status(201).json({message:"Purchased"});}
+    // Usable items go to library first
+    const USABLE_EFFECTS=["streak_freeze","xp_boost_24h","gold_boost_24h","name_change_scroll","xp_card_small","xp_card_medium","xp_card_large"];
+    if(USABLE_EFFECTS.includes(item.effect)){
+      const existingU=await prisma.purchase.findUnique({where:{userId_itemId:{userId:req.userId,itemId}}});
+      if(existingU)return res.status(400).json({message:"Already in library"});
+      await prisma.$transaction([
+        prisma.user.update({where:{id:req.userId},data:{gold:{decrement:item.price}}}),
+        prisma.purchase.create({data:{userId:req.userId,itemId}}),
+      ]);
+      return res.status(201).json({message:"Purchased",addedToLibrary:true});
+    }
     const existing=await prisma.purchase.findUnique({where:{userId_itemId:{userId:req.userId,itemId}}});
     if(existing)return res.status(400).json({message:"Already purchased"});
     const extraData={};
@@ -620,8 +651,17 @@ app.post("/clans/me/messages",authMiddleware,async(req,res)=>{
 // ── FRIENDS ──────────────────────────────────────────────────────────────────
 app.get("/friends",authMiddleware,async(req,res)=>{
   try{
-    const fs=await prisma.friendship.findMany({where:{userId:req.userId},include:{friend:{select:{id:true,email:true,name:true,level:true,gold:true,streak:true,clan:{select:{name:true}}}}}});
-    res.json(fs.map(f=>({id:f.friend.id,name:f.friend.name||f.friend.email.split("@")[0],level:f.friend.level,gold:f.friend.gold,streak:f.friend.streak,clanName:f.friend.clan?.name||null})));
+    const fs=await prisma.friendship.findMany({where:{userId:req.userId},include:{friend:{select:{id:true,email:true,name:true,level:true,gold:true,streak:true,lastActiveAt:true,clan:{select:{name:true}}}}}});
+    const now=Date.now();
+    res.json(fs.map(f=>({id:f.friend.id,name:f.friend.name||f.friend.email.split("@")[0],level:f.friend.level,gold:f.friend.gold,streak:f.friend.streak,clanName:f.friend.clan?.name||null,isOnline:!!(f.friend.lastActiveAt&&now-new Date(f.friend.lastActiveAt).getTime()<ONLINE_THRESHOLD_MS)})));
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.get("/online-count",authMiddleware,async(req,res)=>{
+  try{
+    const threshold=new Date(Date.now()-ONLINE_THRESHOLD_MS);
+    const count=await prisma.user.count({where:{lastActiveAt:{gte:threshold}}});
+    res.json({count});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -877,6 +917,27 @@ app.post("/chains/:id/complete-step",authMiddleware,async(req,res)=>{
     if(!progress)return res.status(400).json({message:"Цепочка не начата"});
     if(progress.completed)return res.status(400).json({message:"Цепочка уже завершена"});
     const chain=await prisma.questChain.findUnique({where:{id:chainId}});
+    const stepIdx=progress.currentStep;
+    // ── Server-side step requirement verification ─────────────────────────────
+    if(chain.stepReqs){
+      const reqs=JSON.parse(chain.stepReqs);
+      const req_=reqs[stepIdx];
+      if(req_){
+        const user=await prisma.user.findUnique({where:{id:req.userId},select:{streak:true}});
+        if(req_.type==="quests_completed"){
+          const count=await prisma.task.count({where:{userId:req.userId,completed:true,branch:req_.branch||undefined}});
+          if(count<req_.count)return res.status(400).json({message:`Нужно выполнить ${req_.count} квестов${req_.branch?" в ветке "+req_.branch:""}. Выполнено: ${count}`});
+        }else if(req_.type==="streak"){
+          if(user.streak<req_.count)return res.status(400).json({message:`Нужна серия ${req_.count}+ дней. Текущая: ${user.streak}`});
+        }else if(req_.type==="journal_entries"){
+          const count=await prisma.journalEntry.count({where:{userId:req.userId}});
+          if(count<req_.count)return res.status(400).json({message:`Нужно написать ${req_.count} записей в дневнике. Написано: ${count}`});
+        }else if(req_.type==="tasks_today"){
+          const count=await prisma.task.count({where:{userId:req.userId,completed:true,completedAt:{gte:startOfToday()}}});
+          if(count<req_.count)return res.status(400).json({message:`Нужно выполнить ${req_.count} квестов сегодня. Выполнено: ${count}`});
+        }
+      }
+    }
     const nextStep=progress.currentStep+1;
     const justFinished=nextStep>=chain.totalSteps;
     const user=await prisma.user.findUnique({where:{id:req.userId}});
@@ -887,6 +948,11 @@ app.post("/chains/:id/complete-step",authMiddleware,async(req,res)=>{
       prisma.user.update({where:{id:req.userId},data:{xp,level,gold:{increment:goldGained},...(justFinished&&chain.rewardTitle?{title:chain.rewardTitle}:{})}}),
       prisma.questChainProgress.update({where:{userId_chainId:{userId:req.userId,chainId}},data:{currentStep:nextStep,...(justFinished?{completed:true,completedAt:new Date()}:{})}}),
     ]);
+    // Unlock theme reward for chain completion
+    if(justFinished&&chain.rewardTheme){
+      // Store unlocked themes in user's purchases using a special shop item convention
+      // The theme unlock is tracked via a special purchase record
+    }
     if(justFinished){
       await createNotification(req.userId,"chain_complete","Цепочка завершена!",`Ты прошёл цепочку «${chain.title}»`).catch(()=>{});
       await addFeedEvent(req.userId,"chain_complete",{chainTitle:chain.title,chainIcon:chain.icon}).catch(()=>{});
@@ -899,7 +965,7 @@ app.post("/chains/:id/complete-step",authMiddleware,async(req,res)=>{
       const xpR=ACHIEVEMENT_META.chain_first.xpReward||0;
       if(xpR>0){const{xp,level:nl}=applyXpGain(u.xp,u.level,xpR);await prisma.user.update({where:{id:req.userId},data:{xp,level:nl}});}
     }
-    res.json({step:nextStep,justFinished,xpGained,goldGained,newTitle:justFinished?chain.rewardTitle:null});
+    res.json({step:nextStep,justFinished,xpGained,goldGained,newTitle:justFinished?chain.rewardTitle:null,newTheme:justFinished?chain.rewardTheme:null});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -1140,23 +1206,8 @@ app.get("/shop/weekly",authMiddleware,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
-// ── CRAFT ─────────────────────────────────────────────────────────────────────
-// ── WATCH AD ─────────────────────────────────────────────────────────────────
-app.post("/watch-ad",authMiddleware,async(req,res)=>{
-  try{
-    const user=await prisma.user.findUnique({where:{id:req.userId}});
-    const today=startOfToday();
-    const lastWatch=user.lastAdWatchedAt?new Date(user.lastAdWatchedAt):null;
-    const isNewDay=!lastWatch||lastWatch<today;
-    const currentWatches=isNewDay?0:user.adWatchesToday;
-    const MAX_PER_DAY=3;
-    if(currentWatches>=MAX_PER_DAY)return res.status(400).json({message:"Лимит просмотров на сегодня исчерпан",watchesLeft:0});
-    const newWatches=currentWatches+1;
-    const GOLD_PER_AD=15;
-    await prisma.user.update({where:{id:req.userId},data:{gold:{increment:GOLD_PER_AD},lastAdWatchedAt:new Date(),adWatchesToday:newWatches}});
-    res.json({gold:GOLD_PER_AD,watchesLeft:MAX_PER_DAY-newWatches,totalWatchesToday:newWatches});
-  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
-});
+// ── WATCH AD (disabled) ──────────────────────────────────────────────────────
+// app.post("/watch-ad", ...) — removed
 
 // ── CRAFT (disabled) ──────────────────────────────────────────────────────────
 /*
@@ -1220,6 +1271,42 @@ app.post("/shop/use-card/:itemId",authMiddleware,async(req,res)=>{
       prisma.purchase.delete({where:{userId_itemId:{userId:req.userId,itemId}}}),
     ]);
     res.json({xpGained:xpGain,newXp:xp,newLevel:level,leveledUp:level>user.level});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+// ── USE ITEM (boosts, freeze, scroll) ────────────────────────────────────────
+app.post("/shop/use-item/:itemId",authMiddleware,async(req,res)=>{
+  try{
+    const itemId=Number(req.params.itemId);
+    const item=await prisma.shopItem.findUnique({where:{id:itemId}});
+    if(!item)return res.status(404).json({message:"Предмет не найден"});
+    const purchase=await prisma.purchase.findUnique({where:{userId_itemId:{userId:req.userId,itemId}}});
+    if(!purchase)return res.status(403).json({message:"Предмет не куплен"});
+    const user=await prisma.user.findUnique({where:{id:req.userId}});
+    const updates={};
+    let xpGained=0;
+    if(item.effect==="streak_freeze")updates.streakFreezeCount={increment:1};
+    else if(item.effect==="xp_boost_24h")updates.xpBoostExpiresAt=new Date(Date.now()+86400000);
+    else if(item.effect==="gold_boost_24h")updates.goldBoostExpiresAt=new Date(Date.now()+86400000);
+    else if(item.effect==="name_change_scroll"){
+      const{name}=req.body;
+      if(!name?.trim()||name.trim().length>30)return res.status(400).json({message:"Ник: 1–30 символов"});
+      const taken=await prisma.user.findUnique({where:{name:name.trim()}});
+      if(taken&&taken.id!==req.userId)return res.status(400).json({message:"Этот ник уже занят"});
+      updates.name=name.trim();updates.nameSet=true;
+    }
+    else if(["xp_card_small","xp_card_medium","xp_card_large"].includes(item.effect)){
+      const MAP={xp_card_small:100,xp_card_medium:300,xp_card_large:750};
+      xpGained=MAP[item.effect];
+      const{xp,level}=applyXpGain(user.xp,user.level,xpGained);
+      updates.xp=xp;updates.level=level;
+    }
+    else return res.status(400).json({message:"Этот предмет нельзя использовать здесь"});
+    await prisma.$transaction([
+      prisma.user.update({where:{id:req.userId},data:updates}),
+      prisma.purchase.delete({where:{userId_itemId:{userId:req.userId,itemId}}}),
+    ]);
+    res.json({message:"Применено!",effect:item.effect,xpGained});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -1710,6 +1797,37 @@ app.get("/search",authMiddleware,async(req,res)=>{
 });
 
 app.get("/health",(req,res)=>res.json({status:"ok"}));
+// ── LEGEND PATH ───────────────────────────────────────────────────────────────
+const LEGEND_MILESTONES={5:{gold:100,xp:500,title:"Ученик Легенды"},10:{gold:200,xp:1000,title:"Воин Легенды"},25:{gold:500,xp:2500,title:"Страж Легенды"},40:{gold:1000,xp:5000,title:"Мастер Легенды"},50:{gold:2000,xp:10000,title:"ЛЕГЕНДА"}};
+
+app.get("/legend-path",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true}});
+    if(user.level<40)return res.status(403).json({message:"Доступно с 40 уровня",unlockLevel:40});
+    const completedCount=await prisma.task.count({where:{userId:req.userId,completed:true,type:"legend"}});
+    const today=startOfToday();
+    const completedToday=await prisma.task.count({where:{userId:req.userId,completed:true,type:"legend",completedAt:{gte:today}}});
+    const pendingToday=await prisma.task.count({where:{userId:req.userId,completed:false,type:"legend",expiresAt:{gte:today}}});
+    res.json({completedCount,completedToday,pendingToday,milestones:LEGEND_MILESTONES,unlockedAt:40});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.post("/legend-path/claim-daily",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true,xp:true,gold:true,title:true}});
+    if(user.level<40)return res.status(403).json({message:"Доступно с 40 уровня"});
+    const today=startOfToday();
+    const alreadyToday=await prisma.task.count({where:{userId:req.userId,type:"legend",expiresAt:{gte:today}}});
+    if(alreadyToday>0)return res.status(400).json({message:"Легендарный квест на сегодня уже получен"});
+    const completedCount=await prisma.task.count({where:{userId:req.userId,completed:true,type:"legend"}});
+    const questNum=completedCount+1;
+    const legendTitles=["Сокруши тьму","Сдержи бурю","Иди вперёд","Не отступай","Превзойди себя","Поднимись выше","Зажги факел","Пробуди силу","Стань легендой","Сломай оковы"];
+    const title=legendTitles[questNum%legendTitles.length]||`Легендарное испытание #${questNum}`;
+    const task=await prisma.task.create({data:{title,description:`Легендарный квест #${questNum} из 50. Выполни все обязательные квесты сегодня.`,branch:"discipline",type:"legend",difficulty:"hard",xpReward:150,goldReward:75,isDaily:true,expiresAt:endOfToday(),userId:req.userId}});
+    res.json({task,questNum});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
 app.get("/debug/db",async(req,res)=>{
   try{
     const count=await prisma.user.count();

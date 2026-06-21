@@ -4,7 +4,7 @@ import Chat from "./Chat";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-export default function Friends({ token, showToast, askConfirm }) {
+export default function Friends({ token, showToast, askConfirm, myStreak }) {
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
   const [friends,    setFriends]    = useState([]);
   const [requests,   setRequests]   = useState([]);
@@ -117,13 +117,16 @@ export default function Friends({ token, showToast, askConfirm }) {
         ) : (
           <div className="quest-list">
             {friends.map(f => (
-              <div key={f.id} className="quest-card">
+              <div key={f.id} className="quest-card" style={{ borderLeft:f.streak>(myStreak||0)?"3px solid #ef4444":undefined }}>
                 <div className="quest-main">
-                  <h4 className="quest-title">{f.name}</h4>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <h4 className="quest-title" style={{ margin:0 }}>{f.name}</h4>
+                    {f.isOnline && <span title="В сети" style={{ width:8,height:8,borderRadius:"50%",background:"#34d399",display:"inline-block",flexShrink:0 }} />}
+                  </div>
                   <div className="quest-meta">
                     <span>⚡ {f.level} уровень</span>
                     <span>💰 {f.gold}</span>
-                    <span>🔥 {f.streak} дн.</span>
+                    <span style={{ color:f.streak>(myStreak||0)?"#ef4444":"inherit" }}>🔥 {f.streak} дн.{f.streak>(myStreak||0)?" ↑":""}</span>
                     {f.clanName && <span>⚔️ {f.clanName}</span>}
                   </div>
                 </div>

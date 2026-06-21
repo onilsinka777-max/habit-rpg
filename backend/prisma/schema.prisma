@@ -60,6 +60,9 @@ model User {
   firstQuestBonusDate      DateTime?
   lastAdWatchedAt          DateTime?
   adWatchesToday           Int              @default(0)
+  newbieBoostExpiresAt     DateTime?
+  comboCount               Int              @default(0)
+  lastQuestCompletedAt     DateTime?
   clan                     Clan?            @relation(fields: [clanId], references: [id])
   clanMessages             ClanMessage[]
   tasks                    Task[]
@@ -116,22 +119,23 @@ model Goal {
 }
 
 model Task {
-  id          Int       @id @default(autoincrement())
-  title       String
-  description String?
-  branch      String
-  type        String    @default("custom")
-  difficulty  String    @default("easy")
-  xpReward    Int       @default(10)
-  goldReward  Int       @default(5)
-  completed   Boolean   @default(false)
-  completedAt DateTime?
-  isDaily     Boolean   @default(false)
-  expiresAt   DateTime?
-  penalized   Boolean   @default(false)
-  userId      Int
-  user        User      @relation(fields: [userId], references: [id])
-  createdAt   DateTime  @default(now())
+  id              Int       @id @default(autoincrement())
+  title           String
+  description     String?
+  branch          String
+  type            String    @default("custom")
+  difficulty      String    @default("easy")
+  xpReward        Int       @default(10)
+  goldReward      Int       @default(5)
+  completed       Boolean   @default(false)
+  completedAt     DateTime?
+  isDaily         Boolean   @default(false)
+  expiresAt       DateTime?
+  penalized       Boolean   @default(false)
+  isWorldMapQuest Boolean   @default(false)
+  userId          Int
+  user            User      @relation(fields: [userId], references: [id])
+  createdAt       DateTime  @default(now())
 }
 
 model QuestTemplate {
@@ -373,19 +377,23 @@ model SeasonProgress {
 
 // ── QUEST CHAINS ──────────────────────────────────────────────────────────────
 model QuestChain {
-  id          Int                  @id @default(autoincrement())
-  title       String
-  description String?
-  branch      String
-  totalSteps  Int                  @default(5)
-  rewardGold  Int                  @default(500)
-  rewardXp    Int                  @default(1000)
-  rewardTitle String?
-  icon        String               @default("⛓️")
-  active      Boolean              @default(true)
-  steps       String               // JSON array of step descriptions
-  progress    QuestChainProgress[]
-  createdAt   DateTime             @default(now())
+  id           Int                  @id @default(autoincrement())
+  title        String
+  description  String?
+  lore         String?
+  branch       String
+  totalSteps   Int                  @default(5)
+  rewardGold   Int                  @default(500)
+  rewardXp     Int                  @default(1000)
+  rewardTitle  String?
+  rewardTheme  String?
+  icon         String               @default("⛓️")
+  active       Boolean              @default(true)
+  steps        String               // JSON array of step descriptions
+  stepLore     String?              // JSON array of step lore texts
+  stepReqs     String?              // JSON array of {type, count} requirement objects
+  progress     QuestChainProgress[]
+  createdAt    DateTime             @default(now())
 }
 
 model QuestChainProgress {

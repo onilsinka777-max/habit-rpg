@@ -23,9 +23,18 @@ function ItemModal({ item, token, onClose, showToast, onApplied }) {
   const applyItem = async () => {
     setBusy(true);
     try {
-      if (item.effect === "xp_card_small" || item.effect === "xp_card_medium" || item.effect === "xp_card_large") {
-        const res = await axios.post(`${API}/shop/use-card/${item.id}`, {}, auth);
-        showToast(`+${res.data.xpGained} XP!${res.data.leveledUp ? " Новый уровень!" : ""}`, "success");
+      const USABLE_VIA_ENDPOINT = ["xp_boost_24h","gold_boost_24h","streak_freeze","name_change_scroll","xp_card_small","xp_card_medium","xp_card_large"];
+      if (USABLE_VIA_ENDPOINT.includes(item.effect)) {
+        const body = item.effect === "name_change_scroll" ? { name: prompt("Введи новый ник:") || "" } : {};
+        if (item.effect === "name_change_scroll" && !body.name.trim()) return;
+        const res = await axios.post(`${API}/shop/use-item/${item.id}`, body, auth);
+        const msg = {
+          xp_boost_24h: "Буст XP +50% активирован на 24 часа!",
+          gold_boost_24h: "Буст золота +50% активирован на 24 часа!",
+          streak_freeze: "Заморозка стрика добавлена!",
+          name_change_scroll: `Имя изменено на «${body.name}»!`,
+        }[item.effect] || (res.data.xpGained ? `+${res.data.xpGained} XP!` : "Применено!");
+        showToast(msg, "success");
       } else if (item.effect && item.effect.startsWith("frame_")) {
         const frameVal = item.effect.replace("frame_", "");
         await axios.patch(`${API}/me/cosmetic`, { avatarFrame: frameVal }, auth);
@@ -34,11 +43,6 @@ function ItemModal({ item, token, onClose, showToast, onApplied }) {
         const effectVal = item.effect.replace("nick_", "");
         await axios.patch(`${API}/me/cosmetic`, { nicknameEffect: effectVal }, auth);
         showToast("Эффект никнейма применён!", "success");
-      } else if (item.effect === "xp_boost_24h") {
-        await axios.post(`${API}/shop/${item.id}/purchase`, {}, auth).catch(() => {});
-        showToast("Буст XP активирован на 24 часа!", "success");
-      } else if (item.effect === "streak_freeze") {
-        showToast("Заморозка стрика уже на счету — активируется автоматически", "info");
       } else {
         showToast("Предмет уже применён при покупке", "info");
       }
@@ -87,7 +91,7 @@ function ItemModal({ item, token, onClose, showToast, onApplied }) {
           )}
           {canApply && !isContent && !item.contentUrl && (
             <button className="btn btn-primary" disabled={busy} onClick={applyItem}>
-              {busy ? "..." : "Применить"}
+              {busy ? "..." : "Использовать"}
             </button>
           )}
         </div>

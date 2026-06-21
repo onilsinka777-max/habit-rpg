@@ -15,12 +15,51 @@ body {
 
 /* ===== Layout shells ===== */
 
+@keyframes bgGradient {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes questFadeIn {
+  from { opacity:0; transform:translateY(8px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+@keyframes pageIn {
+  from { opacity:0; transform:translateY(12px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
 .app-shell {
   min-height: 100vh;
-  background: #0b0e17;
+  background: linear-gradient(135deg, #0f0f1a 0%, #12082a 50%, #0f0f1a 100%);
+  background-size: 400% 400%;
+  animation: bgGradient 20s ease infinite;
   color: #e2e8f0;
   padding: 24px 16px 60px;
 }
+
+.section-card, .quest-section, .chain-card {
+  animation: pageIn 0.2s ease;
+}
+
+.quest-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.quest-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(141,140,248,0.12);
+}
+
+.quest-list .quest-card {
+  animation: questFadeIn 0.25s ease both;
+}
+.quest-list .quest-card:nth-child(1) { animation-delay:0.05s; }
+.quest-list .quest-card:nth-child(2) { animation-delay:0.10s; }
+.quest-list .quest-card:nth-child(3) { animation-delay:0.15s; }
+.quest-list .quest-card:nth-child(4) { animation-delay:0.20s; }
+.quest-list .quest-card:nth-child(5) { animation-delay:0.25s; }
 
 .app-container {
   max-width: 760px;

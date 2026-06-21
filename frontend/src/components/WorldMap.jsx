@@ -49,7 +49,7 @@ export default function WorldMap({ token, userLevel = 1, showToast }) {
     if (!selected) return;
     setBusy(true);
     try {
-      await axios.post(`${API}/tasks`, { title: selected.questTitle, description: selected.questDesc }, auth);
+      await axios.post(`${API}/tasks`, { title: selected.questTitle, description: selected.questDesc, isWorldMapQuest: true }, auth);
       const s = new Set([...accepted, selected.id]);
       setAccepted(s);
       localStorage.setItem("map_accepted", JSON.stringify([...s]));
@@ -95,6 +95,12 @@ export default function WorldMap({ token, userLevel = 1, showToast }) {
         {/* SVG paths */}
         <svg style={{ position:"absolute", inset:0, width:"100%", height:"100%", pointerEvents:"none" }}
           viewBox="0 0 100 100" preserveAspectRatio="none">
+          <defs>
+            <style>{`
+              @keyframes dash { to { stroke-dashoffset: -20; } }
+              .anim-path { animation: dash 1.5s linear infinite; }
+            `}</style>
+          </defs>
           {PATHS.map(([a, b]) => {
             const from = LOCATIONS.find(l => l.id === a);
             const to   = LOCATIONS.find(l => l.id === b);
@@ -103,11 +109,12 @@ export default function WorldMap({ token, userLevel = 1, showToast }) {
             const color = BRANCH_COLORS[from.branch] || "#fff";
             return (
               <line key={`${a}-${b}`}
+                className={both ? "anim-path" : undefined}
                 x1={from.x} y1={from.y} x2={to.x} y2={to.y}
                 stroke={both ? color : "rgba(255,255,255,0.06)"}
-                strokeWidth={both ? "0.6" : "0.4"}
-                strokeDasharray={both ? "none" : "1.5 2"}
-                opacity={both ? 0.35 : 1}
+                strokeWidth={both ? "0.7" : "0.4"}
+                strokeDasharray={both ? "2.5 2" : "1.5 2"}
+                opacity={both ? 0.5 : 0.25}
               />
             );
           })}
@@ -126,30 +133,37 @@ export default function WorldMap({ token, userLevel = 1, showToast }) {
               transform:"translate(-50%,-50%)",
               zIndex: isSelected ? 5 : 2,
             }}>
+              {/* Fog effect on locked */}
+              {!unlocked && (
+                <div style={{
+                  position:"absolute", inset:-12,
+                  background:`radial-gradient(circle,rgba(8,10,18,0.6) 40%,transparent 70%)`,
+                  filter:"blur(4px)", pointerEvents:"none", zIndex:-1,
+                }} />
+              )}
               <button
                 onClick={() => selectLoc(loc)}
-                title={unlocked ? loc.name : `🔒 Ур.${loc.unlock}`}
+                title={unlocked ? `${loc.name} · ${BRANCH_LABELS[loc.branch]}` : `🔒 Открывается на ${loc.unlock} уровне`}
                 style={{
-                  width: isSelected ? 42 : 34, height: isSelected ? 42 : 34,
+                  width: isSelected ? 44 : 36, height: isSelected ? 44 : 36,
                   borderRadius:"50%",
                   border: isSelected
                     ? `3px solid ${color}`
-                    : `2px solid ${unlocked ? color+"88" : "rgba(255,255,255,0.1)"}`,
+                    : `2px solid ${unlocked ? color+"88" : "rgba(255,255,255,0.08)"}`,
                   background: isSelected
                     ? `${color}33`
-                    : unlocked ? `${color}18` : "rgba(8,10,18,0.85)",
+                    : unlocked ? `${color}18` : "rgba(4,6,14,0.9)",
                   cursor: unlocked ? "pointer" : "not-allowed",
                   fontSize: isSelected ? 18 : 14,
                   display:"flex", alignItems:"center", justifyContent:"center",
                   boxShadow: isSelected
-                    ? `0 0 20px ${color}88, 0 0 40px ${color}33`
-                    : unlocked ? `0 0 10px ${color}44` : "none",
-                  transition:"all 0.2s ease",
-                  filter: unlocked ? "none" : "grayscale(1) brightness(0.5)",
-                  position:"relative",
-                  outline:"none",
+                    ? `0 0 24px ${color}99, 0 0 48px ${color}44`
+                    : unlocked ? `0 0 12px ${color}55` : "none",
+                  transition:"all 0.22s ease",
+                  filter: unlocked ? "none" : "grayscale(1) blur(0.5px) brightness(0.3)",
+                  position:"relative", outline:"none",
                 }}>
-                {unlocked ? loc.icon : "🔒"}
+                {unlocked ? loc.icon : "🌫️"}
                 {isDone && (
                   <div style={{
                     position:"absolute", top:-5, right:-5,
@@ -160,19 +174,17 @@ export default function WorldMap({ token, userLevel = 1, showToast }) {
                   }}>✓</div>
                 )}
               </button>
-              {/* Location label */}
-              {unlocked && (
-                <div style={{
-                  position:"absolute", top:"100%", left:"50%",
-                  transform:"translateX(-50%)", marginTop:3,
-                  fontSize:9, fontWeight:600,
-                  color: isSelected ? color : "rgba(255,255,255,0.4)",
-                  whiteSpace:"nowrap", pointerEvents:"none",
-                  textShadow:"0 1px 4px rgba(0,0,0,0.8)",
-                }}>
-                  {loc.name.split(" ")[0]}
-                </div>
-              )}
+              {/* Tooltip label */}
+              <div style={{
+                position:"absolute", top:"105%", left:"50%",
+                transform:"translateX(-50%)", marginTop:2,
+                fontSize:9, fontWeight:600,
+                color: isSelected ? color : unlocked ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.15)",
+                whiteSpace:"nowrap", pointerEvents:"none",
+                textShadow:"0 1px 4px rgba(0,0,0,0.9)",
+              }}>
+                {unlocked ? loc.name.split(" ")[0] : `Ур.${loc.unlock}`}
+              </div>
             </div>
           );
         })}

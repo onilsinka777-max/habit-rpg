@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import BottomNav from "./components/BottomNav";
 import axios from "axios";
 import PlayerCard from "./components/PlayerCard";
 import Shop from "./components/Shop";
@@ -34,7 +35,9 @@ import SkillTree from "./components/SkillTree";
 import AiCoach from "./components/AiCoach";
 import SmartSearch from "./components/SmartSearch";
 import OnePctWidget from "./components/OnePctWidget";
-import AdButton from "./components/AdButton";
+import LegendPath from "./components/LegendPath";
+import LoadingScreen from "./components/LoadingScreen";
+import WelcomeNPC from "./components/WelcomeNPC";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
 import ToastContainer from "./components/Toast";
 import "./App.css";
@@ -107,6 +110,7 @@ const NAV_ITEMS = [
   { key:"report",       label:"Недельный отчёт",  icon:"📈", theme:REPORT_THEME   },
   { key:"profile",      label:"Мой профиль",      icon:"👤", theme:PROFILE_THEME  },
   { key:"ai-coach",     label:"AI Коуч",          icon:"🤖", theme:COACH_THEME    },
+  { key:"legend-path",  label:"Легендарный путь", icon:"🌟", theme:{ accent:"#f5b637", glow:"rgba(245,182,55,0.35)" }, lockLevel:40, lockMessage:"Легендарный путь открывается на 40 уровне" },
 ];
 
 const TYPE_META = {
@@ -125,6 +129,8 @@ function getDifficultyMeta(key) {
 }
 
 export default function App() {
+  const [loadingDone, setLoadingDone] = useState(false);
+  const [npcDone, setNpcDone]         = useState(() => !!localStorage.getItem("welcome_npc_done"));
   const [token,    setToken]    = useState(localStorage.getItem("token") || "");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
@@ -141,7 +147,6 @@ export default function App() {
   const [customQuestsMax,          setCustomQuestsMax]          = useState(8);
 
   const [view,         setView]         = useState("quests");
-  const [navOpen,      setNavOpen]      = useState(false);
   const [rulesOpen,    setRulesOpen]    = useState(false);
   const [activeBranch, setActiveBranch] = useState("discipline");
 
@@ -166,6 +171,7 @@ export default function App() {
   const [scrollName,         setScrollName]         = useState("");
   const [scrollError,        setScrollError]        = useState("");
   const [scrollBusy,         setScrollBusy]         = useState(false);
+  const [onlineCount,        setOnlineCount]        = useState(null);
 
   const currentNavItem = NAV_ITEMS.find(n => n.key === view);
   const branchTheme    = TAB_BRANCHES.find(b => b.key === activeBranch) || BRANCHES[0];
@@ -278,6 +284,13 @@ export default function App() {
       if (completeRes.data.freezeConsumed) showToast("Заморозка стрика сработала — серия не сброшена!", "success");
       if (completeRes.data.streakJustCompleted) { setStreakModal({ streak: completeRes.data.newStreak }); playStreakComplete(); }
       if (completeRes.data.petCreated) showToast("🥚 Питомец появился! Зайди во вкладку «Питомец»", "success");
+      if (completeRes.data.dropReward) {
+        const dr = completeRes.data.dropReward;
+        showToast(`✨ Случайный дроп: +${dr.amount} ${dr.type === "xp" ? "XP" : "золота"}!`, "success");
+      }
+      if (completeRes.data.combo >= 3) {
+        showToast(`🔥 Комбо ×${completeRes.data.combo}! +${completeRes.data.comboBonus}% XP`, "success");
+      }
       for (const ach of (completeRes.data.newAchievements || [])) {
         showToast(`${ach.icon} Достижение: «${ach.label}»`, "success");
       }
@@ -312,7 +325,7 @@ export default function App() {
     finally { setShopLoadingId(null); }
   };
 
-  useEffect(() => { if (token) { loadProfile(); loadTasks(); } }, [token]);
+  useEffect(() => { if (token) { loadProfile(); loadTasks(); axios.get(`${API}/online-count`,authHeaders).then(r=>setOnlineCount(r.data.count)).catch(()=>{}); } }, [token]);
   useEffect(() => { if (token && (view === "shop" || view === "library")) { loadShop(); loadLibrary(); } }, [token, view]);
 
   useEffect(() => {
@@ -332,13 +345,15 @@ export default function App() {
 
   const branchTasks    = tasks.filter(t => t.branch === activeBranch && (t.type === "required" || t.type === "recommended"));
   const legendaryTasks = tasks.filter(t => t.type === "legendary" && !t.completed && (!t.expiresAt || new Date(t.expiresAt) > new Date()));
-  const customTasks    = tasks.filter(t => t.type === "custom");
+  const customTasks    = tasks.filter(t => t.type === "custom" && !t.completed);
   const tasksByType    = {
     required:    branchTasks.filter(t => t.type === "required"),
     recommended: branchTasks.filter(t => t.type === "recommended"),
   };
   const customSlotsLeft = Math.max(0, customQuestsMax - customQuestsCreatedToday);
   const rootStyle = { "--accent": effectiveTheme.accent, "--accent-glow": effectiveTheme.glow };
+
+  if (!loadingDone) return <LoadingScreen onDone={() => setLoadingDone(true)} />;
 
   if (!token) {
     return (
@@ -366,37 +381,17 @@ export default function App() {
       <div className="app-container">
 
         <header className="topbar">
-          <div className="nav-dropdown-wrapper">
-            <button className="nav-toggle-btn" onClick={() => setNavOpen(v => !v)}
-              style={{ background: effectiveTheme.accent, boxShadow: `0 8px 20px ${effectiveTheme.glow}` }}>
-              {navOpen ? "✕" : "☰"}
-            </button>
-            {navOpen && (
-              <div className="nav-dropdown-menu">
-                {NAV_ITEMS.map(item => {
-                  const myLevel = user?.level || 1;
-                  const locked  = item.lockLevel && myLevel < item.lockLevel;
-                  const isActive = view === item.key;
-                  return (
-                    <button key={item.key}
-                      className={`nav-dropdown-item ${isActive && !locked ? "active" : ""} ${locked ? "locked" : ""}`}
-                      style={isActive && !locked ? { background: item.theme.accent } : undefined}
-                      onClick={() => {
-                        if (locked) { showToast(item.lockMessage, "error"); return; }
-                        setView(item.key); setNavOpen(false);
-                      }}>
-                      <span>{locked ? "🔒" : item.icon}</span> {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
           <div>
             <p className="topbar-eyebrow">ГЕЙМИФИКАЦИЯ ЖИЗНИ</p>
             <h1 className="brand-title">LevelUp</h1>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
+            {onlineCount !== null && (
+              <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:11, color:"rgba(255,255,255,0.4)" }}>
+                <span style={{ width:6,height:6,borderRadius:"50%",background:"#34d399",display:"inline-block" }}/>
+                {onlineCount}
+              </div>
+            )}
             <ThemePicker currentTheme={theme} onChange={setTheme} token={token} />
             <button className="rules-btn" title={soundOn ? "Звук вкл" : "Звук выкл"}
               onClick={() => { const next = !soundOn; setSoundOn(next); setSound(next); }}
@@ -409,7 +404,18 @@ export default function App() {
           </div>
         </header>
 
-        {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
+        {user && view === "quests" && (() => {
+          const hour = new Date().getHours();
+          const greet = hour < 6 ? "🌙 Ночной воин" : hour < 12 ? "🌅 Доброе утро" : hour < 18 ? "☀️ Добрый день" : "🌆 Добрый вечер";
+          const classLabel = user.autoClassLabel || "Герой";
+          const dayNum = user.streak || 1;
+          return (
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", padding:"4px 0 8px", lineHeight:1.4 }}>
+              <span style={{ color:"rgba(255,255,255,0.7)", fontWeight:600 }}>{greet}, {classLabel} {user.name}!</span>{" "}
+              День {dayNum} твоего пути.
+            </div>
+          );
+        })()}
 
         {user && (
           <PlayerCard
@@ -424,7 +430,7 @@ export default function App() {
         {view === "shop"    && <Shop items={shopItems} gold={user?.gold || 0} loadingId={shopLoadingId} onPurchase={purchaseItem} streakFreezeCount={user?.streakFreezeCount || 0} token={token} showToast={showToast} onProfileRefresh={loadProfile} />}
         {view === "library" && <Library library={library} token={token} showToast={showToast} onProfileRefresh={loadProfile} />}
         {view === "clan"    && <Clan token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level || 1} />}
-        {view === "friends" && <Friends token={token} showToast={showToast} askConfirm={askConfirm} />}
+        {view === "friends" && <Friends token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} />}
         {view === "mastery" && <Mastery token={token} showToast={showToast} askConfirm={askConfirm} myLevel={user?.level || 1} onFinished={loadProfile} />}
         {view === "journal"       && <Journal      token={token} showToast={showToast} />}
         {view === "goals"         && <Goals        token={token} showToast={showToast} askConfirm={askConfirm} />}
@@ -444,6 +450,7 @@ export default function App() {
         {view === "npc"           && <NpcPage      token={token} showToast={showToast} />}
         {view === "skills"        && <SkillTree    token={token} showToast={showToast} />}
         {view === "ai-coach"      && <AiCoach      token={token} showToast={showToast} />}
+        {view === "legend-path"   && <LegendPath   token={token} showToast={showToast} userLevel={user?.level||1} />}
 
         {searchOpen && (
           <SmartSearch
@@ -470,10 +477,28 @@ export default function App() {
           />
         )}
 
+        {/* Newbie boost banner */}
+        {user?.newbieBoostActive && (
+          <div style={{ background:"linear-gradient(90deg,rgba(141,140,248,0.12),rgba(245,182,55,0.08))", border:"1px solid rgba(245,182,55,0.25)", borderRadius:10, padding:"8px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:16 }}>⚡</span>
+            <span style={{ fontSize:12, color:"rgba(255,255,255,0.8)" }}>
+              <strong style={{ color:"#f5b637" }}>Бонус новичка: ×2 XP</strong> — активен ещё {Math.max(0,Math.ceil((new Date(user.newbieBoostExpiresAt)-Date.now())/(1000*3600)))} ч.
+            </span>
+          </div>
+        )}
+
+        {/* Combo counter */}
+        {(user?.comboCount||0) >= 3 && (
+          <div style={{ background:"rgba(251,120,120,0.1)", border:"1px solid rgba(251,120,120,0.25)", borderRadius:10, padding:"6px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:16 }}>🔥</span>
+            <span style={{ fontSize:12, color:"#fb7878" }}>
+              <strong>Комбо ×{user.comboCount}</strong>{(user.comboCount||0)>=5?" +50% XP":" +25% XP"} — выполняй квесты каждые 30 минут!
+            </span>
+          </div>
+        )}
+
         {view === "quests" && (
           <>
-            <AdButton token={token} compact onGoldEarned={() => { loadProfile(); }} />
-
             {legendaryTasks.length > 0 && (
               <section className="legendary-section">
                 <div className="section-eyebrow"><span>🏆</span> Легендарный квест недели</div>
@@ -550,7 +575,15 @@ export default function App() {
             </div>
           </>
         )}
+        <div style={{ height:70 }} />
       </div>
+
+      <BottomNav
+        currentView={view}
+        onNavigate={(key) => { const item = NAV_ITEMS.find(n => n.key === key); if (item?.lockLevel && (user?.level||1) < item.lockLevel) { showToast(item.lockMessage,"error"); return; } setView(key); }}
+        userLevel={user?.level || 1}
+        showToast={showToast}
+      />
 
       {/* ── Modals ── */}
 
@@ -640,6 +673,10 @@ export default function App() {
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
       <AmbientMusic />
+
+      {!npcDone && !showOnboarding && (
+        <WelcomeNPC onDone={() => setNpcDone(true)} />
+      )}
     </div>
   );
 }
