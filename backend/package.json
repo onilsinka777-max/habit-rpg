@@ -1,7 +1,7 @@
 {
   "name": "habit-rpg-backend",
   "version": "1.0.0",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
     "dev": "node src/server.js",
     "start": "node src/server.js",

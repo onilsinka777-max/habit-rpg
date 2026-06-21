@@ -1710,4 +1710,7 @@ app.get("/search",authMiddleware,async(req,res)=>{
 });
 
 const PORT=process.env.PORT||3001;
-app.listen(PORT,()=>console.log(`SERVER STARTED ON ${PORT}`));
+console.log(`Starting server on PORT=${PORT}, NODE_ENV=${process.env.NODE_ENV}, DB=${process.env.DATABASE_URL||"file:./dev.db"}`);
+app.listen(PORT,"0.0.0.0",()=>console.log(`SERVER STARTED ON ${PORT}`));
+process.on("uncaughtException",e=>{console.error("UNCAUGHT:",e);process.exit(1);});
+process.on("unhandledRejection",e=>{console.error("UNHANDLED:",e);process.exit(1);});
