@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
@@ -56,28 +56,30 @@ const BRANCH_COLORS  = { discipline:"#8d8cf8", fitness:"#fb7878", self_developme
 const BRANCH_LABELS  = { discipline:"Дисциплина", fitness:"Фитнес", self_development:"Саморазвитие", knowledge:"Знания" };
 
 export default function WorldMap({ token, userLevel = 1, showToast }) {
-  const [accepted, setAccepted] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem("map_accepted") || "[]")); }
-    catch { return new Set(); }
-  });
+  const [claimedToday, setClaimedToday] = useState(new Set());
   const [selected, setSelected] = useState(null);
   const [busy, setBusy]         = useState(false);
   const auth = { headers: { Authorization: `Bearer ${token}` } };
+
+  useEffect(() => {
+    axios.get(`${API}/world-map/daily-status`, auth)
+      .then(r => setClaimedToday(new Set(r.data.claimedToday || [])))
+      .catch(() => {});
+  }, [token]);
 
   const selectLoc = (loc) => {
     if (userLevel < loc.unlock) return;
     setSelected(prev => prev?.id === loc.id ? null : loc);
   };
 
-  const acceptQuest = async () => {
+  const claimQuest = async () => {
     if (!selected) return;
     setBusy(true);
     try {
-      await axios.post(`${API}/tasks`, { title: selected.questTitle, description: selected.questDesc, isWorldMapQuest: true }, auth);
-      const s = new Set([...accepted, selected.id]);
-      setAccepted(s);
-      localStorage.setItem("map_accepted", JSON.stringify([...s]));
-      showToast(`✅ Принят квест «${selected.questTitle}»!`, "success");
+      const res = await axios.post(`${API}/world-map/${selected.id}/claim-quest`, {}, auth);
+      setClaimedToday(prev => new Set([...prev, selected.id]));
+      showToast(`✅ Квест «${selected.questTitle}» выполнен! +${res.data.xpReward} XP, +${res.data.goldReward} 💰`, "success");
+      setSelected(null);
     } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
     finally { setBusy(false); }
   };
@@ -148,7 +150,7 @@ export default function WorldMap({ token, userLevel = 1, showToast }) {
         {LOCATIONS.map(loc => {
           const unlocked = userLevel >= loc.unlock;
           const isSelected = selected?.id === loc.id;
-          const isDone = accepted.has(loc.id);
+          const isDone = claimedToday.has(loc.id);
           const color  = BRANCH_COLORS[loc.branch] || "#8d8cf8";
           return (
             <div key={loc.id} style={{
@@ -251,17 +253,17 @@ export default function WorldMap({ token, userLevel = 1, showToast }) {
           </div>
 
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            {accepted.has(selected.id) ? (
+            {claimedToday.has(selected.id) ? (
               <div style={{ display:"flex", alignItems:"center", gap:6, color:"#34d399", fontSize:13, fontWeight:600 }}>
-                <span style={{ fontSize:18 }}>✅</span> Квест уже принят — выполни его!
+                <span style={{ fontSize:18 }}>✅</span> Квест взят сегодня — возвращайся завтра!
               </div>
             ) : (
               <button
                 className="btn btn-primary"
                 disabled={busy}
-                onClick={acceptQuest}
+                onClick={claimQuest}
                 style={{ background: BRANCH_COLORS[selected.branch] }}>
-                {busy ? "Добавляю..." : "⚔️ Принять квест"}
+                {busy ? "Выполняю..." : "⚔️ Получить награду квеста"}
               </button>
             )}
           </div>

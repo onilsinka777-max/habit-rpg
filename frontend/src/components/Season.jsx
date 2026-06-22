@@ -25,12 +25,20 @@ function RankBar({ xp, nextXp, rank }) {
 }
 
 export default function Season({ token, showToast }) {
-  const [season, setSeason]       = useState(null);
-  const [progress, setProgress]   = useState(null);
-  const [board, setBoard]         = useState([]);
-  const [tab, setTab]             = useState("me");
-  const [loading, setLoading]     = useState(true);
+  const [season, setSeason]           = useState(null);
+  const [progress, setProgress]       = useState(null);
+  const [board, setBoard]             = useState([]);
+  const [tab, setTab]                 = useState("me");
+  const [loading, setLoading]         = useState(true);
+  const [dailyQuest, setDailyQuest]   = useState(null);
+  const [dqCompleting, setDqCompleting] = useState(false);
   const auth = { headers: { Authorization: `Bearer ${token}` } };
+
+  const loadDailyQuest = () => {
+    axios.get(`${API}/season/daily-quest`, auth)
+      .then(r => setDailyQuest(r.data))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     Promise.all([
@@ -42,7 +50,18 @@ export default function Season({ token, showToast }) {
       setBoard(lb.data);
     }).catch(() => showToast("Ошибка загрузки сезона", "error"))
       .finally(() => setLoading(false));
+    loadDailyQuest();
   }, [token]);
+
+  const completeDailyQuest = async () => {
+    setDqCompleting(true);
+    try {
+      await axios.post(`${API}/season/daily-quest/complete`, {}, auth);
+      showToast("✅ Сезонный квест выполнен! +50 XP, +50 очков сезона", "success");
+      loadDailyQuest();
+    } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
+    finally { setDqCompleting(false); }
+  };
 
   if (loading) return <div className="section-card"><p style={{ textAlign:"center", padding:32, opacity:0.5 }}>Загрузка...</p></div>;
   if (!season) return (
@@ -82,6 +101,32 @@ export default function Season({ token, showToast }) {
           ))}
         </div>
       </div>
+
+      {/* ── Daily season quest ── */}
+      {dailyQuest && (
+        <div style={{
+          background:"rgba(245,182,55,0.07)", border:"1px solid rgba(245,182,55,0.25)",
+          borderRadius:12, padding:"14px 16px", marginBottom:16,
+        }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+            <span style={{ fontSize:20 }}>🎯</span>
+            <div style={{ fontWeight:700, fontSize:14, color:"#f5b637" }}>Сезонный квест дня</div>
+            <div style={{ marginLeft:"auto", fontSize:11, color:"rgba(255,255,255,0.4)" }}>+50 XP · +50 очков</div>
+          </div>
+          <div style={{ fontWeight:600, fontSize:15, marginBottom:4 }}>{dailyQuest.title}</div>
+          {dailyQuest.description && (
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.55)", marginBottom:10, lineHeight:1.5 }}>{dailyQuest.description}</div>
+          )}
+          {dailyQuest.completed ? (
+            <div style={{ color:"#34d399", fontWeight:700, fontSize:13 }}>✅ Выполнен сегодня</div>
+          ) : (
+            <button className="btn btn-primary btn-sm" disabled={dqCompleting} onClick={completeDailyQuest}
+              style={{ background:"linear-gradient(135deg,#d97706,#f5b637)", color:"#0b0e17" }}>
+              {dqCompleting ? "..." : "Выполнить"}
+            </button>
+          )}
+        </div>
+      )}
 
       <div style={{ display:"flex", gap:8, marginBottom:16 }}>
         {["me", "leaderboard"].map(t => (

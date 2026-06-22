@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Chat from "./Chat";
+import VoiceInput from "./VoiceInput";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -78,6 +79,7 @@ export default function Friends({ token, showToast, askConfirm, myStreak, onChes
 
       {/* Send request */}
       <div className="new-quest-form" style={{ marginBottom: 20 }}>
+        <VoiceInput onResult={text => setName(prev => (prev + text).trim())} size={14} />
         <input
           className="input"
           placeholder="Ник игрока"

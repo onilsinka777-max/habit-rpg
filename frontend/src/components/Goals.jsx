@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import VoiceInput from "./VoiceInput";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -89,13 +90,18 @@ export default function Goals({ token, showToast, askConfirm }) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
-          <textarea
-            className="journal-textarea"
-            placeholder="Описание (необязательно)"
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            rows={3}
-          />
+          <div style={{ position:"relative" }}>
+            <textarea
+              className="journal-textarea"
+              placeholder="Описание (необязательно)"
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              rows={3}
+            />
+            <div style={{ position:"absolute", bottom:8, right:8 }}>
+              <VoiceInput onResult={text => setDesc(prev => prev + text)} />
+            </div>
+          </div>
           <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
             <label style={{ fontSize:13, color:"rgba(255,255,255,0.5)" }}>Дедлайн:</label>
             <input

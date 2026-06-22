@@ -9,7 +9,7 @@ const BRANCH_LABELS = {
   self_development: "Саморазвитие", knowledge: "Знания",
 };
 
-export default function Profile({ token, showToast, userId, currentUserId }) {
+export default function Profile({ token, showToast, userId, currentUserId, onBack }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const auth = { headers: { Authorization: `Bearer ${token}` } };
@@ -31,6 +31,16 @@ export default function Profile({ token, showToast, userId, currentUserId }) {
 
   return (
     <div className="section-card">
+      {onBack && userId && (
+        <button
+          onClick={onBack}
+          style={{
+            background:"none", border:"none", color:"rgba(255,255,255,0.5)", cursor:"pointer",
+            fontSize:13, padding:"0 0 12px", display:"flex", alignItems:"center", gap:6,
+          }}>
+          ← Назад к друзьям
+        </button>
+      )}
       <div className="profile-header" style={{
         background: "linear-gradient(135deg, rgba(141,140,248,0.1), rgba(30,27,50,0.8))",
         border: "1px solid rgba(141,140,248,0.2)", borderRadius: 14, padding: "20px 16px", marginBottom: 16,

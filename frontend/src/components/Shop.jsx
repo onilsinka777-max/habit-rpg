@@ -1,7 +1,49 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+// Season "Рассвет" ends 2026-07-31
+const SEASON_END = new Date("2026-07-31T23:59:59");
+
+function SeasonalCountdown() {
+  const [timeLeft, setTimeLeft] = useState("");
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const tick = () => {
+      const diff = SEASON_END - Date.now();
+      if (diff <= 0) { setTimeLeft("Сезон завершён"); return; }
+      const days = Math.floor(diff / 86400000);
+      const hrs  = Math.floor((diff % 86400000) / 3600000);
+      const mins = Math.floor((diff % 3600000) / 60000);
+      const secs = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${days}д ${String(hrs).padStart(2,"0")}:${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`);
+      rafRef.current = setTimeout(tick, 1000);
+    };
+    tick();
+    return () => clearTimeout(rafRef.current);
+  }, []);
+
+  return (
+    <div style={{
+      background:"linear-gradient(135deg,rgba(217,119,6,0.15),rgba(245,182,55,0.08))",
+      border:"1px solid rgba(245,182,55,0.3)", borderRadius:12, padding:"12px 16px", marginBottom:16,
+      display:"flex", alignItems:"center", justifyContent:"space-between",
+    }}>
+      <div>
+        <div style={{ fontWeight:700, fontSize:13, color:"#f5b637" }}>🌅 Сезон «Рассвет»</div>
+        <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginTop:2 }}>
+          Эксклюзивные предметы исчезнут после окончания сезона
+        </div>
+      </div>
+      <div style={{ textAlign:"right" }}>
+        <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)" }}>Осталось</div>
+        <div style={{ fontWeight:800, fontSize:15, color:"#f5b637", fontFamily:"monospace" }}>{timeLeft}</div>
+      </div>
+    </div>
+  );
+}
 
 const TABS = [
   { key:"boost",    label:"Бусты",      icon:"⚡" },
@@ -244,6 +286,7 @@ export default function Shop({ items, gold, loadingId, onPurchase, streakFreezeC
   };
 
   const contentItems = items.filter(i => CONTENT_CATS.includes(i.category));
+  const seasonalItems = items.filter(i => i.category === "seasonal");
   const tabItems = tab === "content" ? contentItems
     : tab === "boost"   ? items.filter(i => i.category === "boost")
     : tab === "cosmetic"? items.filter(i => i.category === "cosmetic")
@@ -280,7 +323,25 @@ export default function Shop({ items, gold, loadingId, onPurchase, streakFreezeC
       )}
 
       {tab === "weekly" && (
-        <WeeklyTab token={token} gold={gold} onPurchase={onPurchase} loadingId={loadingId} />
+        <>
+          <SeasonalCountdown />
+          {seasonalItems.length > 0 && (
+            <>
+              <div style={{ fontWeight:700, fontSize:13, color:"rgba(255,255,255,0.6)", marginBottom:10 }}>🌅 Сезонные эксклюзивы</div>
+              <div className="shop-grid" style={{ marginBottom:20 }}>
+                {seasonalItems.map(item => (
+                  <ShopCard key={item.id} item={item} gold={gold}
+                    loadingId={cardBusy || loadingId}
+                    onPurchase={onPurchase}
+                    streakFreezeCount={streakFreezeCount}
+                    onUseCard={useXpCard}
+                    isArtifact={false} />
+                ))}
+              </div>
+            </>
+          )}
+          <WeeklyTab token={token} gold={gold} onPurchase={onPurchase} loadingId={loadingId} />
+        </>
       )}
 
       {["boost", "cosmetic", "xp_card", "content"].includes(tab) && (

@@ -272,6 +272,7 @@ app.get("/me",authMiddleware,async(req,res)=>{
     avatar:user.avatar||null,
     chessRating:user.chessRating||1000,
     activeNpcId:user.activeNpcId||null,
+    missedDaysStreak:user.missedDaysStreak||0,
     tasksToday:await prisma.task.count({where:{userId:req.userId,completed:true,updatedAt:{gte:today}}}).catch(()=>0),
     xpToday:0,
   });
@@ -434,7 +435,10 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const newCombo=withinWindow?(cu.comboCount||0)+1:1;
     const flowActive=newCombo>=5;
     const comboMult=flowActive?1.25:1;
-    const{xp,level}=applyXpGain(cu.xp,cu.level,Math.round(task.xpReward*mMult.xp*xpM*comboMult));
+    // ── Active NPC: +10% XP bonus in NPC's branch ────────────────────────────
+    const activeNpc=cu.activeNpcId?getNpc(cu.activeNpcId):null;
+    const npcBonusMult=activeNpc&&activeNpc.branch===task.branch?1.1:1;
+    const{xp,level}=applyXpGain(cu.xp,cu.level,Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult));
     const goldGain=Math.round(task.goldReward*getGoldMultiplier()*mMult.gold*goldM);
     // ── Random drop (10%) ────────────────────────────────────────────────────
     let dropReward=null;
@@ -469,7 +473,7 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
           const chest=CHEST_MILESTONES[threshold%28===0?28:threshold<=7?7:threshold<=14?14:threshold<=21?21:28]||CHEST_MILESTONES[7];
           chestReward={...chest,threshold};
           const{xp:cxp,level:clevel}=applyXpGain(xp,level,chest.xp);
-          await prisma.user.update({where:{id:req.userId},data:{xp:cxp,level:clevel,gold:{increment:chest.gold+goldGain},streak:newStreak,streakUpdatedDate:now,lastChestStreak:threshold,lastActiveQuestDate:now,comboCount:newCombo,lastQuestCompletedAt:now,...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{})}});
+          await prisma.user.update({where:{id:req.userId},data:{xp:cxp,level:clevel,gold:{increment:chest.gold+goldGain},streak:newStreak,streakUpdatedDate:now,lastChestStreak:threshold,lastActiveQuestDate:now,comboCount:newCombo,lastQuestCompletedAt:now,missedDaysStreak:0,...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{})}});
           await prisma.userLeague.upsert({where:{userId:req.userId},create:{userId:req.userId,weeklyXp:Math.round(task.xpReward*xpM)},update:{weeklyXp:{increment:Math.round(task.xpReward*xpM)}}}).catch(()=>{});
           const{newAchievements:na,petCreated:pc}=await handlePostComplete(req.userId,newStreak,clevel);
           return res.json({...updatedTask,freezeConsumed,streakJustCompleted,newStreak,chestReward,newAchievements:na,petCreated:pc,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
@@ -485,7 +489,7 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     let dropXp=0,dropGold=0;
     if(dropReward){if(dropReward.type==="xp")dropXp=dropReward.amount;else dropGold=dropReward.amount;}
     const{xp:finalXp,level:finalLevel}=dropXp>0?applyXpGain(xp,level,dropXp):{xp,level};
-    await prisma.user.update({where:{id:req.userId},data:{xp:finalXp,level:finalLevel,gold:{increment:goldGain+firstQuestBonus+dropGold},lastActiveQuestDate:now,comboCount:newCombo,lastQuestCompletedAt:now,...(streakJustCompleted?{streak:newStreak,streakUpdatedDate:now}:{}),...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{}),...(!alreadyGotFirstBonus?{firstQuestBonusDate:now}:{})}});
+    await prisma.user.update({where:{id:req.userId},data:{xp:finalXp,level:finalLevel,gold:{increment:goldGain+firstQuestBonus+dropGold},lastActiveQuestDate:now,comboCount:newCombo,lastQuestCompletedAt:now,...(streakJustCompleted?{streak:newStreak,streakUpdatedDate:now,missedDaysStreak:0}:{}),...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{}),...(!alreadyGotFirstBonus?{firstQuestBonusDate:now}:{})}});
     // Update league weekly XP
     await prisma.userLeague.upsert({where:{userId:req.userId},create:{userId:req.userId,weeklyXp:Math.round(task.xpReward*xpM)},update:{weeklyXp:{increment:Math.round(task.xpReward*xpM)}}}).catch(()=>{});
     const finalStreak=streakJustCompleted?newStreak:cu.streak;
@@ -1743,15 +1747,15 @@ app.get("/shared-streak/my",authMiddleware,async(req,res)=>{
 // ── NPC ───────────────────────────────────────────────────────────────────────
 app.get("/npc",authMiddleware,async(req,res)=>{
   try{
-    const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true}});
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true,activeNpcId:true}});
     const interactions=await prisma.npcInteraction.findMany({where:{userId:req.userId}});
     const npcs=getAvailableNpcs(user.level).map(npc=>{
       const interaction=interactions.find(i=>i.npcId===npc.id)||null;
       const now=new Date();
       const canInteract=!interaction||((now-interaction.lastInteractedAt)>7*24*3600*1000);
-      return{...npc,canInteract,questsGiven:interaction?.questsGiven||0,lastInteractedAt:interaction?.lastInteractedAt||null};
+      return{...npc,canInteract,questsGiven:interaction?.questsGiven||0,lastInteractedAt:interaction?.lastInteractedAt||null,isActive:user.activeNpcId===npc.id};
     });
-    res.json(npcs);
+    res.json({npcs,activeNpcId:user.activeNpcId||null});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -1800,6 +1804,22 @@ app.post("/npc/:id/interact",authMiddleware,async(req,res)=>{
       update:{lastInteractedAt:now,questsGiven:{increment:1}},
     });
     res.json({npc,task,tip,greeting:npc.greeting});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.patch("/npc/:id/activate",authMiddleware,async(req,res)=>{
+  try{
+    const npc=getNpc(req.params.id);
+    if(!npc)return res.status(404).json({message:"NPC не найден"});
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true}});
+    if(user.level<npc.unlockLevel)return res.status(403).json({message:`Откроется на уровне ${npc.unlockLevel}`});
+    const already=await prisma.user.findUnique({where:{id:req.userId},select:{activeNpcId:true}});
+    const deactivate=already.activeNpcId===npc.id;
+    await prisma.user.update({where:{id:req.userId},data:{activeNpcId:deactivate?null:npc.id}});
+    res.json({
+      message:deactivate?`${npc.name} деактивирован`:`${npc.name} теперь твой активный наставник (+10% XP в ветке ${npc.branch})`,
+      activeNpcId:deactivate?null:npc.id,
+    });
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 

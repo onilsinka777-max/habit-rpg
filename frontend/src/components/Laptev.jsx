@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import axios from "axios";
+import VoiceInput from "./VoiceInput";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -236,6 +237,7 @@ export default function Laptev({ token, user, showToast }) {
 
           {/* Input */}
           <div style={{ display:"flex", gap:8 }}>
+            <VoiceInput onResult={text => setInput(prev => prev + text)} size={14} />
             <input value={input} onChange={e=>setInput(e.target.value)}
               onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
               placeholder={msgsLeft>0?"Написать LAPTEV...":"Лимит на сегодня исчерпан"}

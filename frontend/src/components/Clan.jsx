@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
+import VoiceInput from "./VoiceInput";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -449,6 +450,7 @@ export default function Clan({ token, showToast, askConfirm, currentUserId, myLe
         </div>
 
         <div className="new-quest-form">
+          <VoiceInput onResult={text => setNewMessage(prev => prev + text)} />
           <input
             className="input"
             placeholder="Написать в чат..."

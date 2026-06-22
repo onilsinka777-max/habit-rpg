@@ -62,11 +62,22 @@ async function applyMissedRequiredPenalties(userId) {
   if (missed.length === 0) return;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
+
+  // Each unique expiry date = 1 missed day; increment missedDaysStreak
+  const MISS_MULTS = [1, 1.5, 2, 4, 8];
+  const missedDates = new Set(missed.map((t) => new Date(t.expiresAt).toDateString()));
+  const newMissedDaysStreak = (user.missedDaysStreak || 0) + missedDates.size;
+  const mult = MISS_MULTS[Math.min(newMissedDaysStreak - 1, 4)];
+
   const penaltyPerQuest = getRequiredPenaltyGold(user.masteryPath);
-  const newGold = Math.max(0, user.gold - missed.length * penaltyPerQuest);
+  const totalPenalty = Math.round(missed.length * penaltyPerQuest * mult);
+  const newGold = Math.max(0, user.gold - totalPenalty);
 
   await prisma.$transaction([
-    prisma.user.update({ where: { id: userId }, data: { gold: newGold } }),
+    prisma.user.update({
+      where: { id: userId },
+      data: { gold: newGold, missedDaysStreak: newMissedDaysStreak },
+    }),
     ...missed.map((t) => prisma.task.update({ where: { id: t.id }, data: { penalized: true } })),
   ]);
 }

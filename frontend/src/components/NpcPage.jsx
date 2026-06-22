@@ -6,7 +6,8 @@ const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const BRANCH_COLORS = { discipline:"#8d8cf8", fitness:"#fb7878", self_development:"#34d399", knowledge:"#38bdf8" };
 
 export default function NpcPage({ token, showToast }) {
-  const [npcs, setNpcs]     = useState([]);
+  const [npcs, setNpcs]       = useState([]);
+  const [activeNpcId, setActiveNpcId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [result, setResult]   = useState(null);
   const [busy, setBusy]       = useState(null);
@@ -14,7 +15,7 @@ export default function NpcPage({ token, showToast }) {
 
   const load = () => {
     axios.get(`${API}/npc`, auth)
-      .then(r => setNpcs(r.data))
+      .then(r => { setNpcs(r.data.npcs || r.data); setActiveNpcId(r.data.activeNpcId || null); })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
@@ -28,6 +29,16 @@ export default function NpcPage({ token, showToast }) {
       setResult(res.data);
       load();
       showToast(`Получен квест от ${res.data.npc.name}!`, "success");
+    } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
+    finally { setBusy(null); }
+  };
+
+  const activate = async (npcId) => {
+    setBusy(`act_${npcId}`);
+    try {
+      const res = await axios.patch(`${API}/npc/${npcId}/activate`, {}, auth);
+      setActiveNpcId(res.data.activeNpcId);
+      showToast(res.data.message, "success");
     } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
     finally { setBusy(null); }
   };
@@ -89,23 +100,42 @@ export default function NpcPage({ token, showToast }) {
                 {npc.description}
               </p>
 
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
                 <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)" }}>
                   {npc.questsGiven > 0 ? `Заданий выдано: ${npc.questsGiven}` : "Ещё не общались"}
+                  {activeNpcId === npc.id && (
+                    <span style={{ marginLeft:8, background:"rgba(124,58,237,0.25)", color:"#a78bfa", borderRadius:5, padding:"1px 7px", fontWeight:700 }}>
+                      ⭐ Активный
+                    </span>
+                  )}
                 </div>
-                {npc.canInteract ? (
+                <div style={{ display:"flex", gap:6 }}>
                   <button
-                    className="btn btn-primary"
+                    className="btn btn-sm"
                     disabled={!!busy}
-                    onClick={() => interact(npc.id)}
-                    style={{ background:color, color:"#0b0e17", fontSize:13 }}>
-                    {busy === npc.id ? "..." : "💬 Поговорить"}
+                    onClick={() => activate(npc.id)}
+                    style={{
+                      background: activeNpcId === npc.id ? "rgba(124,58,237,0.3)" : "rgba(255,255,255,0.06)",
+                      border: `1px solid ${activeNpcId === npc.id ? "#7c3aed" : "rgba(255,255,255,0.12)"}`,
+                      color: activeNpcId === npc.id ? "#a78bfa" : "rgba(255,255,255,0.6)",
+                      borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:12,
+                    }}>
+                    {busy === `act_${npc.id}` ? "..." : activeNpcId === npc.id ? "⭐ Деактивировать" : "⭐ Активировать"}
                   </button>
-                ) : (
-                  <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)" }}>
-                    {npc.lastInteractedAt ? `Следующий разговор через несколько дней` : "Недоступен"}
-                  </div>
-                )}
+                  {npc.canInteract ? (
+                    <button
+                      className="btn btn-primary"
+                      disabled={!!busy}
+                      onClick={() => interact(npc.id)}
+                      style={{ background:color, color:"#0b0e17", fontSize:13 }}>
+                      {busy === npc.id ? "..." : "💬 Поговорить"}
+                    </button>
+                  ) : (
+                    <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)", paddingTop:4 }}>
+                      {npc.lastInteractedAt ? "Следующий разговор через несколько дней" : "Недоступен"}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );

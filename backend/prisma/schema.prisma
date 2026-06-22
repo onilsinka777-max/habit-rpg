@@ -105,7 +105,7 @@ model User {
   chessRating              Int              @default(1000)
   avatar                   String?
   missedDaysStreak         Int              @default(0)
-  activeNpcId              Int?
+  activeNpcId              String?
   worldMapQuests           WorldMapQuest[]
   seasonQuests             SeasonQuest[]
   createdAt                DateTime         @default(now())
