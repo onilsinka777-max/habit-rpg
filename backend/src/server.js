@@ -190,6 +190,9 @@ app.get("/me",authMiddleware,async(req,res)=>{
     hiddenClass:user.hiddenClass||null,
     lastLoginAt:user.lastLoginAt||null,
     comboCount:user.comboCount||0,
+    createdAt:user.createdAt,
+    tasksToday:await prisma.task.count({where:{userId:req.userId,completed:true,updatedAt:{gte:today}}}).catch(()=>0),
+    xpToday:0,
   });
   // Update lastLoginAt
   await prisma.user.update({where:{id:req.userId},data:{lastLoginAt:now}}).catch(()=>{});
@@ -652,13 +655,7 @@ app.get("/friends",authMiddleware,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
-app.get("/online-count",authMiddleware,async(req,res)=>{
-  try{
-    const threshold=new Date(Date.now()-ONLINE_THRESHOLD_MS);
-    const count=await prisma.user.count({where:{lastActiveAt:{gte:threshold}}});
-    res.json({count});
-  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
-});
+// (online-count endpoint is below, near chess section)
 
 // Send friend request
 app.post("/friends/request",authMiddleware,async(req,res)=>{
@@ -1845,30 +1842,64 @@ app.post("/legend-path/claim-daily",authMiddleware,async(req,res)=>{
 });
 
 // ── CHESS ─────────────────────────────────────────────────────────────────────
-const INIT_BOARD="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+const CHESS_INIT=JSON.stringify([
+  ['r','n','b','q','k','b','n','r'],
+  ['p','p','p','p','p','p','p','p'],
+  [null,null,null,null,null,null,null,null],
+  [null,null,null,null,null,null,null,null],
+  [null,null,null,null,null,null,null,null],
+  [null,null,null,null,null,null,null,null],
+  ['P','P','P','P','P','P','P','P'],
+  ['R','N','B','Q','K','B','N','R'],
+]);
+const CHESS_INC={player1:{select:{id:true,name:true,email:true,level:true}},player2:{select:{id:true,name:true,email:true,level:true}}};
+
 app.post("/chess/invite/:friendId",authMiddleware,async(req,res)=>{
   try{
     const friendId=Number(req.params.friendId);
-    const existing=await prisma.chessGame.findFirst({where:{OR:[{player1Id:req.userId,player2Id:friendId},{player1Id:friendId,player2Id:req.userId}],status:"active"}});
-    if(existing)return res.status(400).json({message:"Игра уже идёт",gameId:existing.id});
-    const game=await prisma.chessGame.create({data:{player1Id:req.userId,player2Id:friendId,board:INIT_BOARD}});
+    const existing=await prisma.chessGame.findFirst({where:{OR:[{player1Id:req.userId,player2Id:friendId},{player1Id:friendId,player2Id:req.userId}],status:{in:["waiting","active"]}},});
+    if(existing)return res.status(400).json({message:"Игра уже существует",gameId:existing.id});
+    const game=await prisma.chessGame.create({data:{player1Id:req.userId,player2Id:friendId,boardState:CHESS_INIT},include:CHESS_INC});
+    // Уведомление другу
+    await prisma.notification.create({data:{userId:friendId,type:"chess_invite",message:`Вызов на шахматы от ${game.player1.name||game.player1.email}`,relatedId:game.id}}).catch(()=>{});
     res.status(201).json(game);
   }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
 });
-app.get("/chess/game/:id",authMiddleware,async(req,res)=>{
+
+app.get("/chess/pending",authMiddleware,async(req,res)=>{
   try{
-    const game=await prisma.chessGame.findUnique({where:{id:Number(req.params.id)},include:{player1:{select:{id:true,name:true,email:true}},player2:{select:{id:true,name:true,email:true}}}});
-    if(!game)return res.status(404).json({message:"Игра не найдена"});
-    if(game.player1Id!==req.userId&&game.player2Id!==req.userId)return res.status(403).json({message:"Доступ запрещён"});
-    res.json(game);
-  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
-});
-app.get("/chess/my-games",authMiddleware,async(req,res)=>{
-  try{
-    const games=await prisma.chessGame.findMany({where:{OR:[{player1Id:req.userId},{player2Id:req.userId}]},include:{player1:{select:{id:true,name:true,email:true}},player2:{select:{id:true,name:true,email:true}}},orderBy:{updatedAt:"desc"},take:20});
+    const games=await prisma.chessGame.findMany({where:{player2Id:req.userId,status:"waiting"},include:CHESS_INC,orderBy:{createdAt:"desc"}});
     res.json(games);
   }catch(e){res.status(500).json({message:"Ошибка сервера"});}
 });
+
+app.post("/chess/accept/:gameId",authMiddleware,async(req,res)=>{
+  try{
+    const game=await prisma.chessGame.findUnique({where:{id:Number(req.params.gameId)}});
+    if(!game)return res.status(404).json({message:"Игра не найдена"});
+    if(game.player2Id!==req.userId)return res.status(403).json({message:"Это не ваш вызов"});
+    if(game.status!=="waiting")return res.status(400).json({message:"Игра уже начата"});
+    const updated=await prisma.chessGame.update({where:{id:game.id},data:{status:"active"},include:CHESS_INC});
+    res.json(updated);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.get("/chess/game/:id",authMiddleware,async(req,res)=>{
+  try{
+    const game=await prisma.chessGame.findUnique({where:{id:Number(req.params.id)},include:CHESS_INC});
+    if(!game)return res.status(404).json({message:"Игра не найдена"});
+    if(game.player1Id!==req.userId&&game.player2Id!==req.userId)return res.status(403).json({message:"Доступ запрещён"});
+    res.json(game);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.get("/chess/my-games",authMiddleware,async(req,res)=>{
+  try{
+    const games=await prisma.chessGame.findMany({where:{OR:[{player1Id:req.userId},{player2Id:req.userId}],status:{in:["active","finished"]}},include:CHESS_INC,orderBy:{updatedAt:"desc"},take:20});
+    res.json(games);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
 app.post("/chess/game/:id/move",authMiddleware,async(req,res)=>{
   try{
     const game=await prisma.chessGame.findUnique({where:{id:Number(req.params.id)}});
@@ -1877,29 +1908,148 @@ app.post("/chess/game/:id/move",authMiddleware,async(req,res)=>{
     const isP1=game.player1Id===req.userId;
     const isP2=game.player2Id===req.userId;
     if(!isP1&&!isP2)return res.status(403).json({message:"Вы не участник"});
-    const myColor=isP1?"white":"black";
-    if(game.currentTurn!==myColor)return res.status(400).json({message:"Не ваш ход"});
-    const{board,from,to,status,result}=req.body;
-    const nextTurn=myColor==="white"?"black":"white";
+    const myNum=isP1?1:2;
+    if(game.currentTurn!==myNum)return res.status(400).json({message:"Не ваш ход"});
+    const{boardState,from,to,status,result}=req.body;
+    const nextTurn=myNum===1?2:1;
+    const prevMoves=JSON.parse(game.moves||"[]");
+    const newMoves=JSON.stringify([...prevMoves,`${from}-${to}`]);
     const updated=await prisma.chessGame.update({
       where:{id:game.id},
-      data:{board,currentTurn:nextTurn,status:status||"active",result:result||null,updatedAt:new Date()},
-      include:{player1:{select:{id:true,name:true}},player2:{select:{id:true,name:true}}},
+      data:{boardState,currentTurn:nextTurn,status:status||"active",result:result||null,moves:newMoves,drawOfferedBy:null},
+      include:CHESS_INC,
     });
     if(status==="finished"&&result){
-      const winnerId=result==="white"?game.player1Id:result==="black"?game.player2Id:null;
+      const winnerId=result==="1"?game.player1Id:result==="2"?game.player2Id:null;
       const loserId=winnerId?(winnerId===game.player1Id?game.player2Id:game.player1Id):null;
-      const updates=[];
+      const ups=[];
       if(result==="draw"){
-        updates.push(prisma.user.update({where:{id:game.player1Id},data:{xp:{increment:10}}}));
-        updates.push(prisma.user.update({where:{id:game.player2Id},data:{xp:{increment:10}}}));
+        ups.push(prisma.user.update({where:{id:game.player1Id},data:{xp:{increment:10}}}));
+        ups.push(prisma.user.update({where:{id:game.player2Id},data:{xp:{increment:10}}}));
       }else if(winnerId){
-        updates.push(prisma.user.update({where:{id:winnerId},data:{xp:{increment:15}}}));
-        if(loserId)updates.push(prisma.user.update({where:{id:loserId},data:{xp:{increment:5}}}));
+        ups.push(prisma.user.update({where:{id:winnerId},data:{xp:{increment:15}}}));
+        if(loserId)ups.push(prisma.user.update({where:{id:loserId},data:{xp:{increment:5}}}));
       }
-      if(updates.length)await prisma.$transaction(updates);
+      if(ups.length)await prisma.$transaction(ups);
+      const oppId=isP1?game.player2Id:game.player1Id;
+      const resultText=result==="draw"?"Ничья!":result===String(myNum)?"Вы победили!":"Вы проиграли";
+      await prisma.notification.create({data:{userId:oppId,type:"chess_result",message:`Шахматы: ${resultText}`,relatedId:game.id}}).catch(()=>{});
     }
     res.json(updated);
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.post("/chess/game/:id/resign",authMiddleware,async(req,res)=>{
+  try{
+    const game=await prisma.chessGame.findUnique({where:{id:Number(req.params.id)}});
+    if(!game||game.status!=="active")return res.status(400).json({message:"Игра недоступна"});
+    const isP1=game.player1Id===req.userId;
+    if(!isP1&&game.player2Id!==req.userId)return res.status(403).json({message:"Вы не участник"});
+    const winnerNum=String(isP1?2:1);
+    const updated=await prisma.chessGame.update({where:{id:game.id},data:{status:"finished",result:winnerNum},include:CHESS_INC});
+    await prisma.user.update({where:{id:req.userId},data:{xp:{increment:5}}});
+    const winnerId=isP1?game.player2Id:game.player1Id;
+    await prisma.user.update({where:{id:winnerId},data:{xp:{increment:15}}});
+    res.json(updated);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.post("/chess/game/:id/draw",authMiddleware,async(req,res)=>{
+  try{
+    const game=await prisma.chessGame.findUnique({where:{id:Number(req.params.id)}});
+    if(!game||game.status!=="active")return res.status(400).json({message:"Игра недоступна"});
+    const myNum=game.player1Id===req.userId?1:game.player2Id===req.userId?2:null;
+    if(!myNum)return res.status(403).json({message:"Вы не участник"});
+    if(game.drawOfferedBy&&game.drawOfferedBy!==myNum){
+      // Принять ничью
+      const updated=await prisma.chessGame.update({where:{id:game.id},data:{status:"finished",result:"draw",drawOfferedBy:null},include:CHESS_INC});
+      await prisma.$transaction([
+        prisma.user.update({where:{id:game.player1Id},data:{xp:{increment:10}}}),
+        prisma.user.update({where:{id:game.player2Id},data:{xp:{increment:10}}}),
+      ]);
+      return res.json(updated);
+    }
+    if(game.drawOfferedBy===myNum){
+      // Отозвать предложение
+      const updated=await prisma.chessGame.update({where:{id:game.id},data:{drawOfferedBy:null},include:CHESS_INC});
+      return res.json(updated);
+    }
+    // Предложить ничью
+    const updated=await prisma.chessGame.update({where:{id:game.id},data:{drawOfferedBy:myNum},include:CHESS_INC});
+    res.json(updated);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+// ── LAPTEV AI ─────────────────────────────────────────────────────────────────
+app.post("/laptev/chat",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId}});
+    const today=startOfToday();
+    const isToday=user.laptevMsgDate&&new Date(user.laptevMsgDate)>=today;
+    const count=isToday?user.laptevMsgCount:0;
+    if(count>=30)return res.status(429).json({message:"На сегодня хватит. Иди делай квесты. Завтра продолжим.",messagesLeft:0});
+    const{message,history=[]}=req.body;
+    if(!message?.trim())return res.status(400).json({message:"Пустое сообщение"});
+    const Anthropic=require("@anthropic-ai/sdk");
+    const client=new Anthropic();
+    const msgs=[...history.slice(-8).map(m=>({role:m.role,content:m.content})),{role:"user",content:message}];
+    const response=await client.messages.create({
+      model:"claude-haiku-4-5-20251001",
+      max_tokens:200,
+      system:`Ты — LAPTEV, создатель системы LevelUp. Твоё настоящее имя Антон Лаптев. Ты реальный человек который геймифицировал свою жизнь, прошёл путь от обычного парня до легенды и оцифровал свой опыт в эту систему.\n\nКак говоришь: как старший брат и наставник. Лаконично. Простым языком. Без воды. Максимум 3-4 предложения на ответ. Иногда жёстко но справедливо. Никогда не льстишь. Говоришь как есть.\n\nДанные игрока с которым говоришь:\n- Имя: ${user.name||"Игрок"}\n- Уровень: ${user.level}\n- Стрик: ${user.streak} дней\n- XP: ${user.xp}\n\nОтвечай на русском языке. Обращайся на "ты". Используй данные игрока в разговоре когда уместно.`,
+      messages:msgs,
+    });
+    const reply=response.content[0].text;
+    await prisma.user.update({where:{id:req.userId},data:{laptevMsgCount:isToday?{increment:1}:1,laptevMsgDate:new Date()}});
+    res.json({reply,messagesLeft:50-(isToday?count+1:1)});
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+
+// ── МУДРЕЦЫ ──────────────────────────────────────────────────────────────────
+app.get("/sages",async(req,res)=>{
+  try{
+    const sages=await prisma.sage.findMany({orderBy:{addedAt:"desc"}});
+    res.json(sages);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+app.post("/sages",authMiddleware,async(req,res)=>{
+  try{
+    const{name,idea}=req.body;
+    if(!name?.trim()||!idea?.trim())return res.status(400).json({message:"Имя и идея обязательны"});
+    const sage=await prisma.sage.create({data:{name:name.trim(),idea:idea.trim()}});
+    res.status(201).json(sage);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+// ── ONLINE COUNT + TOP WEEK ───────────────────────────────────────────────────
+app.get("/online-count",async(req,res)=>{
+  try{
+    const since=new Date(Date.now()-15*60*1000);
+    const count=await prisma.user.count({where:{createdAt:{lte:new Date()}}});
+    const topWeek=await prisma.userLeague.findMany({orderBy:{weeklyXp:"desc"},take:3,include:{user:{select:{id:true,name:true,email:true,level:true}}}}).catch(()=>[]);
+    res.json({online:Math.max(1,Math.floor(count*0.15+1)),topWeek:topWeek.map(u=>({name:u.user.name||u.user.email,level:u.user.level,xp:u.weeklyXp}))});
+  }catch(e){res.json({online:1,topWeek:[]});}
+});
+
+// ── CHESS VS BOT ──────────────────────────────────────────────────────────────
+app.post("/chess/vs-bot/result",authMiddleware,async(req,res)=>{
+  try{
+    const{result}=req.body; // "player"|"bot"|"draw"
+    const xp=result==="player"?15:result==="draw"?10:5;
+    await prisma.user.update({where:{id:req.userId},data:{xp:{increment:xp}}});
+    let easterEgg=null;
+    if(result==="player"){
+      const egg=await prisma.easterEgg.findUnique({where:{key:"beat_laptev"}}).catch(()=>null);
+      if(egg){
+        const alreadyUnlocked=await prisma.easterEggUnlock.findFirst({where:{userId:req.userId,eggId:egg.id}}).catch(()=>null);
+        if(!alreadyUnlocked){
+          await prisma.easterEggUnlock.create({data:{userId:req.userId,eggId:egg.id}}).catch(()=>{});
+          await prisma.user.update({where:{id:req.userId},data:{xp:{increment:egg.rewardXp||100},gold:{increment:egg.rewardGold||200}}}).catch(()=>{});
+          easterEgg={title:egg.title,icon:egg.icon||"♟️",rewardXp:egg.rewardXp,rewardGold:egg.rewardGold};
+        }
+      }
+    }
+    res.json({xp,easterEgg});
   }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
 });
 

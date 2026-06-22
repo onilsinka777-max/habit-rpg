@@ -41,6 +41,8 @@ import WelcomeNPC from "./components/WelcomeNPC";
 import ThemeChoiceScreen from "./components/ThemeChoiceScreen";
 import SectionTabs from "./components/SectionTabs";
 import Chess from "./components/Chess";
+import Laptev from "./components/Laptev";
+import Sages from "./components/Sages";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
 import ToastContainer from "./components/Toast";
 import "./App.css";
@@ -113,6 +115,8 @@ const NAV_ITEMS = [
   { key:"report",       label:"Недельный отчёт",  icon:"📈", theme:REPORT_THEME   },
   { key:"profile",      label:"Мой профиль",      icon:"👤", theme:PROFILE_THEME  },
   { key:"ai-coach",     label:"AI Коуч",          icon:"🤖", theme:COACH_THEME    },
+  { key:"laptev",       label:"LAPTEV",            icon:"🟣", theme:{ accent:"#7c3aed", glow:"rgba(124,58,237,0.35)" } },
+  { key:"sages",        label:"Мудрецы",           icon:"🏛️", theme:{ accent:"#fbbf24", glow:"rgba(251,191,36,0.35)" } },
   { key:"legend-path",  label:"Легендарный путь", icon:"🌟", theme:{ accent:"#f5b637", glow:"rgba(245,182,55,0.35)" }, lockLevel:40, lockMessage:"Легендарный путь открывается на 40 уровне" },
 ];
 
@@ -486,7 +490,7 @@ export default function App() {
         )}
 
         {/* ── ПРОФИЛЬ ──────────────────────────────────────────────────── */}
-        {["profile","achievements","stats","shop","library","journal","goals","pet","pomodoro","report","ai-coach"].includes(view) && (
+        {["profile","achievements","stats","shop","library","journal","goals","pet","pomodoro","report","ai-coach","laptev","sages"].includes(view) && (
           <>
             <SectionTabs tabs={[
               {key:"profile",      label:"Обзор",         icon:"🪪"},
@@ -499,6 +503,8 @@ export default function App() {
               {key:"pet",          label:"Питомец",       icon:"🐾"},
               {key:"pomodoro",     label:"Помодоро",      icon:"⏱️"},
               {key:"ai-coach",     label:"AI Коуч",       icon:"🤖"},
+              {key:"laptev",       label:"LAPTEV",        icon:"🟣"},
+              {key:"sages",        label:"Мудрецы",       icon:"🏛️"},
             ]} active={view} onChange={setView} />
             {view === "profile"      && <Profile     token={token} showToast={showToast} userId={null} currentUserId={user?.id} />}
             {view === "achievements" && <Achievements token={token} showToast={showToast} />}
@@ -511,6 +517,8 @@ export default function App() {
             {view === "pomodoro"     && <Pomodoro     token={token} showToast={showToast} onXpGained={loadProfile} />}
             {view === "report"       && <WeeklyReport token={token} showToast={showToast} />}
             {view === "ai-coach"     && <AiCoach      token={token} showToast={showToast} />}
+            {view === "laptev"       && <Laptev       token={token} user={user} showToast={showToast} />}
+            {view === "sages"        && <Sages        token={token} showToast={showToast} />}
           </>
         )}
 

@@ -98,6 +98,10 @@ model User {
   easterEggs               EasterEggUnlock[]
   chessAsPlayer1           ChessGame[]      @relation("ChessPlayer1")
   chessAsPlayer2           ChessGame[]      @relation("ChessPlayer2")
+  laptevMsgCount           Int              @default(0)
+  laptevMsgDate            DateTime?
+  chessWins                Int              @default(0)
+  chessLosses              Int              @default(0)
   createdAt                DateTime         @default(now())
 }
 
@@ -619,17 +623,28 @@ model EasterEggUnlock {
   @@unique([userId, eggId])
 }
 
+// ── МУДРЕЦЫ ──────────────────────────────────────────────────────────────────
+model Sage {
+  id      Int      @id @default(autoincrement())
+  name    String
+  idea    String
+  addedAt DateTime @default(now())
+}
+
 // ── CHESS ─────────────────────────────────────────────────────────────────────
 model ChessGame {
-  id          Int      @id @default(autoincrement())
-  player1Id   Int
-  player1     User     @relation("ChessPlayer1", fields: [player1Id], references: [id])
-  player2Id   Int
-  player2     User     @relation("ChessPlayer2", fields: [player2Id], references: [id])
-  board       String   @default("start")
-  currentTurn String   @default("white")
-  status      String   @default("active")
-  result      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  player1Id     Int
+  player1       User     @relation("ChessPlayer1", fields: [player1Id], references: [id])
+  player2Id     Int
+  player2       User     @relation("ChessPlayer2", fields: [player2Id], references: [id])
+  boardState    String
+  currentTurn   Int      @default(1)
+  status        String   @default("waiting")
+  result        String?
+  moves         String   @default("[]")
+  drawOfferedBy Int?
+  isVsBot       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
