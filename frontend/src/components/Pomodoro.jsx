@@ -36,10 +36,22 @@ function notify(title, body) {
 
 export default function Pomodoro({ token, showToast, onXpGained }) {
   const auth = { headers: { Authorization: `Bearer ${token}` } };
-  const [phase,    setPhase]    = useState("work");
-  const [timeLeft, setTimeLeft] = useState(WORK_SEC);
-  const [running,  setRunning]  = useState(false);
-  const [count,    setCount]    = useState(0);
+
+  // Restore timer from localStorage on mount
+  const initState = () => {
+    const saved = JSON.parse(localStorage.getItem("pomodoro_state") || "null");
+    if (saved && saved.endTime && saved.endTime > Date.now()) {
+      const secondsLeft = Math.round((saved.endTime - Date.now()) / 1000);
+      return { phase: saved.phase || "work", timeLeft: secondsLeft, running: true };
+    }
+    return { phase: "work", timeLeft: WORK_SEC, running: false };
+  };
+  const init = initState();
+
+  const [phase,    setPhase]    = useState(init.phase);
+  const [timeLeft, setTimeLeft] = useState(init.timeLeft);
+  const [running,  setRunning]  = useState(init.running);
+  const [count,    setCount]    = useState(Number(localStorage.getItem("pomodoro_count") || 0));
   const [flash,    setFlash]    = useState(false);
   const intervalRef  = useRef(null);
   const phaseEndedRef = useRef(false);
@@ -62,7 +74,7 @@ export default function Pomodoro({ token, showToast, onXpGained }) {
       const next = prev === "work" ? "break" : "work";
       setTimeLeft(next === "work" ? WORK_SEC : BREAK_SEC);
       if (prev === "work") {
-        setCount(c => c + 1);
+        setCount(c => { const n=c+1; localStorage.setItem("pomodoro_count",n); return n; });
         awardXp();
         notify("🍅 Помодоро завершён!", "Отличная работа! Время перерыва.");
       } else {
@@ -83,20 +95,27 @@ export default function Pomodoro({ token, showToast, onXpGained }) {
     } catch { /* endpoint might not exist, silent */ }
   };
 
-  const start = () => {
-    if (running || timeLeft === 0) return;
+  const start = (curTime) => {
+    const secs = curTime ?? timeLeft;
+    if (running || secs === 0) return;
     setRunning(true);
+    const endTime = Date.now() + secs * 1000;
+    localStorage.setItem("pomodoro_state", JSON.stringify({ phase, endTime }));
     intervalRef.current = setInterval(() => {
-      setTimeLeft(t => Math.max(0, t - 1));
-    }, 1000);
-    // Request notification permission on first start
+      const left = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+      setTimeLeft(left);
+    }, 500);
     if (Notification.permission === "default") Notification.requestPermission();
   };
+
+  // Auto-start if restored as running
+  useEffect(() => { if (init.running) start(init.timeLeft); }, []);
 
   const pause = () => {
     setRunning(false);
     clearInterval(intervalRef.current);
     intervalRef.current = null;
+    localStorage.removeItem("pomodoro_state");
   };
 
   const reset = () => {

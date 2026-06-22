@@ -432,7 +432,7 @@ function LaptevChessSection({ token, showToast, user }) {
 
   const kingInCheck=inCheck(board,'w');
   let kingPos=null;
-  if(kingInCheck){for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(board[r][c]==='K'){kingPos=[r,c];break;}if(kingPos)break;}
+  if(kingInCheck){outer:for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(board[r][c]==='K'){kingPos=[r,c];break outer;}}
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>

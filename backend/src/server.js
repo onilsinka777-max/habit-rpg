@@ -41,27 +41,76 @@ async function generateUniqueClanTag(){let t,e=true;while(e){t=randomClanTag();e
 function getMasteryState(user){const raw=user.masteryChoices?JSON.parse(user.masteryChoices):{};return new Set(raw.completed||[]);}
 
 const ACHIEVEMENT_META={
-  first_quest:   {label:"Первый шаг",      desc:"Выполни первый квест",              icon:"🌟", xpReward:15},
-  streak_3:      {label:"Тройная серия",   desc:"3 дня подряд",                      icon:"✨", xpReward:25},
-  streak_7:      {label:"Огонь недели",    desc:"7 дней подряд",                     icon:"🔥", xpReward:75},
-  streak_14:     {label:"Верный путь",     desc:"14 дней подряд",                    icon:"💎", xpReward:150},
-  streak_30:     {label:"Хранитель",       desc:"30 дней подряд",                    icon:"⚡", xpReward:350},
-  level_5:       {label:"Молодой боец",    desc:"Достигни 5 уровня",                 icon:"🗡️", xpReward:30},
-  level_10:      {label:"Воин общины",     desc:"Достигни 10 уровня",                icon:"⚔️", xpReward:100},
-  level_25:      {label:"Идущий по пути",  desc:"Достигни 25 уровня",                icon:"🗺️", xpReward:300},
-  level_50:      {label:"Ветеран",         desc:"Достигни 50 уровня",                icon:"👑", xpReward:1000},
-  quests_10:     {label:"Начало пути",     desc:"Выполни 10 квестов",                icon:"📜", xpReward:30},
-  quests_50:     {label:"Пятидесятник",    desc:"Выполни 50 квестов",                icon:"🏅", xpReward:150},
-  quests_100:    {label:"Сотня",           desc:"Выполни 100 квестов",               icon:"💯", xpReward:400},
-  quests_250:    {label:"Легион",          desc:"Выполни 250 квестов",               icon:"🏆", xpReward:800},
-  legendary_done:{label:"Легендарный",     desc:"Выполни первый легендарный квест",  icon:"⚔️", xpReward:200},
-  all_branches:  {label:"Гармония",        desc:"Выполни 5 квестов в каждой ветке",  icon:"☯️", xpReward:120},
-  chain_first:   {label:"Сила цепи",       desc:"Заверши шаг в цепочке квестов",     icon:"⛓️", xpReward:100},
-  pomodoro_10:   {label:"Мастер фокуса",   desc:"Заверши 10 помодоро-сессий",        icon:"⏱️", xpReward:80},
-  social_first:  {label:"Первый союзник",  desc:"Добавь первого друга",              icon:"🤝", xpReward:50},
+  // ── Квесты ─────────────────────────────────────────────────────────────────
+  first_quest:      {label:"Первый шаг",          desc:"Выполни первый квест",                   icon:"🌟", xpReward:15},
+  quests_10:        {label:"Начало пути",          desc:"Выполни 10 квестов",                     icon:"📜", xpReward:30},
+  quests_50:        {label:"Пятидесятник",         desc:"Выполни 50 квестов",                     icon:"🏅", xpReward:150},
+  quests_100:       {label:"Сотня",               desc:"Выполни 100 квестов",                    icon:"💯", xpReward:400},
+  quests_250:       {label:"Легион",              desc:"Выполни 250 квестов",                    icon:"🏆", xpReward:800},
+  quests_500:       {label:"Пятисотка",           desc:"Выполни 500 квестов",                    icon:"⚡", xpReward:1500},
+  quests_1000:      {label:"Тысяча",              desc:"Выполни 1000 квестов",                   icon:"👑", xpReward:3000},
+  branch_discipline:{label:"Фанат дисциплины",    desc:"50 квестов дисциплины",                  icon:"🛡️", xpReward:200},
+  branch_fitness:   {label:"Атлет",               desc:"50 квестов фитнеса",                     icon:"💪", xpReward:200},
+  branch_knowledge: {label:"Эрудит",              desc:"50 квестов знаний",                      icon:"📘", xpReward:200},
+  branch_seldev:    {label:"Мыслитель",           desc:"50 квестов саморазвития",                icon:"🌱", xpReward:200},
+  all_branches:     {label:"Гармония",            desc:"Выполни 5 квестов в каждой ветке",       icon:"☯️", xpReward:120},
+  master_all:       {label:"Мастер всего",        desc:"100 квестов в каждой ветке",             icon:"🌀", xpReward:2000},
+  // ── Стрик ──────────────────────────────────────────────────────────────────
+  streak_3:         {label:"Тройная серия",       desc:"3 дня подряд",                           icon:"✨", xpReward:25},
+  streak_7:         {label:"Первая неделя",       desc:"7 дней подряд",                          icon:"🔥", xpReward:75},
+  streak_14:        {label:"Верный путь",         desc:"14 дней подряд",                         icon:"💎", xpReward:150},
+  streak_30:        {label:"Месяц",               desc:"30 дней подряд",                         icon:"⚡", xpReward:350},
+  streak_90:        {label:"Три месяца",          desc:"90 дней подряд",                         icon:"🌟", xpReward:700},
+  streak_180:       {label:"Полгода",             desc:"180 дней подряд",                        icon:"💫", xpReward:1200},
+  streak_365:       {label:"Год",                 desc:"365 дней подряд",                        icon:"🏆", xpReward:3000},
+  streak_100:       {label:"Несломимый",          desc:"100 дней без заморозки",                 icon:"⚔️", xpReward:500},
+  // ── Уровни ─────────────────────────────────────────────────────────────────
+  level_5:          {label:"Новобранец",          desc:"Достигни 5 уровня",                      icon:"🗡️", xpReward:30},
+  level_10:         {label:"Боец",                desc:"Достигни 10 уровня",                     icon:"⚔️", xpReward:100},
+  level_20:         {label:"Ветеран",             desc:"Достигни 20 уровня",                     icon:"🗺️", xpReward:200},
+  level_25:         {label:"Идущий по пути",      desc:"Достигни 25 уровня",                     icon:"🧬", xpReward:300},
+  level_30:         {label:"Элита",               desc:"Достигни 30 уровня",                     icon:"💥", xpReward:400},
+  level_40:         {label:"Мастер",              desc:"Достигни 40 уровня",                     icon:"🔮", xpReward:600},
+  level_50:         {label:"Грандмастер",         desc:"Достигни 50 уровня",                     icon:"👑", xpReward:1000},
+  level_75:         {label:"Легенда",             desc:"Достигни 75 уровня",                     icon:"⭐", xpReward:2000},
+  level_100:        {label:"Бессмертный",         desc:"Достигни 100 уровня",                    icon:"🌌", xpReward:5000},
+  // ── Социальное ─────────────────────────────────────────────────────────────
+  social_first:     {label:"Не один",             desc:"Добавь первого друга",                   icon:"🤝", xpReward:50},
+  social_5:         {label:"Команда",             desc:"5 друзей",                               icon:"👥", xpReward:150},
+  social_20:        {label:"Армия",               desc:"20 друзей",                              icon:"👫", xpReward:400},
+  clan_create:      {label:"Основатель",          desc:"Создай клан",                            icon:"⚜️", xpReward:100},
+  clan_10:          {label:"Командир",            desc:"10 человек в клане",                     icon:"🏰", xpReward:200},
+  clan_50:          {label:"Легион",              desc:"50 человек в клане",                     icon:"🔱", xpReward:500},
+  shared_streak:    {label:"Союзник",             desc:"Совместный стрик 7 дней с другом",       icon:"🤜", xpReward:200},
+  // ── Магазин ────────────────────────────────────────────────────────────────
+  first_purchase:   {label:"Первая покупка",      desc:"Купи что-то в магазине",                 icon:"🛒", xpReward:25},
+  purchases_10:     {label:"Шопоголик",           desc:"10 покупок",                             icon:"💳", xpReward:100},
+  gold_1000:        {label:"Богач",               desc:"Накопи 1000 золота",                     icon:"💰", xpReward:150},
+  gold_10000:       {label:"Сокровищница",        desc:"Накопи 10000 золота",                    icon:"🏅", xpReward:500},
+  // ── Шахматы ────────────────────────────────────────────────────────────────
+  chess_first:      {label:"Дебютант",            desc:"Сыграй первую партию",                   icon:"♟️", xpReward:30},
+  chess_5wins:      {label:"Победитель",          desc:"Выиграй 5 партий",                       icon:"♚", xpReward:100},
+  beat_laptev:      {label:"Победил создателя",   desc:"Обыграй LAPTEV в шахматы",               icon:"♟️", xpReward:200, hidden:true},
+  chess_rating1500: {label:"Гроссмейстер",        desc:"Рейтинг 1500+",                          icon:"👑", xpReward:500},
+  // ── Особые ─────────────────────────────────────────────────────────────────
+  night_owl:        {label:"Ночная сова",         desc:"Квест между 2:00 и 4:00",                icon:"🦉", xpReward:50, hidden:true},
+  early_bird:       {label:"Ранняя пташка",       desc:"Квест до 6:00",                          icon:"🐦", xpReward:50, hidden:true},
+  perfectionist:    {label:"Перфекционист",       desc:"10 квестов за один день",                icon:"💯", xpReward:100, hidden:true},
+  night_guard:      {label:"Ночной дозор",        desc:"5 квестов после 23:00",                  icon:"🌙", xpReward:100, hidden:true},
+  philosopher:      {label:"Философ",             desc:"30 записей в дневнике",                  icon:"📔", xpReward:150},
+  grateful_21:      {label:"Благодарный",         desc:"21 запись благодарностей",               icon:"🌿", xpReward:200},
+  marathon_done:    {label:"Марафонец",           desc:"Завершить любой марафон",                icon:"🏃", xpReward:300},
+  legend_10:        {label:"Легендарный путь",    desc:"10 легендарных квестов",                 icon:"👑", xpReward:500},
+  legendary_done:   {label:"Легендарный",         desc:"Выполни первый легендарный квест",       icon:"⚔️", xpReward:200},
+  chain_first:      {label:"Сила цепи",           desc:"Заверши шаг в цепочке квестов",          icon:"⛓️", xpReward:100},
+  pomodoro_10:      {label:"Мастер фокуса",       desc:"Заверши 10 помодоро-сессий",             icon:"⏱️", xpReward:80},
+  sage_added:       {label:"Мудрец совета",       desc:"Попасть в раздел Мудрецы",              icon:"🏛️", xpReward:200, hidden:true},
+  // ── Финальное (скрытое) ────────────────────────────────────────────────────
+  all_achievements: {label:"Игрок, достигший величия", desc:"Получи 79 других достижений",      icon:"🌌", xpReward:5000, goldReward:2000, hidden:true},
 };
 
-function computeTitle(count){if(count>=4)return"Легенда";if(count>=1)return"Игрок";return"Новичок";}
+// Title is ONLY set by mastery finish / level 50 / legend path. Achievement count no longer drives it.
+function computeTitle(count){return"Игрок";}
 
 function computePetState(pet,streak){
   const h=(Date.now()-new Date(pet.lastFed).getTime())/3600000;
@@ -73,42 +122,70 @@ function computePetState(pet,streak){
 
 async function handlePostComplete(userId,streak,level,taskType){
   const completedCount=await prisma.task.count({where:{userId,completed:true}});
-  const legendaryCount=await prisma.task.count({where:{userId,completed:true,type:"legendary"}});
+  const legendaryCount=await prisma.task.count({where:{userId,completed:true,type:{in:["legendary","legend"]}}});
   const branchCounts=await prisma.task.groupBy({by:["branch"],where:{userId,completed:true},_count:{id:true}});
-  const allBranchDone=["discipline","fitness","self_development","knowledge"].every(b=>(branchCounts.find(x=>x.branch===b)?._count.id||0)>=5);
+  const bc=(b)=>(branchCounts.find(x=>x.branch===b)?._count.id||0);
+  const allBranchDone=["discipline","fitness","self_development","knowledge"].every(b=>bc(b)>=5);
+  const masterAll=["discipline","fitness","self_development","knowledge"].every(b=>bc(b)>=100);
   const pomodoroCount=await prisma.task.count({where:{userId,completed:true,type:"pomodoro"}}).catch(()=>0);
+  const user=await prisma.user.findUnique({where:{id:userId},select:{gold:true,chessWins:true,chessRating:true,streak:true,streakFreezeCount:true}});
   const existing=await prisma.achievement.findMany({where:{userId},select:{type:true}});
   const existingSet=new Set(existing.map(a=>a.type));
   const conditions={
     first_quest:completedCount>=1,
-    streak_3:streak>=3,
-    streak_7:streak>=7,
-    streak_14:streak>=14,
-    streak_30:streak>=30,
-    level_5:level>=5,
-    level_10:level>=10,
-    level_25:level>=25,
-    level_50:level>=50,
     quests_10:completedCount>=10,
     quests_50:completedCount>=50,
     quests_100:completedCount>=100,
     quests_250:completedCount>=250,
-    legendary_done:legendaryCount>=1,
+    quests_500:completedCount>=500,
+    quests_1000:completedCount>=1000,
+    branch_discipline:bc("discipline")>=50,
+    branch_fitness:bc("fitness")>=50,
+    branch_knowledge:bc("knowledge")>=50,
+    branch_seldev:bc("self_development")>=50,
     all_branches:allBranchDone,
+    master_all:masterAll,
+    streak_3:streak>=3,
+    streak_7:streak>=7,
+    streak_14:streak>=14,
+    streak_30:streak>=30,
+    streak_90:streak>=90,
+    streak_180:streak>=180,
+    streak_365:streak>=365,
+    level_5:level>=5,
+    level_10:level>=10,
+    level_20:level>=20,
+    level_25:level>=25,
+    level_30:level>=30,
+    level_40:level>=40,
+    level_50:level>=50,
+    level_75:level>=75,
+    level_100:level>=100,
+    legendary_done:legendaryCount>=1,
+    legend_10:legendaryCount>=10,
+    chain_first:false, // triggered separately
     pomodoro_10:pomodoroCount>=10,
+    gold_1000:(user?.gold||0)>=1000,
+    gold_10000:(user?.gold||0)>=10000,
+    chess_first:(user?.chessWins||0)>=1,
+    chess_5wins:(user?.chessWins||0)>=5,
+    chess_rating1500:(user?.chessRating||1000)>=1500,
   };
   const toGrant=Object.entries(conditions).filter(([t,v])=>v&&!existingSet.has(t)).map(([t])=>t);
+  // Check all achievements unlocked
+  const totalAchievements=Object.keys(ACHIEVEMENT_META).filter(k=>k!=="all_achievements").length;
+  if(!existingSet.has("all_achievements")&&(existing.length+toGrant.length)>=totalAchievements){
+    toGrant.push("all_achievements");
+  }
   let newAchievements=[];
   if(toGrant.length>0){
-    await prisma.achievement.createMany({data:toGrant.map(type=>({userId,type}))});
-    const newTitle=computeTitle(existing.length+toGrant.length);
+    await prisma.achievement.createMany({data:toGrant.map(type=>({userId,type})),skipDuplicates:true});
     const u=await prisma.user.findUnique({where:{id:userId}});
-    // Grant XP for each achievement
-    let bonusXp=0;
-    for(const t of toGrant){bonusXp+=(ACHIEVEMENT_META[t]?.xpReward||0);}
+    let bonusXp=0,bonusGold=0;
+    for(const t of toGrant){bonusXp+=(ACHIEVEMENT_META[t]?.xpReward||0);bonusGold+=(ACHIEVEMENT_META[t]?.goldReward||0);}
     const updates={};
-    if(u.title!==newTitle)updates.title=newTitle;
     if(bonusXp>0){const{xp,level:nl}=applyXpGain(u.xp,u.level,bonusXp);updates.xp=xp;updates.level=nl;}
+    if(bonusGold>0)updates.gold={increment:bonusGold};
     if(Object.keys(updates).length>0)await prisma.user.update({where:{id:userId},data:updates});
     newAchievements=toGrant.map(type=>({type,...ACHIEVEMENT_META[type]}));
   }
@@ -190,7 +267,11 @@ app.get("/me",authMiddleware,async(req,res)=>{
     hiddenClass:user.hiddenClass||null,
     lastLoginAt:user.lastLoginAt||null,
     comboCount:user.comboCount||0,
+    flowActive:(user.comboCount||0)>=5,
     createdAt:user.createdAt,
+    avatar:user.avatar||null,
+    chessRating:user.chessRating||1000,
+    activeNpcId:user.activeNpcId||null,
     tasksToday:await prisma.task.count({where:{userId:req.userId,completed:true,updatedAt:{gte:today}}}).catch(()=>0),
     xpToday:0,
   });
@@ -346,12 +427,13 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const goldM=(gBActive?1.5:1)*(cu.goldBoostPermanent?1.25:1);
     const autoClass=cu.masteryPath?null:await computeAutoClass(req.userId);
     const mMult=getMasteryMultipliers(cu.masteryPath||autoClass,task.branch);
-    // ── Combo system ─────────────────────────────────────────────────────────
+    // ── Flow mode: 5+ quests in 30 min → flat +25% XP ───────────────────────
     const COMBO_WINDOW_MS=30*60*1000;
     const lastQ=cu.lastQuestCompletedAt?new Date(cu.lastQuestCompletedAt):null;
     const withinWindow=lastQ&&(now-lastQ)<COMBO_WINDOW_MS;
     const newCombo=withinWindow?(cu.comboCount||0)+1:1;
-    const comboMult=newCombo>=5?1.5:newCombo>=3?1.25:1;
+    const flowActive=newCombo>=5;
+    const comboMult=flowActive?1.25:1;
     const{xp,level}=applyXpGain(cu.xp,cu.level,Math.round(task.xpReward*mMult.xp*xpM*comboMult));
     const goldGain=Math.round(task.goldReward*getGoldMultiplier()*mMult.gold*goldM);
     // ── Random drop (10%) ────────────────────────────────────────────────────
@@ -446,10 +528,17 @@ app.post("/shop/:id/purchase",authMiddleware,async(req,res)=>{
     const item=await prisma.shopItem.findUnique({where:{id:itemId}});
     if(!item||!item.active)return res.status(404).json({message:"Item not found"});
     const user=await prisma.user.findUnique({where:{id:req.userId}});
-    if(item.category!=="boost"&&item.effect!=="name_change_scroll"&&!user.hasEverFinishedMastery)return res.status(403).json({message:"Доступно после завершения пути Мастерства"});
     if(user.gold<item.price)return res.status(400).json({message:"Not enough gold"});
+    // XP cards: apply immediately, don't store in library
+    const XP_CARD_MAP={"xp_card_500":500,"xp_card_3500":3500,"xp_card_10000":10000,"xp_card_small":100,"xp_card_medium":300,"xp_card_large":750};
+    if(item.effect&&XP_CARD_MAP[item.effect]){
+      const xpGain=XP_CARD_MAP[item.effect];
+      const{xp,level}=applyXpGain(user.xp,user.level,xpGain);
+      await prisma.user.update({where:{id:req.userId},data:{gold:{decrement:item.price},xp,level}});
+      return res.status(201).json({message:"XP начислено",xpGained:xpGain,level});
+    }
     // Usable items go to library first
-    const USABLE_EFFECTS=["streak_freeze","xp_boost_24h","gold_boost_24h","name_change_scroll","xp_card_small","xp_card_medium","xp_card_large"];
+    const USABLE_EFFECTS=["streak_freeze","xp_boost_24h","gold_boost_24h","name_change_scroll"];
     if(USABLE_EFFECTS.includes(item.effect)){
       const existingU=await prisma.purchase.findUnique({where:{userId_itemId:{userId:req.userId,itemId}}});
       if(existingU)return res.status(400).json({message:"Already in library"});
@@ -1316,6 +1405,17 @@ app.patch("/me/cosmetic",authMiddleware,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
+// ── AVATAR UPLOAD ────────────────────────────────────────────────────────────
+app.patch("/me/avatar",authMiddleware,async(req,res)=>{
+  try{
+    const{avatar}=req.body;
+    if(!avatar)return res.status(400).json({message:"Avatar data required"});
+    if(avatar.length>2*1024*1024)return res.status(413).json({message:"Изображение слишком большое (макс 2MB)"});
+    await prisma.user.update({where:{id:req.userId},data:{avatar}});
+    res.json({message:"OK"});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
 // ── TITLE CHANGE ──────────────────────────────────────────────────────────────
 app.patch("/me/title",authMiddleware,async(req,res)=>{
   try{
@@ -1816,7 +1916,7 @@ const LEGEND_MILESTONES={5:{gold:100,xp:500,title:"Ученик Легенды"}
 app.get("/legend-path",authMiddleware,async(req,res)=>{
   try{
     const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true}});
-    if(user.level<40)return res.status(403).json({message:"Доступно с 40 уровня",unlockLevel:40});
+    // TODO: вернуть ограничение level >= 40 после тестирования
     const completedCount=await prisma.task.count({where:{userId:req.userId,completed:true,type:"legend"}});
     const today=startOfToday();
     const completedToday=await prisma.task.count({where:{userId:req.userId,completed:true,type:"legend",completedAt:{gte:today}}});
@@ -1828,7 +1928,7 @@ app.get("/legend-path",authMiddleware,async(req,res)=>{
 app.post("/legend-path/claim-daily",authMiddleware,async(req,res)=>{
   try{
     const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true,xp:true,gold:true,title:true}});
-    if(user.level<40)return res.status(403).json({message:"Доступно с 40 уровня"});
+    // TODO: вернуть ограничение level >= 40 после тестирования
     const today=startOfToday();
     const alreadyToday=await prisma.task.count({where:{userId:req.userId,type:"legend",expiresAt:{gte:today}}});
     if(alreadyToday>0)return res.status(400).json({message:"Легендарный квест на сегодня уже получен"});
@@ -1859,7 +1959,9 @@ app.post("/chess/invite/:friendId",authMiddleware,async(req,res)=>{
     const friendId=Number(req.params.friendId);
     const existing=await prisma.chessGame.findFirst({where:{OR:[{player1Id:req.userId,player2Id:friendId},{player1Id:friendId,player2Id:req.userId}],status:{in:["waiting","active"]}},});
     if(existing)return res.status(400).json({message:"Игра уже существует",gameId:existing.id});
-    const game=await prisma.chessGame.create({data:{player1Id:req.userId,player2Id:friendId,boardState:CHESS_INIT},include:CHESS_INC});
+    const[sender,friend]=await Promise.all([prisma.user.findUnique({where:{id:req.userId},select:{chessRating:true}}),prisma.user.findUnique({where:{id:friendId},select:{chessRating:true}})]);
+    const shareCode=Math.random().toString(36).slice(2,8).toUpperCase();
+    const game=await prisma.chessGame.create({data:{player1Id:req.userId,player2Id:friendId,boardState:CHESS_INIT,shareCode,player1Rating:sender?.chessRating||1000,player2Rating:friend?.chessRating||1000},include:CHESS_INC});
     // Уведомление другу
     await prisma.notification.create({data:{userId:friendId,type:"chess_invite",message:`Вызов на шахматы от ${game.player1.name||game.player1.email}`,relatedId:game.id}}).catch(()=>{});
     res.status(201).json(game);
@@ -2003,6 +2105,111 @@ app.post("/laptev/chat",authMiddleware,async(req,res)=>{
     await prisma.user.update({where:{id:req.userId},data:{laptevMsgCount:isToday?{increment:1}:1,laptevMsgDate:new Date()}});
     res.json({reply,messagesLeft:50-(isToday?count+1:1)});
   }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+
+// ── КАРТА МИРА: ЕЖЕДНЕВНЫЕ КВЕСТЫ ЛОКАЦИИ ────────────────────────────────────
+const LOCATION_REWARDS=[
+  {xp:50,gold:25},{xp:50,gold:25},{xp:50,gold:25},   // 1-3
+  {xp:100,gold:50},{xp:100,gold:50},{xp:100,gold:50}, // 4-6
+  {xp:200,gold:100},{xp:200,gold:100},{xp:200,gold:100},{xp:200,gold:100}, // 7-10
+  {xp:300,gold:150},{xp:300,gold:150},{xp:300,gold:150},{xp:300,gold:150}, // 11-14
+  {xp:300,gold:150},{xp:300,gold:150},{xp:300,gold:150},{xp:300,gold:150}, // 15-18
+  {xp:300,gold:150},{xp:300,gold:150}, // 19-20
+];
+app.post("/world-map/:locationId/claim-quest",authMiddleware,async(req,res)=>{
+  try{
+    const locationId=Number(req.params.locationId);
+    if(locationId<1||locationId>20)return res.status(400).json({message:"Неверный ID локации"});
+    const today=startOfToday();
+    const existing=await prisma.worldMapQuest.findFirst({where:{userId:req.userId,locationId,createdAt:{gte:today}}});
+    if(existing){return res.json({alreadyTaken:true,completed:existing.completed});}
+    const rew=LOCATION_REWARDS[locationId-1]||{xp:100,gold:50};
+    const quest=await prisma.worldMapQuest.create({data:{userId:req.userId,locationId}});
+    // Give rewards immediately
+    const u=await prisma.user.findUnique({where:{id:req.userId}});
+    const{xp,level}=applyXpGain(u.xp,u.level,rew.xp);
+    await prisma.user.update({where:{id:req.userId},data:{xp,level,gold:{increment:rew.gold}}});
+    await prisma.worldMapQuest.update({where:{id:quest.id},data:{completed:true}});
+    res.json({claimed:true,xp:rew.xp,gold:rew.gold,level});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+app.get("/world-map/daily-status",authMiddleware,async(req,res)=>{
+  try{
+    const today=startOfToday();
+    const taken=await prisma.worldMapQuest.findMany({where:{userId:req.userId,createdAt:{gte:today}},select:{locationId:true,completed:true}});
+    const map={};taken.forEach(q=>{map[q.locationId]=q.completed;});
+    res.json(map);
+  }catch(e){res.status(500).json({message:"Server error"});}
+});
+
+// ── СЕЗОННЫЕ КВЕСТЫ ───────────────────────────────────────────────────────────
+const SEASON_QUEST_TITLES=[
+  {title:"Встреть рассвет",branch:"fitness",desc:"Выйди на улицу до 7 утра"},
+  {title:"Первый шаг",branch:"discipline",desc:"Выполни 1 квест до 9 утра"},
+  {title:"Утренний ритуал",branch:"fitness",desc:"Сделай зарядку сегодня"},
+  {title:"Новое начало",branch:"self_development",desc:"Запиши цель на этот день"},
+  {title:"Свет знаний",branch:"knowledge",desc:"Прочитай 10 страниц книги"},
+  {title:"Рассвет дисциплины",branch:"discipline",desc:"Не пропусти ни одного обязательного квеста"},
+  {title:"Весенняя медитация",branch:"self_development",desc:"10 минут осознанности"},
+  {title:"Путь к вершине",branch:"fitness",desc:"Выйди на пробежку или прогулку"},
+  {title:"Голос благодарности",branch:"knowledge",desc:"Напиши запись благодарности"},
+  {title:"Семена привычек",branch:"discipline",desc:"Выполни все квесты дня"},
+];
+app.get("/season/daily-quest",authMiddleware,async(req,res)=>{
+  try{
+    const today=startOfToday();
+    const existing=await prisma.seasonQuest.findFirst({where:{userId:req.userId,date:{gte:today}}});
+    if(existing)return res.json(existing);
+    const idx=Math.floor(Math.random()*SEASON_QUEST_TITLES.length);
+    const tpl=SEASON_QUEST_TITLES[idx];
+    const quest=await prisma.seasonQuest.create({data:{userId:req.userId,title:tpl.title,branch:tpl.branch}});
+    res.json(quest);
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+app.post("/season/daily-quest/complete",authMiddleware,async(req,res)=>{
+  try{
+    const today=startOfToday();
+    const quest=await prisma.seasonQuest.findFirst({where:{userId:req.userId,date:{gte:today},completed:false}});
+    if(!quest)return res.status(400).json({message:"Нет активного сезонного квеста"});
+    await prisma.seasonQuest.update({where:{id:quest.id},data:{completed:true}});
+    const u=await prisma.user.findUnique({where:{id:req.userId}});
+    const{xp,level}=applyXpGain(u.xp,u.level,50);
+    await prisma.user.update({where:{id:req.userId},data:{xp,level}});
+    // Update season progress
+    const sp=await prisma.seasonProgress.findFirst({where:{userId:req.userId}}).catch(()=>null);
+    if(sp)await prisma.seasonProgress.update({where:{id:sp.id},data:{points:{increment:50}}}).catch(()=>{});
+    res.json({completed:true,xp:50,level});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+// ── CHESS RATING ──────────────────────────────────────────────────────────────
+function calcRatingChange(myRating,oppRating,result){
+  const diff=oppRating-myRating;
+  const factor=diff>100?1.5:diff<-100?0.5:1;
+  if(result==="win")return Math.round(30*factor);
+  if(result==="loss")return-Math.round(25/factor);
+  return 1;
+}
+app.patch("/chess/game/:id/finish",authMiddleware,async(req,res)=>{
+  try{
+    const gameId=Number(req.params.id);
+    const game=await prisma.chessGame.findUnique({where:{id:gameId},include:{player1:{select:{id:true,chessRating:true}},player2:{select:{id:true,chessRating:true}}}});
+    if(!game)return res.status(404).json({message:"Игра не найдена"});
+    if(game.status==="finished")return res.status(400).json({message:"Игра уже завершена"});
+    const{result}=req.body; // "player1"|"player2"|"draw"
+    const p1=game.player1,p2=game.player2;
+    const p1r=p1.chessRating||1000,p2r=p2.chessRating||1000;
+    let d1,d2;
+    if(result==="player1"){d1=calcRatingChange(p1r,p2r,"win");d2=calcRatingChange(p2r,p1r,"loss");}
+    else if(result==="player2"){d1=calcRatingChange(p1r,p2r,"loss");d2=calcRatingChange(p2r,p1r,"win");}
+    else{d1=1;d2=1;}
+    await Promise.all([
+      prisma.user.update({where:{id:p1.id},data:{chessRating:{increment:d1},...(result==="player1"?{chessWins:{increment:1}}:{chessLosses:{increment:1}})}}),
+      prisma.user.update({where:{id:p2.id},data:{chessRating:{increment:d2},...(result==="player2"?{chessWins:{increment:1}}:{chessLosses:{increment:1}})}}),
+      prisma.chessGame.update({where:{id:gameId},data:{status:"finished",result}}),
+    ]);
+    res.json({ratingChange:{player1:d1,player2:d2}});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
 // ── МУДРЕЦЫ ──────────────────────────────────────────────────────────────────

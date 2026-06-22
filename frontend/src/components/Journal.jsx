@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import VoiceInput from "./VoiceInput";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -54,6 +55,7 @@ export default function Journal({ token, showToast }) {
           maxLength={5000}
         />
         <div className="journal-footer">
+          <VoiceInput onResult={text => setContent(prev => prev + text)} />
           <span className="journal-count">{content.length}/5000</span>
           <button className="btn btn-primary btn-sm" disabled={busy || !content.trim()} onClick={save}>
             {busy ? "..." : "Сохранить запись"}

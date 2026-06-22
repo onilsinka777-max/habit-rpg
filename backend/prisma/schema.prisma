@@ -102,6 +102,12 @@ model User {
   laptevMsgDate            DateTime?
   chessWins                Int              @default(0)
   chessLosses              Int              @default(0)
+  chessRating              Int              @default(1000)
+  avatar                   String?
+  missedDaysStreak         Int              @default(0)
+  activeNpcId              Int?
+  worldMapQuests           WorldMapQuest[]
+  seasonQuests             SeasonQuest[]
   createdAt                DateTime         @default(now())
 }
 
@@ -645,6 +651,34 @@ model ChessGame {
   moves         String   @default("[]")
   drawOfferedBy Int?
   isVsBot       Boolean  @default(false)
+  shareCode     String?  @unique
+  player1Rating Int?
+  player2Rating Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// ── КАРТА МИРА: ДНЕВНЫЕ КВЕСТЫ ────────────────────────────────────────────────
+model WorldMapQuest {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  locationId  Int
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, locationId, createdAt])
+}
+
+// ── СЕЗОННЫЕ КВЕСТЫ ───────────────────────────────────────────────────────────
+model SeasonQuest {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  seasonId  Int      @default(1)
+  title     String
+  branch    String
+  date      DateTime @default(now())
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
 }

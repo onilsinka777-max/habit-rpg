@@ -4,7 +4,7 @@ import Chat from "./Chat";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-export default function Friends({ token, showToast, askConfirm, myStreak, onChessInvite }) {
+export default function Friends({ token, showToast, askConfirm, myStreak, onChessInvite, onViewProfile }) {
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
   const [friends,    setFriends]    = useState([]);
   const [requests,   setRequests]   = useState([]);
@@ -131,6 +131,9 @@ export default function Friends({ token, showToast, askConfirm, myStreak, onChes
                   </div>
                 </div>
                 <div style={{ display:"flex", gap:6 }}>
+                  {onViewProfile && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => onViewProfile(f.id)} title="Профиль">👤</button>
+                  )}
                   <button className="btn btn-ghost btn-sm" onClick={() => setChatFriend(f)} title="Чат">💬</button>
                   {onChessInvite && (
                     <button className="btn btn-ghost btn-sm" title="Сыграть в шахматы"

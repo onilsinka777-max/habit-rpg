@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import StarField from "./StarField";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -37,6 +38,8 @@ function LeftPanel({ token }) {
           100% { transform: translateY(100vh); opacity: 0; }
         }
       `}</style>
+
+      <StarField side="left" />
 
       {/* Scan lines */}
       {[0, 2.5, 5, 7.5].map((delay, i) => (
@@ -110,6 +113,8 @@ function RightPanel({ token }) {
           100% { transform: translateY(-110px) scale(0.3); opacity: 0; }
         }
       `}</style>
+
+      <StarField side="right" />
 
       {/* Floating particles */}
       {particles.map(p => (

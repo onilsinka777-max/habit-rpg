@@ -1,7 +1,71 @@
-import { useState } from "react";
-import Avatar from "./Avatar";
+import { useState, useRef } from "react";
+import axios from "axios";
 
-export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, onGoToProfile }) {
+const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+function AvatarCircle({ user, size, onGoToProfile, onAvatarChange }) {
+  const inputRef = useRef(null);
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result;
+      try {
+        const token = localStorage.getItem("token");
+        await axios.patch(`${API}/me/avatar`, { avatar: base64 }, { headers: { Authorization: `Bearer ${token}` } });
+        onAvatarChange?.(base64);
+      } catch { /* silent */ }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const initials = (user.name || user.email || "?")[0].toUpperCase();
+
+  return (
+    <div style={{ position:"relative", cursor:"pointer" }}
+      onClick={() => inputRef.current?.click()}
+      title="Нажми чтобы загрузить фото">
+      <input ref={inputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleFile} />
+      {user.avatar ? (
+        <img src={user.avatar} alt="avatar" style={{
+          width:size, height:size, borderRadius:"50%", objectFit:"cover",
+          border:"2px solid rgba(124,58,237,0.6)", display:"block",
+        }}/>
+      ) : (
+        <div style={{
+          width:size, height:size, borderRadius:"50%",
+          background:"rgba(124,58,237,0.15)",
+          border:"2px solid rgba(124,58,237,0.3)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          fontSize:size*0.38, fontWeight:900, color:"rgba(255,255,255,0.5)",
+          position:"relative",
+        }}>
+          <span style={{ opacity: user.name ? 0.7 : 0.3 }}>{user.name ? initials : "📷"}</span>
+          <div style={{
+            position:"absolute", inset:0, borderRadius:"50%",
+            background:"rgba(124,58,237,0.12)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            opacity:0, transition:"opacity 0.15s",
+          }} className="avatar-hover-overlay">📷</div>
+        </div>
+      )}
+      {/* Level badge */}
+      <div onClick={(e)=>{e.stopPropagation();onGoToProfile?.();}} style={{
+        position:"absolute", bottom:-8, left:"50%", transform:"translateX(-50%)",
+        background:"linear-gradient(135deg,#7c3aed,#4c1d95)", borderRadius:999, minWidth:28,
+        padding:"2px 8px", textAlign:"center",
+        fontSize:11, fontWeight:900, color:"#fff",
+        zIndex:10, boxShadow:"0 2px 8px rgba(124,58,237,0.4)",
+        whiteSpace:"nowrap", cursor:"pointer",
+        textShadow:"0 0 8px #7c3aed",
+      }}>{user.level} ур.</div>
+    </div>
+  );
+}
+
+export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, onGoToProfile, onAvatarChange }) {
   const xpToNext  = user?.xpToNextLevel || 100;
   const xpPercent = Math.min(((user?.xp || 0) / xpToNext) * 100, 100);
   const [tooltip, setTooltip] = useState(null);
@@ -9,81 +73,65 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, o
   const showTip = (key) => setTooltip(key);
   const hideTip = () => setTooltip(null);
 
+  const titleBadge = user?.title && !["Новичок","Игрок"].includes(user.title);
+
   return (
     <div className="player-card">
-      {/* Tooltip */}
       {tooltip && (
         <div className="pc-tooltip">
-          {tooltip === "gold"   && "Нажми, чтобы перейти в магазин"}
-          {tooltip === "streak" && `Серия: ${user.streak} ${user.streak===1?"день":user.streak<5?"дня":"дней"} подряд`}
-          {tooltip === "xp"    && `До следующего уровня: ${xpToNext - (user?.xp || 0)} XP`}
-          {tooltip === "level" && `Сейчас у вас ${user.level} уровень`}
+          {tooltip === "gold"  && "Нажми, чтобы перейти в магазин"}
+          {tooltip === "xp"   && `До следующего уровня: ${Math.max(0, xpToNext - (user?.xp || 0))} XP`}
+          {tooltip === "level" && `${user.level} уровень`}
         </div>
       )}
 
-      <div onClick={() => onGoToProfile ? onGoToProfile() : showTip(tooltip === "level" ? null : "level")}
-        onMouseEnter={() => showTip("level")} onMouseLeave={hideTip}
-        style={{ cursor:"pointer", position:"relative" }} title="Открыть профиль">
-        <Avatar level={user.level} frame={user.avatarFrame || "none"} size={64} name={user.name || user.email || "?"} />
-        <div style={{
-          position:"absolute", bottom:-8, left:"50%", transform:"translateX(-50%)",
-          background:"var(--accent,#8d8cf8)", borderRadius:999, minWidth:26,
-          padding:"2px 7px", textAlign:"center",
-          fontSize:12, fontWeight:900, color:"#0b0e17",
-          zIndex:10, boxShadow:"0 2px 8px rgba(0,0,0,0.5)",
-          whiteSpace:"nowrap",
-        }}>{user.level} ур.</div>
+      <div onMouseEnter={() => showTip("level")} onMouseLeave={hideTip}>
+        <AvatarCircle user={user} size={64} onGoToProfile={onGoToProfile} onAvatarChange={onAvatarChange} />
       </div>
 
       <div className="player-info">
         <div className="player-row">
           <span className="player-email">
-            {user.title && user.title !== "Новичок" && (
-              <span style={{ fontSize:11, fontWeight:700, color:"#eab308", marginRight:6,
-                background:"rgba(234,179,8,0.12)", borderRadius:5, padding:"1px 6px" }}>
+            {titleBadge && (
+              <span style={{ fontSize:10, fontWeight:700, color:"#fbbf24", marginRight:5,
+                background:"rgba(251,191,36,0.12)", borderRadius:4, padding:"1px 5px",
+                border:"1px solid rgba(251,191,36,0.25)", textShadow:"0 0 8px #fbbf24" }}>
                 {user.title}
               </span>
             )}
             <span className={user.nicknameEffect ? `nick-${user.nicknameEffect}` : ""}>{user.name}</span>
-            {user.masteryStatusLabel && (
-              <span className="player-status-label"> · {user.masteryStatusLabel}</span>
+            {user.flowActive && (
+              <span style={{ fontSize:10, color:"#34d399", marginLeft:6, fontWeight:700,
+                background:"rgba(52,211,153,0.12)", padding:"1px 5px", borderRadius:4 }}>
+                🔥 ПОТОК +25%
+              </span>
             )}
           </span>
           <button className="btn btn-ghost btn-sm" onClick={onLogout}>Выйти</button>
         </div>
 
         <div className="player-stats">
-          <span
-            className="player-stat-btn"
+          <span className="player-stat-btn"
             onClick={() => onGoToShop && onGoToShop()}
-            onMouseEnter={() => showTip("gold")}
-            onMouseLeave={hideTip}
-            title="Перейти в магазин"
-          >
+            onMouseEnter={() => showTip("gold")} onMouseLeave={hideTip}>
             💰 {user.gold}
           </span>
-          <span
-            className="player-stat-btn"
-            onMouseEnter={() => showTip("streak")}
-            onMouseLeave={hideTip}
-            onClick={() => showTip(tooltip === "streak" ? null : "streak")}
-          >
-            🔥 {user.streak} дн.
-          </span>
-          <span
-            className="player-stat-btn"
-            onMouseEnter={() => showTip("xp")}
-            onMouseLeave={hideTip}
-            onClick={() => showTip(tooltip === "xp" ? null : "xp")}
-          >
+          <span className="player-stat-btn"
+            onMouseEnter={() => showTip("xp")} onMouseLeave={hideTip}>
             {user.xp} / {xpToNext} XP
           </span>
         </div>
 
-        <div className="xp-bar"
-          onMouseEnter={() => showTip("xp")}
-          onMouseLeave={hideTip}>
-          <div className="xp-fill" style={{ width: `${xpPercent}%` }} />
+        <div className="xp-bar" onMouseEnter={() => showTip("xp")} onMouseLeave={hideTip}>
+          <div className="xp-fill" style={{
+            width: `${xpPercent}%`,
+            background: "linear-gradient(90deg, #7c3aed, #a78bfa)",
+            boxShadow: "0 0 8px #7c3aed",
+          }}/>
+        </div>
+        <div style={{ fontSize:10, color:"#a78bfa", textAlign:"right", marginTop:2,
+          textShadow:"0 0 8px rgba(124,58,237,0.6)" }}>
+          {user.level} ур.
         </div>
       </div>
     </div>

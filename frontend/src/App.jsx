@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import BottomNav from "./components/BottomNav";
 import axios from "axios";
 import PlayerCard from "./components/PlayerCard";
@@ -15,7 +15,7 @@ import Achievements from "./components/Achievements";
 import Stats from "./components/Stats";
 import Pomodoro from "./components/Pomodoro";
 import Avatar from "./components/Avatar";
-import ThemePicker from "./components/ThemePicker";
+// ThemePicker removed — Solo Leveling is the only theme
 import AmbientMusic from "./components/AmbientMusic";
 import NicknameModal from "./components/NicknameModal";
 import NotificationBell from "./components/NotificationBell";
@@ -43,6 +43,7 @@ import SectionTabs from "./components/SectionTabs";
 import Chess from "./components/Chess";
 import Laptev from "./components/Laptev";
 import Sages from "./components/Sages";
+import VoiceInput from "./components/VoiceInput";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
 import ToastContainer from "./components/Toast";
 import "./App.css";
@@ -142,10 +143,10 @@ export default function App() {
   const [token,    setToken]    = useState(localStorage.getItem("token") || "");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
+  // Solo Leveling is the only theme — applied permanently
   const [theme,    setTheme]    = useState(() => {
-    const saved = localStorage.getItem("theme") || "dark-fantasy";
-    document.documentElement.setAttribute("data-theme", saved);
-    return saved;
+    document.documentElement.setAttribute("data-theme", "solo-leveling");
+    return "solo-leveling";
   });
   const [soundOn,  setSoundOn]  = useState(isSoundEnabled);
 
@@ -155,6 +156,7 @@ export default function App() {
   const [customQuestsMax,          setCustomQuestsMax]          = useState(8);
 
   const [view,         setView]         = useState("quests");
+  const [viewProfileId, setViewProfileId] = useState(null);
   const [rulesOpen,    setRulesOpen]    = useState(false);
   const [activeBranch, setActiveBranch] = useState("discipline");
 
@@ -410,7 +412,11 @@ export default function App() {
                 {onlineCount}
               </div>
             )}
-            <ThemePicker currentTheme={theme} onChange={setTheme} token={token} />
+            {user?.streak > 0 && (
+              <div style={{ fontSize:12, fontWeight:700, color:"#a78bfa", display:"flex", alignItems:"center", gap:3 }}>
+                🔥 {user.streak}
+              </div>
+            )}
             <button className="rules-btn" title={soundOn ? "Звук вкл" : "Звук выкл"}
               onClick={() => { const next = !soundOn; setSoundOn(next); setSound(next); }}
               style={{ fontSize:16 }}>
@@ -423,14 +429,12 @@ export default function App() {
         </header>
 
         {user && view === "quests" && (() => {
-          const hour = new Date().getHours();
-          const greet = hour < 6 ? "🌙 Ночной воин" : hour < 12 ? "🌅 Доброе утро" : hour < 18 ? "☀️ Добрый день" : "🌆 Добрый вечер";
-          const classLabel = user.autoClassLabel || "Игрок";
-          const dayNum = user.streak || 1;
+          const daysSince = user.createdAt
+            ? Math.max(1, Math.floor((Date.now() - new Date(user.createdAt).getTime()) / 86400000))
+            : (user.streak || 1);
           return (
-            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", padding:"4px 0 8px", lineHeight:1.4 }}>
-              <span style={{ color:"rgba(255,255,255,0.7)", fontWeight:600 }}>{greet}, {classLabel} {user.name}!</span>{" "}
-              День {dayNum} твоего пути.
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.45)", padding:"4px 0 8px", lineHeight:1.4 }}>
+              День <span style={{ color:"#a78bfa", fontWeight:700 }}>{daysSince}</span> твоего пути.
             </div>
           );
         })()}
@@ -442,6 +446,7 @@ export default function App() {
             onOpenScroll={() => setShowScrollModal(true)}
             onGoToShop={() => setView("shop")}
             onGoToProfile={() => setView("profile")}
+            onAvatarChange={(av) => setUser(prev => ({ ...prev, avatar: av }))}
           />
         )}
 
@@ -480,7 +485,7 @@ export default function App() {
               {key:"npc",       label:"Наставники",   icon:"🧙"},
               {key:"gratitude", label:"Благодарность",icon:"🌿"},
             ]} active={view} onChange={setView} />
-            {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} onChessInvite={() => setView("chess")} />}
+            {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} onChessInvite={() => setView("chess")} onViewProfile={(id) => { setViewProfileId(id); setView("profile"); }} />}
             {view === "clan"      && <Clan     token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level||1} />}
             {view === "chess"     && <Chess    token={token} showToast={showToast} />}
             {view === "feed"      && <Feed     token={token} showToast={showToast} />}
@@ -506,7 +511,7 @@ export default function App() {
               {key:"laptev",       label:"LAPTEV",        icon:"🟣"},
               {key:"sages",        label:"Мудрецы",       icon:"🏛️"},
             ]} active={view} onChange={setView} />
-            {view === "profile"      && <Profile     token={token} showToast={showToast} userId={null} currentUserId={user?.id} />}
+            {view === "profile"      && <Profile     token={token} showToast={showToast} userId={viewProfileId} currentUserId={user?.id} onBack={viewProfileId ? () => { setViewProfileId(null); setView("friends"); } : null} />}
             {view === "achievements" && <Achievements token={token} showToast={showToast} />}
             {view === "stats"        && <Stats        token={token} />}
             {view === "shop"         && <Shop items={shopItems} gold={user?.gold||0} loadingId={shopLoadingId} onPurchase={purchaseItem} streakFreezeCount={user?.streakFreezeCount||0} token={token} showToast={showToast} onProfileRefresh={loadProfile} />}
@@ -593,6 +598,7 @@ export default function App() {
                       onKeyDown={e => e.key === "Enter" && createTask()}
                       disabled={customSlotsLeft === 0}
                       style={{ flex:1 }} />
+                    <VoiceInput onResult={text => setNewTaskTitle(prev => prev + text)} />
                     <button className="btn btn-primary" onClick={createTask} disabled={customSlotsLeft === 0 || !newTaskTitle.trim()}>Добавить</button>
                   </div>
                   <p style={{ fontSize:11, color:"rgba(255,255,255,0.3)", margin:"4px 0 8px" }}>
@@ -743,20 +749,53 @@ export default function App() {
 
 function QuestCard({ task, loading, onComplete, onDelete, showDelete }) {
   const isLegendary = task.type === "legendary";
+  const isRequired  = task.type === "required";
+  const isSeasonal  = task.isSeasonal;
   const difficulty  = getDifficultyMeta(task.difficulty);
+  const [showPenaltyTip, setShowPenaltyTip] = useState(false);
+  const tipTimer = useRef(null);
+
   const legendaryStyle = isLegendary ? {
     boxShadow : "0 0 20px rgba(245,182,55,0.55), 0 0 40px rgba(245,182,55,0.2)",
     border     : "2px solid #f5b637",
     background : "linear-gradient(135deg,rgba(245,182,55,0.12) 0%,rgba(30,27,50,0.95) 100%)",
   } : {};
+  const seasonalStyle = isSeasonal ? { border:"1px solid rgba(56,189,248,0.5)", background:"linear-gradient(135deg,rgba(56,189,248,0.05),rgba(30,27,50,0.95))" } : {};
+
+  const handleMouseEnter = () => {
+    if (isRequired && !task.completed) {
+      tipTimer.current = setTimeout(() => setShowPenaltyTip(true), 300);
+    }
+  };
+  const handleMouseLeave = () => {
+    clearTimeout(tipTimer.current);
+    setShowPenaltyTip(false);
+  };
+
   return (
     <div className={`quest-card ${task.completed ? "completed" : ""} ${isLegendary ? "legendary-card" : ""}`}
-      style={{ opacity: loading ? 0.55 : 1, ...legendaryStyle }}>
+      style={{ opacity: loading ? 0.55 : 1, position:"relative", ...legendaryStyle, ...seasonalStyle, transition:"transform 0.15s,box-shadow 0.15s" }}
+      onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+
+      {showPenaltyTip && (
+        <div style={{
+          position:"absolute", top:-38, left:"50%", transform:"translateX(-50%)",
+          background:"rgba(15,5,30,0.97)", border:"1px solid rgba(239,68,68,0.6)",
+          borderRadius:8, padding:"5px 10px", zIndex:100, whiteSpace:"nowrap",
+          fontSize:11, color:"#fca5a5", pointerEvents:"none",
+          boxShadow:"0 0 10px rgba(239,68,68,0.3)",
+        }}>⚠️ Не выполнишь — штраф золота</div>
+      )}
+
       <div className="quest-main">
         {isLegendary && (
-          <div style={{ fontSize:11, fontWeight:800, color:"#f5b637", marginBottom:5, letterSpacing:1.5,
-            display:"flex", alignItems:"center", gap:5 }}>
+          <div style={{ fontSize:11, fontWeight:800, color:"#f5b637", marginBottom:5, letterSpacing:1.5, display:"flex", alignItems:"center", gap:5 }}>
             <span>⚔️</span> ЛЕГЕНДАРНЫЙ
+          </div>
+        )}
+        {isSeasonal && (
+          <div style={{ fontSize:10, fontWeight:800, color:"#38bdf8", marginBottom:4, letterSpacing:1, display:"flex", alignItems:"center", gap:4 }}>
+            🌟 СЕЗОННЫЙ
           </div>
         )}
         <h4 className="quest-title" style={isLegendary ? { color:"#fde68a" } : {}}>{task.title}</h4>
@@ -769,6 +808,9 @@ function QuestCard({ task, loading, onComplete, onDelete, showDelete }) {
               <span className="difficulty-dot" style={{ background: difficulty.color }} />
               {difficulty.label}
             </span>
+          )}
+          {isRequired && !task.completed && (
+            <span style={{ fontSize:10, color:"#fca5a5", fontWeight:600 }}>🔒 Обязательный</span>
           )}
           <span className="quest-reward" style={isLegendary ? { color:"#f5b637", fontWeight:700, fontSize:13 } : {}}>
             +{task.xpReward} XP · +{task.goldReward} золота
