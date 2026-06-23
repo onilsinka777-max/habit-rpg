@@ -145,6 +145,8 @@ model Task {
   expiresAt       DateTime?
   penalized       Boolean   @default(false)
   isWorldMapQuest Boolean   @default(false)
+  isNpcQuest      Boolean   @default(false)
+  npcName         String?
   userId          Int
   user            User      @relation(fields: [userId], references: [id])
   createdAt       DateTime  @default(now())

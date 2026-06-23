@@ -423,12 +423,13 @@ app.get("/tasks",authMiddleware,async(req,res)=>{
     await ensureDailyQuests(req.userId);
     await ensureWeeklyLegendaryQuest(req.userId);
     const{branch}=req.query;
-    const tasks=await prisma.task.findMany({where:{userId:req.userId,...(branch?{branch}:{})},orderBy:{createdAt:"desc"}});
+    const tasks=await prisma.task.findMany({where:{userId:req.userId,isNpcQuest:false,...(branch?{branch}:{})},orderBy:{createdAt:"desc"}});
+    const npcQuests=await prisma.task.findMany({where:{userId:req.userId,isNpcQuest:true,completed:false},orderBy:{createdAt:"desc"}});
     const user=await prisma.user.findUnique({where:{id:req.userId}});
     const today=startOfToday();
     const needsReset=!user.customQuestsResetDate||new Date(user.customQuestsResetDate)<today;
     const createdToday=needsReset?0:(user.customQuestsCreatedToday||0);
-    res.json({tasks,customQuestsCreatedToday:createdToday,customQuestsMax:MAX_CUSTOM_QUESTS_PER_DAY});
+    res.json({tasks,npcQuests,customQuestsCreatedToday:createdToday,customQuestsMax:MAX_CUSTOM_QUESTS_PER_DAY});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -1780,34 +1781,63 @@ app.get("/npc",authMiddleware,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
+async function checkNpcQuestCondition(userId,user,condition){
+  if(!condition)return{ok:true};
+  if(condition.includes('30 дней')){
+    if((user.streak||0)<30)return{ok:false,reason:`Нужен стрик 30 дней. Твой стрик: ${user.streak||0} дн.`};
+  } else if(condition.includes('14 дней')){
+    if((user.streak||0)<14)return{ok:false,reason:`Нужен стрик 14 дней. Твой стрик: ${user.streak||0} дн.`};
+  } else if(condition.includes('7 дней подряд')||condition.includes('неделю')){
+    if((user.streak||0)<7)return{ok:false,reason:`Нужен стрик 7 дней. Твой стрик: ${user.streak||0} дн.`};
+  } else if(condition.includes('5 дней подряд')||condition.includes('5 days')){
+    if((user.streak||0)<5)return{ok:false,reason:`Нужен стрик 5 дней. Твой стрик: ${user.streak||0} дн.`};
+  } else if(condition.includes('3 дня подряд')){
+    if((user.streak||0)<3)return{ok:false,reason:`Нужен стрик 3 дня. Твой стрик: ${user.streak||0} дн.`};
+  }
+  const levelMatch=condition.match(/(\d+)\s*уровн/i);
+  if(levelMatch){
+    const required=parseInt(levelMatch[1]);
+    if((user.level||1)<required)return{ok:false,reason:`Нужен уровень ${required}. Твой уровень: ${user.level}`};
+  }
+  if(condition.includes('дисциплин')){
+    const m=condition.match(/(\d+)/);const req=m?parseInt(m[1]):10;
+    const cnt=await prisma.task.count({where:{userId,completed:true,branch:'discipline'}});
+    if(cnt<req)return{ok:false,reason:`Нужно ${req} квестов дисциплины. У тебя: ${cnt}`};
+  }
+  if(condition.includes('фитнес')||condition.includes('fitness')){
+    const m=condition.match(/(\d+)/);const req=m?parseInt(m[1]):10;
+    const cnt=await prisma.task.count({where:{userId,completed:true,branch:'fitness'}});
+    if(cnt<req)return{ok:false,reason:`Нужно ${req} квестов фитнеса. У тебя: ${cnt}`};
+  }
+  if(condition.includes('знани')||condition.includes('knowledge')){
+    const m=condition.match(/(\d+)/);const req=m?parseInt(m[1]):10;
+    const cnt=await prisma.task.count({where:{userId,completed:true,branch:'knowledge'}});
+    if(cnt<req)return{ok:false,reason:`Нужно ${req} квестов знаний. У тебя: ${cnt}`};
+  }
+  if(condition.includes('саморазви')||condition.includes('self')){
+    const m=condition.match(/(\d+)/);const req=m?parseInt(m[1]):10;
+    const cnt=await prisma.task.count({where:{userId,completed:true,branch:'self_development'}});
+    if(cnt<req)return{ok:false,reason:`Нужно ${req} квестов саморазвития. У тебя: ${cnt}`};
+  }
+  const questMatch=condition.match(/(\d+)\s*(квест|задани)/i);
+  if(questMatch){
+    const required=parseInt(questMatch[1]);
+    const completed=await prisma.task.count({where:{userId,completed:true,type:{in:['required','recommended','custom']}}});
+    if(completed<required)return{ok:false,reason:`Нужно выполнить ${required} квестов. У тебя: ${completed}`};
+  }
+  return{ok:true};
+}
+
 app.post("/npc/:id/interact",authMiddleware,async(req,res)=>{
   try{
     const npc=getNpc(req.params.id);
     if(!npc)return res.status(404).json({message:"NPC не найден"});
     const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true,streak:true}});
     if(user.level<npc.unlockLevel)return res.status(403).json({message:`Откроется на уровне ${npc.unlockLevel}`});
+    const condition=npc.weeklyQuestDesc||'';
+    const check=await checkNpcQuestCondition(req.userId,user,condition);
+    if(!check.ok)return res.status(400).json({message:'Условие не выполнено',reason:check.reason,cannotAccept:true});
     const now=new Date();
-    // ── NPC requirement checks ────────────────────────────────────────────────
-    const NPC_REQS={
-      kai:{type:"streak",value:3,desc:"3 дня стрика подряд"},
-      rex:{type:"quests_completed",branch:"fitness",value:5,desc:"5 выполненных квестов фитнеса"},
-      lyra:{type:"quests_completed",branch:"knowledge",value:3,desc:"3 выполненных квеста знаний"},
-      eco:{type:"streak",value:5,desc:"5 дней стрика подряд"},
-      orm:{type:"quests_completed",value:10,desc:"10 выполненных квестов"},
-    };
-    const req_=NPC_REQS[npc.id];
-    if(req_){
-      if(req_.type==="streak"){
-        if((user.streak||0)<req_.value)
-          return res.status(400).json({message:`Условие не выполнено`,requirement:req_.desc,current:user.streak||0});
-      }else if(req_.type==="quests_completed"){
-        const where={userId:req.userId,completed:true};
-        if(req_.branch)where.branch=req_.branch;
-        const count=await prisma.task.count({where});
-        if(count<req_.value)
-          return res.status(400).json({message:`Условие не выполнено`,requirement:req_.desc,current:count});
-      }
-    }
     const interaction=await prisma.npcInteraction.findUnique({where:{userId_npcId:{userId:req.userId,npcId:npc.id}}});
     if(interaction&&(now-interaction.lastInteractedAt)<7*24*3600*1000){
       const daysLeft=Math.ceil((7*24*3600*1000-(now-interaction.lastInteractedAt))/(24*3600*1000));
@@ -1817,6 +1847,7 @@ app.post("/npc/:id/interact",authMiddleware,async(req,res)=>{
       userId:req.userId,title:npc.weeklyQuestTitle,description:npc.weeklyQuestDesc,
       branch:npc.branch||"discipline",type:"recommended",difficulty:"hard",
       xpReward:120,goldReward:60,isDaily:false,
+      isNpcQuest:true,npcName:npc.name,
     }});
     const tip=npc.tips[Math.floor((interaction?.questsGiven||0)%npc.tips.length)];
     await prisma.npcInteraction.upsert({

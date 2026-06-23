@@ -152,6 +152,7 @@ export default function App() {
 
   const [user,  setUser]  = useState(null);
   const [tasks, setTasks] = useState([]);
+  const [npcQuests, setNpcQuests] = useState([]);
   const [customQuestsCreatedToday, setCustomQuestsCreatedToday] = useState(0);
   const [customQuestsMax,          setCustomQuestsMax]          = useState(8);
 
@@ -222,6 +223,7 @@ export default function App() {
       const res = await axios.get(`${API}/tasks`, authHeaders);
       if (res.data.tasks) {
         setTasks(res.data.tasks);
+        setNpcQuests(res.data.npcQuests || []);
         setCustomQuestsCreatedToday(res.data.customQuestsCreatedToday || 0);
         setCustomQuestsMax(res.data.customQuestsMax || 8);
       } else {
@@ -289,11 +291,11 @@ export default function App() {
       title: "Выполнить квест?",
       text: `«${task.title}» — +${task.xpReward} XP · +${task.goldReward} золота`,
       confirmLabel: "Выполнить",
-      onConfirm: () => completeTask(task.id),
+      onConfirm: () => completeTask(task.id, task),
     });
   };
 
-  const completeTask = async (id) => {
+  const completeTask = async (id, taskObj) => {
     try {
       setLoadingTaskId(id);
       const prevLevel = user?.level || 1;
@@ -304,6 +306,7 @@ export default function App() {
       const xpLabel = d.comboBonus > 0 ? `✨ +${d.xpGained} XP (+25% комбо)` : `✨ +${d.xpGained} XP`;
       if (d.xpGained)   showRewardToast(xpLabel, 'xp');
       if (d.goldGained) showRewardToast(`💰 +${d.goldGained} золота`, 'gold');
+      if (taskObj?.isNpcQuest && taskObj?.npcName) showRewardToast(`⚡ Задание ${taskObj.npcName} выполнено!`, 'level');
       if (d.streakJustCompleted) { setStreakModal({ streak: d.newStreak }); playStreakComplete(); }
       const res = await axios.get(`${API}/me`, authHeaders);
       setUser(res.data);
@@ -550,6 +553,54 @@ export default function App() {
 
         {view === "quests" && (
           <>
+            {npcQuests.length > 0 && (
+              <section style={{ marginBottom:16 }}>
+                <style>{`
+                  @keyframes npcGlow {
+                    0%,100% { box-shadow: 0 0 10px rgba(59,130,246,0.3); }
+                    50% { box-shadow: 0 0 25px rgba(59,130,246,0.7), 0 0 50px rgba(59,130,246,0.3); }
+                  }
+                `}</style>
+                <div className="section-eyebrow" style={{ color:"#60a5fa" }}><span>⚡</span> ЗАДАНИЯ НАСТАВНИКОВ</div>
+                {npcQuests.map(t => (
+                  <div key={t.id} style={{
+                    background:'linear-gradient(135deg, #0f172a, #1e3a5f)',
+                    border:'1px solid #3b82f6',
+                    borderRadius:12,
+                    marginBottom:10,
+                    animation:'npcGlow 2s ease-in-out infinite',
+                    overflow:'hidden',
+                    display:'flex',
+                    alignItems:'stretch',
+                  }}>
+                    <div style={{ width:4, background:'#3b82f6', flexShrink:0 }} />
+                    <div style={{ padding:'12px 14px', flex:1 }}>
+                      <div style={{ fontSize:11, color:'#93c5fd', fontWeight:700, marginBottom:4 }}>
+                        ⚡ {t.npcName}
+                      </div>
+                      <div style={{ fontSize:14, fontWeight:600, color:'#e2e8f0', marginBottom:8 }}>{t.title}</div>
+                      {t.description && (
+                        <div style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginBottom:8, lineHeight:1.4 }}>{t.description}</div>
+                      )}
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <span style={{ fontSize:11, color:'#60a5fa' }}>+{t.xpReward} XP · +{t.goldReward} золота</span>
+                        <button
+                          onClick={() => confirmComplete(t)}
+                          disabled={loadingTaskId === t.id}
+                          style={{
+                            background:'#3b82f6', color:'#fff', border:'none',
+                            borderRadius:8, padding:'5px 14px', fontSize:12,
+                            fontWeight:700, cursor:'pointer',
+                          }}>
+                          {loadingTaskId === t.id ? '...' : 'Выполнить'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
             {legendaryTasks.length > 0 && (
               <section className="legendary-section">
                 <div className="section-eyebrow"><span>🏆</span> Легендарный квест недели</div>

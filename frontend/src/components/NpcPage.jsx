@@ -10,6 +10,7 @@ export default function NpcPage({ token, showToast }) {
   const [activeNpcId, setActiveNpcId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [result, setResult]   = useState(null);
+  const [condErr, setCondErr] = useState(null);
   const [busy, setBusy]       = useState(null);
   const auth = { headers: { Authorization: `Bearer ${token}` } };
 
@@ -24,12 +25,21 @@ export default function NpcPage({ token, showToast }) {
 
   const interact = async (npcId) => {
     setBusy(npcId);
+    setCondErr(null);
     try {
       const res = await axios.post(`${API}/npc/${npcId}/interact`, {}, auth);
       setResult(res.data);
+      setCondErr(null);
       load();
       showToast(`Получен квест от ${res.data.npc.name}!`, "success");
-    } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
+    } catch (e) {
+      const data = e.response?.data;
+      if (data?.cannotAccept) {
+        setCondErr(data.reason || data.message);
+      } else {
+        showToast(data?.message || "Ошибка", "error");
+      }
+    }
     finally { setBusy(null); }
   };
 
@@ -51,6 +61,14 @@ export default function NpcPage({ token, showToast }) {
       <p style={{ fontSize:12, color:"rgba(255,255,255,0.35)", margin:"0 0 20px" }}>
         Поговори с наставником — получи особый квест и совет раз в неделю
       </p>
+
+      {condErr && (
+        <div style={{ background:"rgba(127,29,29,0.5)", border:"1px solid #f87171", borderRadius:12, padding:"12px 16px", marginBottom:16 }}>
+          <div style={{ fontWeight:700, color:"#fca5a5", marginBottom:4 }}>⚠️ Условие не выполнено</div>
+          <div style={{ fontSize:13, color:"#fca5a5", lineHeight:1.5 }}>{condErr}</div>
+          <button onClick={() => setCondErr(null)} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.3)", cursor:"pointer", fontSize:12, marginTop:6 }}>Закрыть</button>
+        </div>
+      )}
 
       {result && (
         <div style={{ background:"rgba(141,140,248,0.08)", border:"1px solid rgba(141,140,248,0.2)", borderRadius:14, padding:16, marginBottom:16 }}>

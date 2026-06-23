@@ -83,11 +83,12 @@ async function applyMissedRequiredPenalties(userId) {
 }
 
 async function cleanupExpiredDailyQuests(userId) {
-  // Delete expired daily quests (required + recommended only, not custom/legendary)
+  // Delete expired daily quests (required + recommended only, not custom/legendary/npc)
   await prisma.task.deleteMany({
     where: {
       userId,
       isDaily: true,
+      isNpcQuest: false,
       type: { in: ["required", "recommended"] },
       expiresAt: { lt: startOfToday() },
     },
