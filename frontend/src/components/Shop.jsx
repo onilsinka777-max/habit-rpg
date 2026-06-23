@@ -53,7 +53,7 @@ const TABS = [
   { key:"content",  label:"Контент",    icon:"📚" },
 ];
 
-const CONTENT_CATS = ["workout", "nutrition", "podcast", "knowledge"];
+const CONTENT_CATS = ["content", "workout", "nutrition", "podcast", "knowledge"];
 
 const RARITY_COLORS = { common:"#9ca3af", uncommon:"#34d399", rare:"#38bdf8", epic:"#c084fc", legendary:"#f5b637" };
 const RARITY_LABELS = { common:"Обычный", uncommon:"Необычный", rare:"Редкий", epic:"Эпический", legendary:"Легендарный" };
@@ -61,7 +61,6 @@ const SLOT_LABELS   = { weapon:"Оружие", armor:"Броня", ring:"Кол�
 
 function ShopCard({ item, gold, loadingId, onPurchase, streakFreezeCount, onUseCard, onEquip, onUnequip, isArtifact }) {
   const canAfford = gold >= item.price;
-  const isLocked  = item.locked;
   const rarity    = item.rarity;
 
   return (
@@ -80,10 +79,7 @@ function ShopCard({ item, gold, loadingId, onPurchase, streakFreezeCount, onUseC
       {isArtifact && item.value && <div style={{ fontSize:11, color:"#34d399", marginTop:3 }}>+{Math.round(item.value * 100)}% бонус</div>}
 
       <div className="shop-card-footer">
-        {isLocked ? (
-          <span className="shop-locked-badge">🔒 после Мастерства</span>
-        ) : (
-          <>
+        <>
             <span className="shop-price">💰 {item.price}</span>
             <div style={{ display:"flex", gap:6 }}>
               {/* Artifact actions */}
@@ -142,7 +138,6 @@ function ShopCard({ item, gold, loadingId, onPurchase, streakFreezeCount, onUseC
               )}
             </div>
           </>
-        )}
       </div>
       {isArtifact && item.equippedSlot && (
         <div style={{ fontSize:10, color:"#34d399", marginTop:4 }}>✓ Надето: {SLOT_LABELS[item.equippedSlot]}</div>
@@ -257,6 +252,7 @@ export default function Shop({ items, gold, loadingId, onPurchase, streakFreezeC
   };
 
   const contentItems = items.filter(i => CONTENT_CATS.includes(i.category));
+  console.log("Content items:", contentItems);
   const seasonalItems = items.filter(i => i.category === "seasonal");
   const tabItems = tab === "content" ? contentItems
     : tab === "boost"   ? items.filter(i => i.category === "boost")
