@@ -295,12 +295,13 @@ function getAvailableNodes(pathId, completedSet) {
 
 const REPEATABLE_SHOP_EFFECTS = ["streak_freeze","xp_boost_24h","gold_boost_24h"];
 
-function getXpToNextLevel(level) { return 1000 + (level-1)*50; }
+function getXpToNextLevel(level) { return 1000 + (level-1)*100; }
 
 function applyXpGain(currentXp, currentLevel, xpGain) {
-  let xp = currentXp + xpGain, level = currentLevel;
+  let xp = currentXp + xpGain;
+  let level = currentLevel;
   while (xp >= getXpToNextLevel(level)) { xp -= getXpToNextLevel(level); level++; }
-  return {xp, level};
+  return { xp, level };
 }
 
 function getMaxCustomQuestsPerBranch() { return MAX_CUSTOM_QUESTS_PER_DAY; }

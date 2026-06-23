@@ -109,6 +109,7 @@ model User {
   worldMapQuests           WorldMapQuest[]
   seasonQuests             SeasonQuest[]
   creatorPath              CreatorPath?
+  hallOfFame               HallOfFame[]
   createdAt                DateTime         @default(now())
 }
 
@@ -695,4 +696,13 @@ model CreatorPath {
   startedAt   DateTime  @default(now())
   completedAt DateTime?
   status      String    @default("active")
+}
+
+// ── ЗАЛ СЛАВЫ ────────────────────────────────────────────────────────────────
+model HallOfFame {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  completedAt DateTime @default(now())
+  type        String   @default("legendary_path")
 }

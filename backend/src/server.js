@@ -155,6 +155,14 @@ async function handlePostComplete(userId,streak,level,taskType){
   const user=await prisma.user.findUnique({where:{id:userId},select:{gold:true,chessWins:true,chessRating:true,streak:true,streakFreezeCount:true}});
   const existing=await prisma.achievement.findMany({where:{userId},select:{type:true}});
   const existingSet=new Set(existing.map(a=>a.type));
+  // Hall of Fame: first time reaching 50 legendary quests
+  if(legendaryCount>=50){
+    const already=await prisma.hallOfFame.findFirst({where:{userId,type:"legendary_path"}}).catch(()=>null);
+    if(!already){
+      await prisma.hallOfFame.create({data:{userId,type:"legendary_path"}}).catch(()=>{});
+      await prisma.user.update({where:{id:userId},data:{title:"Легенда"}}).catch(()=>{});
+    }
+  }
   const conditions={
     first_quest:completedCount>=1,
     quests_10:completedCount>=10,
@@ -2137,12 +2145,11 @@ app.post("/creator-path/complete-day",authMiddleware,async(req,res)=>{
 
 app.get("/hall-of-fame",authMiddleware,async(req,res)=>{
   try{
-    const winners=await prisma.creatorPath.findMany({
-      where:{status:"completed"},
-      include:{user:{select:{id:true,name:true,level:true,avatar:true,completedAt:true}}},
+    const entries=await prisma.hallOfFame.findMany({
+      include:{user:{select:{id:true,name:true,level:true,avatar:true}}},
       orderBy:{completedAt:"asc"},
     });
-    res.json({winners:winners.map(w=>({id:w.user.id,name:w.user.name,level:w.user.level,completedAt:w.completedAt}))});
+    res.json({winners:entries.map(e=>({id:e.user.id,name:e.user.name,level:e.user.level,completedAt:e.completedAt,type:e.type}))});
   }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
 });
 
