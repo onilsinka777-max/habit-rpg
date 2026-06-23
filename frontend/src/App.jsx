@@ -44,6 +44,7 @@ import Laptev from "./components/Laptev";
 import Sages from "./components/Sages";
 import VoiceInput from "./components/VoiceInput";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
+import StarField from "./components/StarField";
 import ToastContainer from "./components/Toast";
 import "./App.css";
 
@@ -299,19 +300,10 @@ export default function App() {
       const completeRes = await axios.patch(`${API}/tasks/${id}/complete`, {}, authHeaders);
       await loadTasks();
       playQuestComplete();
-      if (completeRes.data.freezeConsumed) showToast("Заморозка стрика сработала — серия не сброшена!", "success");
       if (completeRes.data.streakJustCompleted) { setStreakModal({ streak: completeRes.data.newStreak }); playStreakComplete(); }
-      if (completeRes.data.petCreated) showToast("🥚 Питомец появился! Зайди во вкладку «Питомец»", "success");
-      if (completeRes.data.dropReward) {
-        const dr = completeRes.data.dropReward;
-        showToast(`✨ Случайный дроп: +${dr.amount} ${dr.type === "xp" ? "XP" : "золота"}!`, "success");
-      }
       if (completeRes.data.comboBonus > 0) {
         setFlowFlash(true);
         setTimeout(() => setFlowFlash(false), 3000);
-      }
-      for (const ach of (completeRes.data.newAchievements || [])) {
-        showToast(`${ach.icon} Достижение: «${ach.label}»`, "success");
       }
       const res = await axios.get(`${API}/me`, authHeaders);
       setUser(res.data);
@@ -398,6 +390,14 @@ export default function App() {
 
   return (
     <div className="app-shell" style={rootStyle}>
+      {/* ── SIDE PANELS (desktop only) ── */}
+      <div className="side-panel side-panel-left">
+        <StarField side="left" />
+      </div>
+      <div className="side-panel side-panel-right">
+        <StarField side="right" />
+      </div>
+
       <div className="app-container">
 
         <header className="topbar">

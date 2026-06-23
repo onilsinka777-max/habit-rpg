@@ -116,9 +116,35 @@ body {
 .quest-list .quest-card:nth-child(4) { animation-delay:0.20s; }
 .quest-list .quest-card:nth-child(5) { animation-delay:0.25s; }
 
+.side-panel {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 180px;
+  background: #0d0820;
+  z-index: 1;
+  overflow: hidden;
+}
+.side-panel-left  { left: 0;  border-right: 1px solid #2d1b69; }
+.side-panel-right { right: 0; border-left:  1px solid #2d1b69; }
+
+@media (max-width: 900px) {
+  .side-panel { display: none; }
+}
+
 .app-container {
   max-width: 760px;
   margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+@media (min-width: 901px) {
+  .app-container {
+    margin-left: 180px;
+    margin-right: 180px;
+    max-width: none;
+  }
 }
 
 .topbar-eyebrow,
