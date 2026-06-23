@@ -110,13 +110,13 @@ export default function LaptevAI({ user, onNavigate }) {
       </div>
 
       <div style={{ display:"flex", gap:8 }}>
-        <button onClick={() => onNavigate("laptev-chat")} style={{
+        <button onClick={() => onNavigate("laptev")} style={{
           flex:1, padding:"10px 8px",
           background:"linear-gradient(135deg,#7c3aed,#4c1d95)",
           border:"none", borderRadius:10, cursor:"pointer",
           color:"#fff", fontSize:13, fontWeight:700,
           boxShadow:"0 0 12px rgba(124,58,237,0.4)",
-        }}>💬 Поговорить</button>
+        }}>💬 Открыть чат</button>
         <button onClick={() => onNavigate("laptev")} style={{
           flex:1, padding:"10px 8px",
           background:"rgba(124,58,237,0.1)",

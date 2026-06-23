@@ -41,6 +41,7 @@ import ThemeChoiceScreen from "./components/ThemeChoiceScreen";
 import SectionTabs from "./components/SectionTabs";
 import Chess from "./components/Chess";
 import Laptev from "./components/Laptev";
+import LaptevAI from "./components/LaptevAI";
 import Sages from "./components/Sages";
 import VoiceInput from "./components/VoiceInput";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
@@ -50,6 +51,14 @@ import ToastContainer from "./components/Toast";
 import "./App.css";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+function LaptevMilestoneAvatar() {
+  const [err, setErr] = useState(false);
+  if (err) return (
+    <div style={{ width:72,height:72,borderRadius:'50%',background:'linear-gradient(135deg,#7c3aed,#1e1b4b)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,fontWeight:900,color:'#c4b5fd',border:'3px solid #7c3aed',margin:'0 auto' }}>Л</div>
+  );
+  return <img src="/images/laptev.jpg" alt="LAPTEV" onError={()=>setErr(true)} style={{ width:72,height:72,borderRadius:'50%',border:'3px solid #7c3aed',objectFit:'cover',margin:'0 auto',display:'block',boxShadow:'0 0 20px rgba(124,58,237,0.6)' }}/>;
+}
 
 const BRANCHES = [
   { key:"discipline",       label:"Дисциплина",  icon:"🛡️", accent:"#8d8cf8", glow:"rgba(141,140,248,0.35)" },
@@ -160,6 +169,7 @@ export default function App() {
   const [viewProfileId, setViewProfileId] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [chessGameId, setChessGameId] = useState(null);
+  const [laptevMilestone, setLaptevMilestone] = useState(null);
   const [rulesOpen,    setRulesOpen]    = useState(false);
   const [activeBranch, setActiveBranch] = useState("discipline");
 
@@ -320,6 +330,22 @@ export default function App() {
         if (newLevel >= CLAN_UNLOCK_LEVEL    && prevLevel < CLAN_UNLOCK_LEVEL)    unlock = "⚔️ Кланы разблокированы!";
         if (newLevel >= MASTERY_UNLOCK_LEVEL && prevLevel < MASTERY_UNLOCK_LEVEL) unlock = "🌟 Ветка Мастерства разблокирована!";
         setLevelUpInfo({ level: newLevel, unlock });
+        // LAPTEV milestone popup
+        const LAPTEV_MILESTONES = {
+          5:  "Пять уровней. Не все доходят сюда. Продолжай.",
+          10: "Десятый уровень. Система работает. Ты работаешь.",
+          20: "Двадцатый. Ты уже не тот кем был при входе.",
+          25: "Четверть пути. Мало кто здесь бывает.",
+          30: "Тридцатый. Теперь ты можешь вести других.",
+          40: "Легендарный путь открыт. Я знал что ты дойдёшь.",
+          50: "Половина пути. Большинство людей не достигают этого за всю жизнь.",
+        };
+        if (LAPTEV_MILESTONES[newLevel]) {
+          const key = `laptev_milestone_${newLevel}`;
+          if (!localStorage.getItem(key)) {
+            setTimeout(() => setLaptevMilestone({ level: newLevel, text: LAPTEV_MILESTONES[newLevel] }), 1200);
+          }
+        }
       }
     } catch (e) { showToast(e.response?.data?.message || "Ошибка выполнения", "error"); }
     finally { setLoadingTaskId(null); }
@@ -458,6 +484,10 @@ export default function App() {
           />
         )}
 
+        {user && view === "quests" && (
+          <LaptevAI user={user} onNavigate={setView} />
+        )}
+
 
         {/* ── МИР ──────────────────────────────────────────────────────── */}
         {["worldmap","mastery","skills","league","chains","marathons","season","legend-path"].includes(view) && (
@@ -529,7 +559,7 @@ export default function App() {
             {view === "pet"          && <Pet          token={token} showToast={showToast} userStreak={user?.streak||0} />}
             {view === "pomodoro"     && <Pomodoro     token={token} showToast={showToast} onXpGained={loadProfile} />}
             {view === "report"       && <WeeklyReport token={token} showToast={showToast} />}
-            {view === "laptev"       && <Laptev       token={token} user={user} showToast={showToast} />}
+            {view === "laptev"       && <Laptev       token={token} user={user} showToast={showToast} onNavigate={setView} />}
             {view === "sages"        && <Sages        token={token} showToast={showToast} />}
           </>
         )}
@@ -751,6 +781,40 @@ export default function App() {
                 setLevelUpInfo(null);
                 document.querySelector('.player-card')?.scrollIntoView({ behavior:'smooth' });
               }}>Отлично!</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── LAPTEV Milestone Popup ── */}
+      {laptevMilestone && (
+        <div style={{
+          position:'fixed', inset:0, zIndex:10001,
+          background:'rgba(0,0,0,0.9)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          animation:'fadeIn 0.3s ease',
+        }} onClick={() => { localStorage.setItem(`laptev_milestone_${laptevMilestone.level}`,'1'); setLaptevMilestone(null); }}>
+          <div style={{
+            background:'linear-gradient(135deg,#050510,#1a0a2e)',
+            border:'2px solid #7c3aed',
+            borderRadius:24, padding:'36px 28px', textAlign:'center', maxWidth:320,
+            boxShadow:'0 0 60px rgba(124,58,237,0.6), 0 0 120px rgba(124,58,237,0.2)',
+            animation:'levelUpPop 0.5s cubic-bezier(0.34,1.56,0.64,1)',
+          }} onClick={e => e.stopPropagation()}>
+            <LaptevMilestoneAvatar />
+            <div style={{ fontSize:13, fontWeight:700, color:'rgba(255,255,255,0.4)', letterSpacing:2, margin:'12px 0 4px' }}>УРОВЕНЬ {laptevMilestone.level}</div>
+            <div style={{
+              fontSize:20, fontWeight:900, letterSpacing:3,
+              background:'linear-gradient(90deg,#7c3aed,#f5b637,#a78bfa)',
+              WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
+              marginBottom:14,
+            }}>LAPTEV</div>
+            <p style={{ fontSize:15, color:'rgba(255,255,255,0.8)', lineHeight:1.7, margin:'0 0 22px', fontStyle:'italic' }}>
+              "{laptevMilestone.text}"
+            </p>
+            <button className="btn btn-primary" style={{ width:'100%', fontSize:15 }}
+              onClick={() => { localStorage.setItem(`laptev_milestone_${laptevMilestone.level}`,'1'); setLaptevMilestone(null); }}>
+              Принято
+            </button>
           </div>
         </div>
       )}
