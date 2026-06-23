@@ -378,34 +378,6 @@ export default function Laptev({ token, user, showToast, onNavigate }) {
           </div>
         )}
 
-        {/* ── Divider ── */}
-        <div style={{ height:1, background:"linear-gradient(90deg,transparent,rgba(245,182,55,0.3),transparent)", margin:"24px 0" }}/>
-
-        {/* ── Sages section ── */}
-        <div style={{ marginBottom:24 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
-            <span style={{ fontSize:22 }}>⚡</span>
-            <span style={{ fontSize:18, fontWeight:900, letterSpacing:2,
-              background:"linear-gradient(90deg,#f5b637,#fde68a)",
-              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>МУДРЕЦЫ</span>
-          </div>
-          <p style={{ fontSize:13, color:"rgba(255,255,255,0.4)", marginBottom:14, marginTop:2 }}>
-            Игроки которые изменили LevelUp своими идеями
-          </p>
-
-          <div style={{
-            background:"linear-gradient(135deg,rgba(20,15,5,0.97),rgba(30,20,5,0.95))",
-            border:"1px solid rgba(245,182,55,0.2)", borderRadius:16,
-            padding:"20px", textAlign:"center",
-            boxShadow:"0 4px 30px rgba(0,0,0,0.4), inset 0 1px 0 rgba(245,182,55,0.08)",
-          }}>
-            <div style={{ fontSize:28, marginBottom:8, opacity:0.5 }}>🏛️</div>
-            <p style={{ fontSize:13, color:"rgba(255,255,255,0.3)", fontStyle:"italic", margin:0 }}>
-              Здесь появятся имена тех кто изменил систему
-            </p>
-          </div>
-        </div>
-
       </div>
     </div>
   );

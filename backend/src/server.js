@@ -2202,6 +2202,7 @@ app.post("/chess/game/:id/draw",authMiddleware,async(req,res)=>{
 // ── LAPTEV AI ─────────────────────────────────────────────────────────────────
 app.post("/laptev/chat",authMiddleware,async(req,res)=>{
   try{
+    if(!process.env.ANTHROPIC_API_KEY)return res.status(500).json({message:"API ключ не настроен"});
     const user=await prisma.user.findUnique({where:{id:req.userId}});
     const today=startOfToday();
     const isToday=user.laptevMsgDate&&new Date(user.laptevMsgDate)>=today;
