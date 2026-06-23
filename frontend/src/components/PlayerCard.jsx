@@ -78,7 +78,7 @@ const NEON_STYLE = `
 `;
 
 export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, onGoToProfile, onAvatarChange }) {
-  const xpToNext  = user?.xpToNextLevel || 100;
+  const xpToNext  = user?.xpToNextLevel || (1000 + ((user?.level || 1) - 1) * 100);
   const xpPercent = Math.min(((user?.xp || 0) / xpToNext) * 100, 100);
   const [tooltip, setTooltip] = useState(null);
 
