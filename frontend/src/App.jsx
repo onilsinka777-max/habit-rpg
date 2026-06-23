@@ -45,6 +45,7 @@ import Sages from "./components/Sages";
 import VoiceInput from "./components/VoiceInput";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
 import StarField from "./components/StarField";
+import RewardToastContainer, { showRewardToast } from "./components/ToastNotification";
 import ToastContainer from "./components/Toast";
 import "./App.css";
 
@@ -300,8 +301,11 @@ export default function App() {
       const completeRes = await axios.patch(`${API}/tasks/${id}/complete`, {}, authHeaders);
       await loadTasks();
       playQuestComplete();
-      if (completeRes.data.streakJustCompleted) { setStreakModal({ streak: completeRes.data.newStreak }); playStreakComplete(); }
-      if (completeRes.data.comboBonus > 0) {
+      const d = completeRes.data;
+      if (d.xpGained)   showRewardToast(`✨ +${d.xpGained} XP`, 'xp');
+      if (d.goldGained) showRewardToast(`💰 +${d.goldGained} золота`, 'gold');
+      if (d.streakJustCompleted) { setStreakModal({ streak: d.newStreak }); playStreakComplete(); }
+      if (d.comboBonus > 0) {
         setFlowFlash(true);
         setTimeout(() => setFlowFlash(false), 3000);
       }
@@ -310,6 +314,7 @@ export default function App() {
       if (res.data.level > prevLevel) {
         playLevelUp();
         const newLevel = res.data.level;
+        showRewardToast(`⬆️ Уровень ${newLevel}!`, 'level');
         let unlock = null;
         if (newLevel >= CLAN_UNLOCK_LEVEL    && prevLevel < CLAN_UNLOCK_LEVEL)    unlock = "⚔️ Кланы разблокированы!";
         if (newLevel >= MASTERY_UNLOCK_LEVEL && prevLevel < MASTERY_UNLOCK_LEVEL) unlock = "🌟 Ветка Мастерства разблокирована!";
@@ -425,8 +430,8 @@ export default function App() {
 
         {user && view === "quests" && (() => {
           const daysSince = user.createdAt
-            ? Math.max(1, Math.floor((Date.now() - new Date(user.createdAt).getTime()) / 86400000))
-            : (user.streak || 1);
+            ? Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24)) + 1
+            : 1;
           return (
             <div style={{ fontSize:13, color:"rgba(255,255,255,0.45)", padding:"4px 0 8px", lineHeight:1.4 }}>
               День <span style={{ color:"#a78bfa", fontWeight:700 }}>{daysSince}</span> твоего пути.
@@ -770,6 +775,7 @@ export default function App() {
       )}
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      <RewardToastContainer />
       <AmbientMusic />
 
       {!npcDone && !showOnboarding && (

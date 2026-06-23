@@ -458,7 +458,8 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     // ── Active NPC: +10% XP bonus in NPC's branch ────────────────────────────
     const activeNpc=cu.activeNpcId?getNpc(cu.activeNpcId):null;
     const npcBonusMult=activeNpc&&activeNpc.branch===task.branch?1.1:1;
-    const{xp,level}=applyXpGain(cu.xp,cu.level,Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult));
+    const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult);
+    const{xp,level}=applyXpGain(cu.xp,cu.level,xpGained);
     const goldGain=Math.round(task.goldReward*getGoldMultiplier()*mMult.gold*goldM);
     // ── Random drop (10%) ────────────────────────────────────────────────────
     let dropReward=null;
@@ -496,7 +497,7 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
           await prisma.user.update({where:{id:req.userId},data:{xp:cxp,level:clevel,gold:{increment:chest.gold+goldGain},streak:newStreak,streakUpdatedDate:now,lastChestStreak:threshold,lastActiveQuestDate:now,comboCount:newCombo,lastQuestCompletedAt:now,missedDaysStreak:0,...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{})}});
           await prisma.userLeague.upsert({where:{userId:req.userId},create:{userId:req.userId,weeklyXp:Math.round(task.xpReward*xpM)},update:{weeklyXp:{increment:Math.round(task.xpReward*xpM)}}}).catch(()=>{});
           const{newAchievements:na,petCreated:pc}=await handlePostComplete(req.userId,newStreak,clevel);
-          return res.json({...updatedTask,freezeConsumed,streakJustCompleted,newStreak,chestReward,newAchievements:na,petCreated:pc,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
+          return res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:clevel>cu.level,newLevel:clevel,freezeConsumed,streakJustCompleted,newStreak,chestReward,newAchievements:na,petCreated:pc,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
         }
       }
     }
@@ -520,7 +521,7 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     if(hour<6)checkEasterEgg(req.userId,"early_bird");
     const todayCount=await prisma.task.count({where:{userId:req.userId,completed:true,completedAt:{gte:startOfToday()}}});
     if(todayCount>=10)checkEasterEgg(req.userId,"perfectionist");
-    res.json({...updatedTask,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
+    res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:finalLevel>cu.level,newLevel:finalLevel,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
   }catch(e){console.error('QUEST COMPLETE ERROR:',e.message,e.stack);res.status(500).json({message:"Ошибка сервера",error:e.message});}
 });
 
