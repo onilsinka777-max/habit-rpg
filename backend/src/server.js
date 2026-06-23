@@ -461,7 +461,7 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const npcBonusMult=activeNpc&&activeNpc.branch===task.branch?1.1:1;
     const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult);
     const{xp,level}=applyXpGain(cu.xp,cu.level,xpGained);
-    const goldGain=Math.round(task.goldReward*getGoldMultiplier()*mMult.gold*goldM);
+    const goldGain=Math.floor(task.goldReward*getGoldMultiplier()*mMult.gold*goldM);
     // ── Random drop (10%) ────────────────────────────────────────────────────
     let dropReward=null;
     if(Math.random()<0.1){
@@ -544,7 +544,17 @@ app.get("/shop",authMiddleware,async(req,res)=>{
     const items=await prisma.shopItem.findMany({where:{active:true,category:{not:"artifact"}},orderBy:{price:"asc"}});
     const purchases=await prisma.purchase.findMany({where:{userId:req.userId},select:{itemId:true}});
     const pIds=new Set(purchases.map(p=>p.itemId));
-    res.json(items.map(item=>({...item,purchased:pIds.has(item.id),repeatable:REPEATABLE_SHOP_EFFECTS.includes(item.effect),locked:item.category!=="boost"&&item.effect!=="name_change_scroll"&&!user.hasEverFinishedMastery})));
+    res.json(items.map(item=>{
+      const isStreakFreeze=item.effect==="streak_freeze";
+      const sfOwned=isStreakFreeze&&(user.streakFreezeCount||0)>0;
+      return{
+        ...item,
+        purchased:sfOwned?true:pIds.has(item.id),
+        repeatable:REPEATABLE_SHOP_EFFECTS.includes(item.effect),
+        locked:false,
+        streakFreezeActive:isStreakFreeze?sfOwned:undefined,
+      };
+    }));
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -566,6 +576,8 @@ app.post("/shop/:id/purchase",authMiddleware,async(req,res)=>{
     // Usable items go to library first
     const USABLE_EFFECTS=["streak_freeze","xp_boost_24h","gold_boost_24h","name_change_scroll"];
     if(USABLE_EFFECTS.includes(item.effect)){
+      if(item.effect==="streak_freeze"&&(user.streakFreezeCount||0)>0)
+        return res.status(400).json({message:"Заморозка уже активна. Используй текущую перед покупкой."});
       const existingU=await prisma.purchase.findUnique({where:{userId_itemId:{userId:req.userId,itemId}}});
       if(existingU)return res.status(400).json({message:"Already in library"});
       await prisma.$transaction([

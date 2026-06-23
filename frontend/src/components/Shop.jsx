@@ -113,7 +113,12 @@ function ShopCard({ item, gold, loadingId, onPurchase, streakFreezeCount, onUseC
                 )
               ) : !isArtifact && (
                 item.purchased && !item.repeatable ? (
-                  item.effect?.startsWith("pdf_") ? (
+                  item.effect === "streak_freeze" ? (
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:12, color:"#34d399", fontWeight:700 }}>✅ Защита стрика активна</span>
+                      <button className="btn btn-sm" disabled style={{ opacity:0.5 }}>Куплено</button>
+                    </div>
+                  ) : item.effect?.startsWith("pdf_") ? (
                     <div style={{ display:"flex", gap:6 }}>
                       <span className="shop-owned-badge">Куплено</span>
                       <a
@@ -129,7 +134,6 @@ function ShopCard({ item, gold, loadingId, onPurchase, streakFreezeCount, onUseC
                   ) : <span className="shop-owned-badge">Куплено</span>
                 ) : (
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                    {item.effect === "streak_freeze" && <span className="shop-owned-badge">У тебя: {streakFreezeCount}</span>}
                     <button className="btn btn-primary btn-sm" disabled={loadingId === item.id || !canAfford} onClick={() => onPurchase(item)}>
                       {loadingId === item.id ? "..." : !canAfford ? "Мало золота" : "Купить"}
                     </button>
