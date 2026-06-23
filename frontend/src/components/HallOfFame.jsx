@@ -138,8 +138,23 @@ export default function HallOfFame({ token }) {
       <Torch side="left" />
       <Torch side="right" />
 
+      {/* Back button header */}
+      <div style={{
+        position:"fixed", top:0, left:0, right:0, zIndex:100,
+        padding:"12px 20px", display:"flex", alignItems:"center", gap:12,
+        background:"linear-gradient(180deg,rgba(2,2,8,0.95) 0%,transparent 100%)",
+      }}>
+        <button onClick={() => window.history.back()} style={{
+          background:"rgba(124,58,237,0.2)", border:"1px solid rgba(124,58,237,0.4)",
+          borderRadius:10, color:"#a78bfa", padding:"8px 16px",
+          cursor:"pointer", fontSize:14, fontWeight:600,
+          display:"flex", alignItems:"center", gap:6,
+        }}>← Назад</button>
+        <span style={{ color:"rgba(255,255,255,0.4)", fontSize:13 }}>LevelUp</span>
+      </div>
+
       {/* Content */}
-      <div style={{ position:"relative", zIndex:10, maxWidth:560, margin:"0 auto", padding:"24px 16px 0" }}>
+      <div style={{ position:"relative", zIndex:10, maxWidth:560, margin:"0 auto", padding:"24px 16px 0", paddingTop:60 }}>
 
         {/* Header */}
         <div style={{ textAlign:"center", marginBottom:28 }}>
