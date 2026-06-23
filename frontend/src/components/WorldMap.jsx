@@ -78,7 +78,7 @@ export default function WorldMap({ token, userLevel = 1, showToast }) {
     try {
       const res = await axios.post(`${API}/world-map/${selected.id}/claim-quest`, {}, auth);
       setClaimedToday(prev => new Set([...prev, selected.id]));
-      showToast(`✅ Квест «${selected.questTitle}» выполнен! +${res.data.xpReward} XP, +${res.data.goldReward} 💰`, "success");
+      showToast(`✅ Квест «${selected.questTitle}» выполнен! +${res.data.xpGained} XP, +${res.data.goldGained} 💰`, "success");
       setSelected(null);
     } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
     finally { setBusy(false); }

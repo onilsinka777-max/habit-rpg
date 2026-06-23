@@ -2217,13 +2217,14 @@ app.post("/laptev/chat",authMiddleware,async(req,res)=>{
 });
 
 // ── КАРТА МИРА: ЕЖЕДНЕВНЫЕ КВЕСТЫ ЛОКАЦИИ ────────────────────────────────────
-const LOCATION_REWARDS=[
-  {xp:50,gold:25},{xp:50,gold:25},{xp:50,gold:25},   // 1-3
-  {xp:100,gold:50},{xp:100,gold:50},{xp:100,gold:50}, // 4-6
-  {xp:200,gold:100},{xp:200,gold:100},{xp:200,gold:100},{xp:200,gold:100}, // 7-10
-  {xp:300,gold:150},{xp:300,gold:150},{xp:300,gold:150},{xp:300,gold:150}, // 11-14
-  {xp:300,gold:150},{xp:300,gold:150},{xp:300,gold:150},{xp:300,gold:150}, // 15-18
-  {xp:300,gold:150},{xp:300,gold:150}, // 19-20
+// XP по уровням сложности, gold — по формуле 10 + (index-1)*3
+const LOCATION_XP=[
+  50,50,50,         // 1-3
+  100,100,100,      // 4-6
+  150,150,150,150,  // 7-10
+  200,200,200,200,  // 11-14
+  250,250,250,250,  // 15-18
+  300,300,          // 19-20
 ];
 app.post("/world-map/:locationId/claim-quest",authMiddleware,async(req,res)=>{
   try{
@@ -2232,14 +2233,14 @@ app.post("/world-map/:locationId/claim-quest",authMiddleware,async(req,res)=>{
     const today=startOfToday();
     const existing=await prisma.worldMapQuest.findFirst({where:{userId:req.userId,locationId,createdAt:{gte:today}}});
     if(existing){return res.json({alreadyTaken:true,completed:existing.completed});}
-    const rew=LOCATION_REWARDS[locationId-1]||{xp:100,gold:50};
+    const xpReward=LOCATION_XP[locationId-1]||100;
+    const goldReward=10+(locationId-1)*3; // loc1=10, loc2=13, ... loc20=67
     const quest=await prisma.worldMapQuest.create({data:{userId:req.userId,locationId}});
-    // Give rewards immediately
     const u=await prisma.user.findUnique({where:{id:req.userId}});
-    const{xp,level}=applyXpGain(u.xp,u.level,rew.xp);
-    await prisma.user.update({where:{id:req.userId},data:{xp,level,gold:{increment:rew.gold}}});
+    const{xp,level}=applyXpGain(u.xp,u.level,xpReward);
+    await prisma.user.update({where:{id:req.userId},data:{xp,level,gold:{increment:goldReward}}});
     await prisma.worldMapQuest.update({where:{id:quest.id},data:{completed:true}});
-    res.json({claimed:true,xp:rew.xp,gold:rew.gold,level});
+    res.json({claimed:true,xpGained:xpReward,goldGained:goldReward,level,leveledUp:level>u.level});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 app.get("/world-map/daily-status",authMiddleware,async(req,res)=>{
