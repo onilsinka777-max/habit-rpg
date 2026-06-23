@@ -157,7 +157,6 @@ export default function App() {
 
   const [view,         setView]         = useState("quests");
   const [viewProfileId, setViewProfileId] = useState(null);
-  const [flowFlash,    setFlowFlash]    = useState(false);
   const [rulesOpen,    setRulesOpen]    = useState(false);
   const [activeBranch, setActiveBranch] = useState("discipline");
 
@@ -302,13 +301,10 @@ export default function App() {
       await loadTasks();
       playQuestComplete();
       const d = completeRes.data;
-      if (d.xpGained)   showRewardToast(`✨ +${d.xpGained} XP`, 'xp');
+      const xpLabel = d.comboBonus > 0 ? `✨ +${d.xpGained} XP (+25% комбо)` : `✨ +${d.xpGained} XP`;
+      if (d.xpGained)   showRewardToast(xpLabel, 'xp');
       if (d.goldGained) showRewardToast(`💰 +${d.goldGained} золота`, 'gold');
       if (d.streakJustCompleted) { setStreakModal({ streak: d.newStreak }); playStreakComplete(); }
-      if (d.comboBonus > 0) {
-        setFlowFlash(true);
-        setTimeout(() => setFlowFlash(false), 3000);
-      }
       const res = await axios.get(`${API}/me`, authHeaders);
       setUser(res.data);
       if (res.data.level > prevLevel) {
@@ -450,16 +446,6 @@ export default function App() {
           />
         )}
 
-        {flowFlash && (
-          <div style={{
-            position:"fixed", top:"50%", right:16, transform:"translateY(-50%)",
-            background:"linear-gradient(135deg,rgba(52,211,153,0.9),rgba(16,185,129,0.9))",
-            color:"#0b0e17", fontWeight:900, fontSize:14, padding:"8px 16px",
-            borderRadius:12, zIndex:9999, boxShadow:"0 0 20px rgba(52,211,153,0.5)",
-            animation:"fadeSlideIn 0.3s ease",
-            pointerEvents:"none",
-          }}>🔥 +25% XP</div>
-        )}
 
         {/* ── МИР ──────────────────────────────────────────────────────── */}
         {["worldmap","mastery","skills","league","chains","marathons","season","legend-path"].includes(view) && (
@@ -561,15 +547,6 @@ export default function App() {
           />
         )}
 
-        {/* Combo counter */}
-        {(user?.comboCount||0) >= 3 && (
-          <div style={{ background:"linear-gradient(135deg, #4c1d95, #2d1b69)", border:"1px solid #7c3aed", borderRadius:10, padding:"6px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ fontSize:16 }}>🔥</span>
-            <span style={{ fontSize:12, color:"#c4b5fd" }}>
-              <strong>Комбо ×{user.comboCount}</strong>{(user.comboCount||0)>=5?" +25% XP":""} — выполняй квесты каждые 30 минут!
-            </span>
-          </div>
-        )}
 
         {view === "quests" && (
           <>
@@ -598,9 +575,6 @@ export default function App() {
               {activeBranch === "custom" ? (
                 <section className="quest-section">
                   <div className="section-eyebrow"><span>✏️</span> Свои квесты</div>
-                  <p className="quest-limit-note">
-                    {customSlotsLeft > 0 ? `Осталось ${customSlotsLeft} из ${customQuestsMax} квестов на сегодня` : "Лимит на сегодня исчерпан — новые слоты появятся завтра"}
-                  </p>
                   <div className="new-quest-form" style={{ flexWrap:"wrap" }}>
                     <input className="input" placeholder="Название квеста" value={newTaskTitle}
                       onChange={e => setNewTaskTitle(e.target.value)}
@@ -611,7 +585,7 @@ export default function App() {
                     <button className="btn btn-primary" onClick={createTask} disabled={customSlotsLeft === 0 || !newTaskTitle.trim()}>Добавить</button>
                   </div>
                   <p style={{ fontSize:11, color:"rgba(255,255,255,0.3)", margin:"4px 0 8px" }}>
-                    Сложность: средняя · Ветка назначается автоматически · Квест истекает в конце дня
+                    Ветка назначается автоматически · После выполнения квест исчезает
                   </p>
                   {customTasks.length === 0 ? (
                     <p className="empty-state">Нет своих квестов — добавь первый выше.</p>
@@ -712,7 +686,10 @@ export default function App() {
               }}>{levelUpInfo.unlock}</div>
             )}
             <button className="btn btn-primary" style={{ width:'100%', fontSize:16 }}
-              onClick={() => setLevelUpInfo(null)}>Отлично!</button>
+              onClick={() => {
+                setLevelUpInfo(null);
+                document.querySelector('.player-card')?.scrollIntoView({ behavior:'smooth' });
+              }}>Отлично!</button>
           </div>
         </div>
       )}
