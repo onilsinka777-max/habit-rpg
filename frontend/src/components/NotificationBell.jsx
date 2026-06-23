@@ -6,10 +6,10 @@ const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const TYPE_ICONS = {
   gift_received: "🎁", quest_complete: "✅", chain_complete: "⛓️",
   friend_request: "🤝", coop_invite: "🤜", mention: "@",
-  achievement: "🏅", default: "🔔",
+  achievement: "🏅", new_message: "💬", default: "🔔",
 };
 
-export default function NotificationBell({ token }) {
+export default function NotificationBell({ token, onNavigate }) {
   const [notifs, setNotifs]   = useState([]);
   const [open, setOpen]       = useState(false);
   const auth = { headers: { Authorization: `Bearer ${token}` } };
@@ -32,9 +32,13 @@ export default function NotificationBell({ token }) {
 
   const unread = notifs.filter(n => !n.read).length;
 
-  const markRead = async (id) => {
-    await axios.patch(`${API}/notifications/${id}/read`, {}, auth).catch(() => {});
-    setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const markRead = async (notif) => {
+    await axios.patch(`${API}/notifications/${notif.id}/read`, {}, auth).catch(() => {});
+    setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+    if (notif.type === "new_message" && onNavigate) {
+      setOpen(false);
+      onNavigate("friends");
+    }
   };
 
   const markAll = async () => {
@@ -62,12 +66,12 @@ export default function NotificationBell({ token }) {
           )}
           <div style={{ maxHeight:340, overflowY:"auto" }}>
             {notifs.map(n => (
-              <div key={n.id} onClick={() => markRead(n.id)} className="notif-item"
+              <div key={n.id} onClick={() => markRead(n)} className="notif-item"
                 style={{ background: n.read ? "transparent" : "rgba(141,140,248,0.08)", cursor:"pointer" }}>
                 <span style={{ fontSize:20 }}>{TYPE_ICONS[n.type] || TYPE_ICONS.default}</span>
                 <div style={{ flex:1 }}>
                   <div style={{ fontWeight:600, fontSize:13 }}>{n.title}</div>
-                  <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:2 }}>{n.text}</div>
+                  <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:2 }}>{n.text || n.message}</div>
                 </div>
                 {!n.read && <div style={{ width:7, height:7, borderRadius:"50%", background:"var(--accent,#8d8cf8)", flexShrink:0 }} />}
               </div>

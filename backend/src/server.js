@@ -932,6 +932,12 @@ app.get("/stats",authMiddleware,async(req,res)=>{
 });
 
 // ── DIRECT MESSAGES ──────────────────────────────────────────────────────────
+app.get("/messages/unread-count",authMiddleware,async(req,res)=>{
+  try{
+    const count=await prisma.directMessage.count({where:{toUserId:req.userId,read:false}});
+    res.json({count});
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
 app.get("/messages/:friendId",authMiddleware,async(req,res)=>{
   try{
     const friendId=Number(req.params.friendId);
@@ -957,7 +963,14 @@ app.post("/messages/:friendId",authMiddleware,async(req,res)=>{
       data:{fromUserId:req.userId,toUserId:friendId,text:text.trim()},
       include:{fromUser:{select:{name:true,email:true}}},
     });
-    res.status(201).json({id:msg.id,text:msg.text,createdAt:msg.createdAt,read:false,fromMe:true,authorName:msg.fromUser.name||msg.fromUser.email.split("@")[0]});
+    const senderName=msg.fromUser.name||msg.fromUser.email.split("@")[0];
+    await prisma.notification.create({data:{
+      userId:friendId,type:"new_message",
+      title:"Новое сообщение",
+      text:`${senderName} написал тебе сообщение`,
+      relatedId:req.userId,read:false,
+    }}).catch(()=>{});
+    res.status(201).json({id:msg.id,text:msg.text,createdAt:msg.createdAt,read:false,fromMe:true,authorName:senderName});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -2187,7 +2200,7 @@ app.post("/laptev/chat",authMiddleware,async(req,res)=>{
     const today=startOfToday();
     const isToday=user.laptevMsgDate&&new Date(user.laptevMsgDate)>=today;
     const count=isToday?user.laptevMsgCount:0;
-    if(count>=30)return res.status(429).json({message:"На сегодня хватит. Иди делай квесты. Завтра продолжим.",messagesLeft:0});
+    if(count>=10)return res.status(429).json({message:"На сегодня хватит. Иди делай квесты. Завтра продолжим.",messagesLeft:0});
     const{message,history=[]}=req.body;
     if(!message?.trim())return res.status(400).json({message:"Пустое сообщение"});
     // Compute branch stats for coaching context
@@ -2212,7 +2225,7 @@ app.post("/laptev/chat",authMiddleware,async(req,res)=>{
     });
     const reply=response.content[0].text;
     await prisma.user.update({where:{id:req.userId},data:{laptevMsgCount:isToday?{increment:1}:1,laptevMsgDate:new Date()}});
-    res.json({reply,messagesLeft:30-(isToday?count+1:1)});
+    res.json({reply,messagesLeft:10-(isToday?count+1:1)});
   }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
 });
 

@@ -158,6 +158,7 @@ export default function App() {
 
   const [view,         setView]         = useState("quests");
   const [viewProfileId, setViewProfileId] = useState(null);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [rulesOpen,    setRulesOpen]    = useState(false);
   const [activeBranch, setActiveBranch] = useState("discipline");
 
@@ -341,6 +342,13 @@ export default function App() {
   };
 
   useEffect(() => { if (token) { loadProfile(); loadTasks(); axios.get(`${API}/online-count`,authHeaders).then(r=>setOnlineCount(r.data.count)).catch(()=>{}); } }, [token]);
+  useEffect(() => {
+    if (!token) return;
+    const pollUnread = () => axios.get(`${API}/messages/unread-count`, authHeaders).then(r => setUnreadMessages(r.data.count || 0)).catch(() => {});
+    pollUnread();
+    const t = setInterval(pollUnread, 10000);
+    return () => clearInterval(t);
+  }, [token]);
   useEffect(() => { if (token && (view === "shop" || view === "library")) { loadShop(); loadLibrary(); } }, [token, view]);
 
   useEffect(() => {
@@ -422,7 +430,7 @@ export default function App() {
               {soundOn ? "🔊" : "🔇"}
             </button>
             <button className="rules-btn" title="Поиск (Ctrl+K)" onClick={() => setSearchOpen(true)} style={{ fontSize:16 }}>🔍</button>
-            {token && <NotificationBell token={token} />}
+            {token && <NotificationBell token={token} onNavigate={setView} />}
             <button className="rules-btn" onClick={() => setRulesOpen(true)}>?</button>
           </div>
         </header>
@@ -683,6 +691,7 @@ export default function App() {
         onNavigate={(key) => { const item = NAV_ITEMS.find(n => n.key === key); if (item?.lockLevel && (user?.level||1) < item.lockLevel) { showToast(item.lockMessage,"error"); return; } setView(key); }}
         userLevel={user?.level || 1}
         showToast={showToast}
+        unreadMessages={unreadMessages}
       />
 
       {/* ── Modals ── */}

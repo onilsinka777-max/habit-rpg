@@ -60,7 +60,7 @@ const TABS = [
   },
 ];
 
-export default function BottomNav({ currentView, onNavigate }) {
+export default function BottomNav({ currentView, onNavigate, unreadMessages = 0 }) {
   const activeTab = VIEW_TO_TAB[currentView] || "quests";
   const [openMenu, setOpenMenu] = useState(null);
   const menuRef = useRef(null);
@@ -172,14 +172,26 @@ export default function BottomNav({ currentView, onNavigate }) {
                   background:ACCENT, boxShadow:`0 0 10px ${ACCENT}`,
                 }} />
               )}
-              <span style={{
-                fontSize: active ? 24 : 20,
-                transform: active ? "scale(1.15) translateY(-1px)" : "none",
-                transition:"all 0.18s cubic-bezier(0.34,1.56,0.64,1)",
-                filter: active ? `drop-shadow(0 0 8px ${ACCENT})` : "none",
-                lineHeight:1,
-              }}>
-                {tab.icon}
+              <span style={{ position:"relative", display:"inline-block", lineHeight:1 }}>
+                <span style={{
+                  fontSize: active ? 24 : 20,
+                  transform: active ? "scale(1.15) translateY(-1px)" : "none",
+                  transition:"all 0.18s cubic-bezier(0.34,1.56,0.64,1)",
+                  filter: active ? `drop-shadow(0 0 8px ${ACCENT})` : "none",
+                  display:"block",
+                }}>
+                  {tab.icon}
+                </span>
+                {tab.id === "social" && unreadMessages > 0 && (
+                  <span style={{
+                    position:"absolute", top:-4, right:-6,
+                    background:"#ef4444", color:"#fff",
+                    borderRadius:"50%", width:16, height:16,
+                    fontSize:10, fontWeight:700,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    lineHeight:1, pointerEvents:"none",
+                  }}>{unreadMessages > 9 ? "9+" : unreadMessages}</span>
+                )}
               </span>
               <span style={{ display:"flex", alignItems:"center", gap:2 }}>
                 {tab.label}
