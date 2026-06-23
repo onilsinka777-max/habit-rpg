@@ -1,5 +1,7 @@
+const http = require("http");
 const cors = require("cors");
 const express = require("express");
+const { Server } = require("socket.io");
 const prisma = require("./prisma");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -20,6 +22,9 @@ const {
 } = require("./constants");
 
 const app = express();
+const httpServer = http.createServer(app);
+const io = new Server(httpServer, { cors: { origin: "*" } });
+
 app.use(cors());
 app.use(express.json());
 
@@ -2411,8 +2416,38 @@ app.get("/debug/db",async(req,res)=>{
   }catch(e){res.status(500).json({status:"error",message:e.message,code:e.code});}
 });
 
+// ── SOCKET.IO: CHESS REALTIME ─────────────────────────────────────────────────
+io.on("connection",(socket)=>{
+  socket.on("chess:join",({gameId,userId})=>{
+    socket.join(`chess:${gameId}`);
+    socket.data.userId=userId;
+    socket.data.gameId=gameId;
+    socket.to(`chess:${gameId}`).emit("chess:player_joined",{userId});
+  });
+  socket.on("chess:move",async({gameId,from,to,boardState,userId})=>{
+    try{
+      await prisma.chessGame.update({where:{id:parseInt(gameId)},data:{boardState,updatedAt:new Date()}}).catch(()=>{});
+    }catch(e){}
+    socket.to(`chess:${gameId}`).emit("chess:move",{from,to,boardState,userId});
+  });
+  socket.on("chess:resign",({gameId,userId})=>{
+    io.to(`chess:${gameId}`).emit("chess:resigned",{userId});
+  });
+  socket.on("chess:draw_offer",({gameId,userId})=>{
+    socket.to(`chess:${gameId}`).emit("chess:draw_offered",{userId});
+  });
+  socket.on("chess:draw_accept",({gameId})=>{
+    io.to(`chess:${gameId}`).emit("chess:draw_accepted");
+  });
+  socket.on("disconnect",()=>{
+    if(socket.data.gameId){
+      socket.to(`chess:${socket.data.gameId}`).emit("chess:opponent_disconnected");
+    }
+  });
+});
+
 const PORT=process.env.PORT||3001;
 console.log(`Starting server on PORT=${PORT}, NODE_ENV=${process.env.NODE_ENV}, DB=${process.env.DATABASE_URL||"file:./dev.db"}`);
-app.listen(PORT,"0.0.0.0",()=>console.log(`SERVER STARTED ON ${PORT}`));
+httpServer.listen(PORT,"0.0.0.0",()=>console.log(`SERVER STARTED ON ${PORT}`));
 process.on("uncaughtException",e=>{console.error("UNCAUGHT:",e);process.exit(1);});
 process.on("unhandledRejection",e=>{console.error("UNHANDLED:",e);process.exit(1);});

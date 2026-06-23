@@ -139,12 +139,18 @@ export default function Friends({ token, showToast, askConfirm, myStreak, onChes
                   <button className="btn btn-ghost btn-sm" onClick={() => setChatFriend(f)} title="Чат">💬</button>
                   {onChessInvite && (
                     <button className="btn btn-ghost btn-sm" title="Сыграть в шахматы"
+                      style={{ fontSize:15 }}
                       onClick={async () => {
                         try {
-                          await axios.post(`${API}/chess/invite/${f.id}`, {}, authHeaders);
-                          showToast("Игра создана!", "success");
-                          onChessInvite();
-                        } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
+                          const res = await axios.post(`${API}/chess/invite/${f.id}`, {}, authHeaders);
+                          showToast(`♟ Вызов отправлен ${f.name || f.email}!`, "success");
+                          onChessInvite(res.data.id);
+                        } catch (e) {
+                          const msg = e.response?.data?.message || "Ошибка";
+                          const existingId = e.response?.data?.gameId;
+                          if (existingId) { showToast("Открываю существующую игру", "info"); onChessInvite(existingId); }
+                          else showToast(msg, "error");
+                        }
                       }}>♟</button>
                   )}
                   <button className="btn btn-danger btn-sm" onClick={() => removeFriend(f)}>✕</button>

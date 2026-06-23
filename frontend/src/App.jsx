@@ -159,6 +159,7 @@ export default function App() {
   const [view,         setView]         = useState("quests");
   const [viewProfileId, setViewProfileId] = useState(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [chessGameId, setChessGameId] = useState(null);
   const [rulesOpen,    setRulesOpen]    = useState(false);
   const [activeBranch, setActiveBranch] = useState("discipline");
 
@@ -493,9 +494,9 @@ export default function App() {
               {key:"npc",       label:"Наставники",   icon:"🧙"},
               {key:"gratitude", label:"Благодарность",icon:"🌿"},
             ]} active={view} onChange={setView} />
-            {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} onChessInvite={() => setView("chess")} onViewProfile={(id) => { setViewProfileId(id); setView("profile"); }} />}
+            {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} onChessInvite={(gid) => { setChessGameId(gid || null); setView("chess"); }} onViewProfile={(id) => { setViewProfileId(id); setView("profile"); }} />}
             {view === "clan"      && <Clan     token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level||1} />}
-            {view === "chess"     && <Chess    token={token} showToast={showToast} />}
+            {view === "chess"     && <Chess    token={token} showToast={showToast} gameId={chessGameId} />}
             {view === "feed"      && <Feed     token={token} showToast={showToast} />}
             {view === "npc"       && <NpcPage  token={token} showToast={showToast} />}
             {view === "gratitude" && <Gratitude token={token} showToast={showToast} />}
