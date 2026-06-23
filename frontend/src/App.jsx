@@ -44,7 +44,6 @@ import Laptev from "./components/Laptev";
 import Sages from "./components/Sages";
 import VoiceInput from "./components/VoiceInput";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
-import RewardAnimation from "./components/RewardAnimation";
 import ToastContainer from "./components/Toast";
 import "./App.css";
 
@@ -175,7 +174,6 @@ export default function App() {
   const [toasts,             setToasts]             = useState([]);
   const [confirmDialog,      setConfirmDialog]      = useState(null);
   const [levelUpInfo,        setLevelUpInfo]        = useState(null);
-  const [rewardAnim,         setRewardAnim]         = useState(null); // {xp, gold}
   const [streakModal,        setStreakModal]         = useState(null);
   const [showNicknameModal,  setShowNicknameModal]  = useState(false);
   const [showScrollModal,    setShowScrollModal]    = useState(false);
@@ -301,13 +299,6 @@ export default function App() {
       const completeRes = await axios.patch(`${API}/tasks/${id}/complete`, {}, authHeaders);
       await loadTasks();
       playQuestComplete();
-      // Show reward animation
-      const xpGained = completeRes.data.xpReward || 0;
-      const goldGained = completeRes.data.goldReward || 0;
-      if (xpGained > 0 || goldGained > 0) {
-        setRewardAnim({ xp: xpGained, gold: goldGained });
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
       if (completeRes.data.freezeConsumed) showToast("Заморозка стрика сработала — серия не сброшена!", "success");
       if (completeRes.data.streakJustCompleted) { setStreakModal({ streak: completeRes.data.newStreak }); playStreakComplete(); }
       if (completeRes.data.petCreated) showToast("🥚 Питомец появился! Зайди во вкладку «Питомец»", "success");
@@ -567,10 +558,10 @@ export default function App() {
 
         {/* Combo counter */}
         {(user?.comboCount||0) >= 3 && (
-          <div style={{ background:"rgba(251,120,120,0.1)", border:"1px solid rgba(251,120,120,0.25)", borderRadius:10, padding:"6px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ background:"linear-gradient(135deg, #4c1d95, #2d1b69)", border:"1px solid #7c3aed", borderRadius:10, padding:"6px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ fontSize:16 }}>🔥</span>
-            <span style={{ fontSize:12, color:"#fb7878" }}>
-              <strong>Комбо ×{user.comboCount}</strong>{(user.comboCount||0)>=5?" +50% XP":" +25% XP"} — выполняй квесты каждые 30 минут!
+            <span style={{ fontSize:12, color:"#c4b5fd" }}>
+              <strong>Комбо ×{user.comboCount}</strong>{(user.comboCount||0)>=5?" +25% XP":""} — выполняй квесты каждые 30 минут!
             </span>
           </div>
         )}
@@ -678,14 +669,6 @@ export default function App() {
             </div>
           </div>
         </div>
-      )}
-
-      {rewardAnim && (
-        <RewardAnimation
-          xp={rewardAnim.xp}
-          gold={rewardAnim.gold}
-          onComplete={() => setRewardAnim(null)}
-        />
       )}
 
       {levelUpInfo && (
