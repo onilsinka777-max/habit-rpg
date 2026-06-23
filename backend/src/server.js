@@ -622,7 +622,7 @@ app.post("/journal",authMiddleware,async(req,res)=>{
     const today=startOfToday();
     const gotBonus=user.lastJournalBonusDate&&new Date(user.lastJournalBonusDate)>=today;
     let goldBonus=0;
-    if(!gotBonus){goldBonus=5;await prisma.user.update({where:{id:req.userId},data:{gold:{increment:5},lastJournalBonusDate:new Date()}});}
+    if(!gotBonus){goldBonus=15;await prisma.user.update({where:{id:req.userId},data:{gold:{increment:15},lastJournalBonusDate:new Date()}});}
     res.status(201).json({...entry,goldBonus});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
@@ -642,7 +642,7 @@ app.post("/goals",authMiddleware,async(req,res)=>{
     const today=startOfToday();
     const gotBonus=user.lastGoalBonusDate&&new Date(user.lastGoalBonusDate)>=today;
     let goldBonus=0;
-    if(!gotBonus){goldBonus=20;await prisma.user.update({where:{id:req.userId},data:{gold:{increment:20},lastGoalBonusDate:new Date()}});}
+    if(!gotBonus){goldBonus=15;await prisma.user.update({where:{id:req.userId},data:{gold:{increment:15},lastGoalBonusDate:new Date()}});}
     res.status(201).json({...goal,goldBonus});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
@@ -962,6 +962,20 @@ app.post("/messages/:friendId",authMiddleware,async(req,res)=>{
 });
 
 // ── POMODORO ─────────────────────────────────────────────────────────────────
+app.post("/pomodoro/complete",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId}});
+    const today=startOfToday();
+    const needsBonus=!user.lastPomodoroBonusDate||new Date(user.lastPomodoroBonusDate)<today;
+    const{xp,level}=applyXpGain(user.xp,user.level,20);
+    await prisma.user.update({where:{id:req.userId},data:{
+      xp,level,
+      gold:{increment:needsBonus?15:0},
+      ...(needsBonus?{lastPomodoroBonusDate:new Date()}:{}),
+    }});
+    res.json({xp:20,gold:needsBonus?15:0,bonusGold:needsBonus,leveledUp:level>user.level,newLevel:level});
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
 app.post("/tasks/pomodoro-complete",authMiddleware,async(req,res)=>{
   try{
     const XP=15;

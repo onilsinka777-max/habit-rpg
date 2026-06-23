@@ -33,13 +33,14 @@ export default function Goals({ token, showToast, askConfirm }) {
     if (!title.trim()) return;
     try {
       setBusy(true);
-      await axios.post(`${API}/goals`, {
+      const res = await axios.post(`${API}/goals`, {
         title,
         description: desc,
         targetDate: targetDate || undefined,
       }, authHeaders);
       setTitle(""); setDesc(""); setTargetDate(""); setShowForm(false);
       showToast("Цель добавлена!", "success");
+      if (res.data.goldBonus > 0) showToast(`🎯 +${res.data.goldBonus} золота за цель!`, "gold");
       await load();
     } catch (e) {
       showToast(e.response?.data?.message || "Не удалось добавить", "error");

@@ -29,9 +29,10 @@ export default function Journal({ token, showToast }) {
     if (!content.trim()) return;
     try {
       setBusy(true);
-      await axios.post(`${API}/journal`, { content }, authHeaders);
+      const res = await axios.post(`${API}/journal`, { content }, authHeaders);
       setContent("");
       showToast("Запись сохранена", "success");
+      if (res.data.goldBonus > 0) showToast(`📔 +${res.data.goldBonus} золота за запись!`, "gold");
       await load();
     } catch(e) { showToast(e.response?.data?.message || "Не удалось сохранить", "error"); }
     finally { setBusy(false); }
