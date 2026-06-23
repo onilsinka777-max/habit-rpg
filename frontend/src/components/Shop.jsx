@@ -48,7 +48,6 @@ function SeasonalCountdown() {
 const TABS = [
   { key:"boost",    label:"Бусты",      icon:"⚡" },
   { key:"cosmetic", label:"Косметика",  icon:"✨" },
-  { key:"artifact", label:"Артефакты",  icon:"💎" },
   { key:"xp_card",  label:"Карты XP",   icon:"🃏" },
   { key:"weekly",   label:"Сезонные",   icon:"🌟" },
   { key:"content",  label:"Контент",    icon:"📚" },
@@ -239,54 +238,9 @@ function WeeklyTab({ token, gold, onPurchase, loadingId }) {
 }
 
 export default function Shop({ items, gold, loadingId, onPurchase, streakFreezeCount, token, showToast, onProfileRefresh }) {
-  const [tab, setTab]             = useState("boost");
-  const [artifacts, setArtifacts] = useState([]);
-  const [artLoading, setArtLoading] = useState(false);
-  const [artBusy, setArtBusy]     = useState(null);
-  const [cardBusy, setCardBusy]   = useState(null);
+  const [tab, setTab]           = useState("boost");
+  const [cardBusy, setCardBusy] = useState(null);
   const auth = { headers: { Authorization: `Bearer ${token}` } };
-
-  const loadArtifacts = () => {
-    if (!token) return;
-    setArtLoading(true);
-    axios.get(`${API}/artifacts`, auth)
-      .then(r => setArtifacts(r.data.artifacts || []))
-      .catch(() => {})
-      .finally(() => setArtLoading(false));
-  };
-
-  useEffect(() => { if (tab === "artifact") loadArtifacts(); }, [tab, token]);
-
-  const equipArtifact = async (id, slot) => {
-    setArtBusy(id);
-    try {
-      await axios.post(`${API}/artifacts/${id}/equip`, { slot }, auth);
-      showToast(`Экипировано в слот: ${SLOT_LABELS[slot]}`, "success");
-      loadArtifacts();
-    } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
-    finally { setArtBusy(null); }
-  };
-
-  const unequipArtifact = async (id) => {
-    setArtBusy(id);
-    try {
-      await axios.post(`${API}/artifacts/${id}/unequip`, {}, auth);
-      showToast("Снято", "success");
-      loadArtifacts();
-    } catch (e) { showToast("Ошибка", "error"); }
-    finally { setArtBusy(null); }
-  };
-
-  const buyArtifact = async (item) => {
-    setArtBusy(item.id);
-    try {
-      await axios.post(`${API}/artifacts/${item.id}/buy`, {}, auth);
-      showToast(`«${item.name}» куплено!`, "success");
-      loadArtifacts();
-      onProfileRefresh?.();
-    } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
-    finally { setArtBusy(null); }
-  };
 
   const useXpCard = async (itemId) => {
     setCardBusy(itemId);
@@ -318,22 +272,6 @@ export default function Shop({ items, gold, loadingId, onPurchase, streakFreezeC
           </button>
         ))}
       </div>
-
-      {tab === "artifact" && (
-        <div>
-          {artLoading ? <p style={{ opacity:0.5 }}>Загрузка...</p> : (
-            <div className="shop-grid">
-              {artifacts.map(a => (
-                <ShopCard key={a.id} item={a} gold={gold}
-                  loadingId={artBusy} onPurchase={buyArtifact}
-                  streakFreezeCount={streakFreezeCount}
-                  onEquip={equipArtifact} onUnequip={unequipArtifact}
-                  isArtifact />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {tab === "weekly" && (
         <>

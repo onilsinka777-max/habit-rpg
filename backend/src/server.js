@@ -537,7 +537,7 @@ app.delete("/tasks/:id",authMiddleware,async(req,res)=>{
 app.get("/shop",authMiddleware,async(req,res)=>{
   try{
     const user=await prisma.user.findUnique({where:{id:req.userId}});
-    const items=await prisma.shopItem.findMany({where:{active:true},orderBy:{price:"asc"}});
+    const items=await prisma.shopItem.findMany({where:{active:true,category:{not:"artifact"}},orderBy:{price:"asc"}});
     const purchases=await prisma.purchase.findMany({where:{userId:req.userId},select:{itemId:true}});
     const pIds=new Set(purchases.map(p=>p.itemId));
     res.json(items.map(item=>({...item,purchased:pIds.has(item.id),repeatable:REPEATABLE_SHOP_EFFECTS.includes(item.effect),locked:item.category!=="boost"&&item.effect!=="name_change_scroll"&&!user.hasEverFinishedMastery})));
@@ -2130,18 +2130,29 @@ app.post("/laptev/chat",authMiddleware,async(req,res)=>{
     if(count>=30)return res.status(429).json({message:"На сегодня хватит. Иди делай квесты. Завтра продолжим.",messagesLeft:0});
     const{message,history=[]}=req.body;
     if(!message?.trim())return res.status(400).json({message:"Пустое сообщение"});
+    // Compute branch stats for coaching context
+    const BRANCHES=["discipline","fitness","self_development","knowledge"];
+    const weekAgo=new Date(Date.now()-7*24*60*60*1000);
+    const weeklyTasks=await prisma.task.findMany({where:{userId:req.userId,completed:true,updatedAt:{gte:weekAgo}},select:{branch:true,xpReward:true}});
+    const branchXp={};
+    BRANCHES.forEach(b=>branchXp[b]=0);
+    weeklyTasks.forEach(t=>{if(branchXp[t.branch]!==undefined)branchXp[t.branch]+=(t.xpReward||0);});
+    const weeklyXp=weeklyTasks.reduce((s,t)=>s+(t.xpReward||0),0);
+    const sorted=BRANCHES.slice().sort((a,b)=>branchXp[b]-branchXp[a]);
+    const strongestBranch=sorted[0];const weakestBranch=sorted[sorted.length-1];
+    const BRANCH_RU={discipline:"Дисциплина",fitness:"Фитнес",self_development:"Саморазвитие",knowledge:"Знания"};
     const Anthropic=require("@anthropic-ai/sdk");
     const client=new Anthropic();
     const msgs=[...history.slice(-8).map(m=>({role:m.role,content:m.content})),{role:"user",content:message}];
     const response=await client.messages.create({
       model:"claude-haiku-4-5-20251001",
       max_tokens:200,
-      system:`Ты — LAPTEV, создатель системы LevelUp. Твоё настоящее имя Антон Лаптев. Ты реальный человек который геймифицировал свою жизнь, прошёл путь от обычного парня до легенды и оцифровал свой опыт в эту систему.\n\nКак говоришь: как старший брат и наставник. Лаконично. Простым языком. Без воды. Максимум 3-4 предложения на ответ. Иногда жёстко но справедливо. Никогда не льстишь. Говоришь как есть.\n\nДанные игрока с которым говоришь:\n- Имя: ${user.name||"Игрок"}\n- Уровень: ${user.level}\n- Стрик: ${user.streak} дней\n- XP: ${user.xp}\n\nОтвечай на русском языке. Обращайся на "ты". Используй данные игрока в разговоре когда уместно.`,
+      system:`Ты — Антон Лаптев, создатель системы LevelUp. Выступаешь одновременно как наставник и AI коуч.\nАнализируешь данные игрока и даёшь персональные советы.\nГоворишь как старший брат — лаконично, простым языком, без воды. Максимум 3-4 предложения.\nДанные игрока: имя ${user.name||"Игрок"}, уровень ${user.level}, стрик ${user.streak} дней, слабая ветка: ${BRANCH_RU[weakestBranch]||weakestBranch}, сильная: ${BRANCH_RU[strongestBranch]||strongestBranch}, XP за неделю: ${weeklyXp}.\nОтвечай на русском. Обращайся на ты.`,
       messages:msgs,
     });
     const reply=response.content[0].text;
     await prisma.user.update({where:{id:req.userId},data:{laptevMsgCount:isToday?{increment:1}:1,laptevMsgDate:new Date()}});
-    res.json({reply,messagesLeft:50-(isToday?count+1:1)});
+    res.json({reply,messagesLeft:30-(isToday?count+1:1)});
   }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
 });
 

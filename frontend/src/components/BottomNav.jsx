@@ -7,7 +7,7 @@ const VIEW_TO_TAB = {
   worldmap:"world", mastery:"world", skills:"world", league:"world", report:"world",
   friends:"social", clan:"social", feed:"social", npc:"social", gratitude:"social", chess:"social",
   profile:"profile", achievements:"profile", stats:"profile", shop:"profile",
-  library:"profile", journal:"profile", goals:"profile", pet:"profile", pomodoro:"profile", "ai-coach":"profile", laptev:"profile", sages:"profile",
+  library:"profile", journal:"profile", goals:"profile", pet:"profile", pomodoro:"profile", laptev:"profile", sages:"profile",
 };
 
 const TABS = [
@@ -54,8 +54,7 @@ const TABS = [
       { key:"goals",        icon:"🎯", label:"Цели"        },
       { key:"pet",          icon:"🐣", label:"Питомец"     },
       { key:"pomodoro",     icon:"⏱️", label:"Помодоро"    },
-      { key:"ai-coach",     icon:"🤖", label:"AI Коуч"     },
-      { key:"laptev",       icon:"🟣", label:"LAPTEV"       },
+      { key:"laptev",       icon:"👑", label:"Создатель"    },
       { key:"sages",        icon:"🏛️", label:"Мудрецы"     },
     ],
   },
