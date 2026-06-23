@@ -2,10 +2,13 @@ const BRANCHES = ["discipline","fitness","self_development","knowledge"];
 const TASK_TYPES = ["required","recommended","custom","legendary"];
 const DIFFICULTIES = ["easy","medium","hard"];
 
+const BASE_XP = 15;
 const DIFFICULTY_REWARDS = {
-  easy:  {xp:10, gold:5},
-  medium:{xp:25, gold:12},
-  hard:  {xp:50, gold:25},
+  easy:      { xp: BASE_XP,      gold: 8,   xpReward: BASE_XP,      goldReward: 8,   label: 'Простой'     },
+  medium:    { xp: BASE_XP * 2,  gold: 15,  xpReward: BASE_XP * 2,  goldReward: 15,  label: 'Средний'     },
+  hard:      { xp: BASE_XP * 4,  gold: 30,  xpReward: BASE_XP * 4,  goldReward: 30,  label: 'Сложный'     },
+  legendary: { xp: BASE_XP * 10, gold: 75,  xpReward: BASE_XP * 10, goldReward: 75,  label: 'Легендарный' },
+  absolute:  { xp: BASE_XP * 15, gold: 112, xpReward: BASE_XP * 15, goldReward: 112, label: 'Абсолют'     },
 };
 
 const DAILY_REQUIRED_PER_BRANCH    = 2;

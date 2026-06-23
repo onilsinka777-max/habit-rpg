@@ -1,30 +1,51 @@
 const prisma = require("./prisma");
 const {
-  BRANCHES, weightedRandomDifficulty, startOfToday, endOfToday,
+  BRANCHES, startOfToday, endOfToday,
   getRequiredPenaltyGold, DIFFICULTY_REWARDS,
   DAILY_REQUIRED_PER_BRANCH, DAILY_RECOMMENDED_PER_BRANCH,
 } = require("./constants");
 
+function getDifficultyForLevel(userLevel, random = Math.random()) {
+  if (userLevel <= 5) {
+    return 'easy';
+  } else if (userLevel <= 10) {
+    return random < 0.8 ? 'easy' : 'medium';
+  } else if (userLevel <= 15) {
+    if (random < 0.5) return 'easy';
+    if (random < 0.95) return 'medium';
+    return 'hard';
+  } else if (userLevel <= 20) {
+    if (random < 0.2) return 'easy';
+    if (random < 0.8) return 'medium';
+    return 'hard';
+  } else if (userLevel <= 25) {
+    if (random < 0.05) return 'easy';
+    if (random < 0.5) return 'medium';
+    return 'hard';
+  } else {
+    return random < 0.1 ? 'medium' : 'hard';
+  }
+}
+
+const DIFFICULTY_ORDER = { easy: 0, medium: 1, hard: 2, legendary: 3, absolute: 4 };
+
+function getMaxDifficultyForLevel(level) {
+  if (level <= 5) return 'easy';
+  if (level <= 10) return 'medium';
+  return 'hard';
+}
+
 function buildQuestFromTemplate(template, userLevel) {
   let title = template.title;
   let description = template.description || null;
-  let difficulty = template.difficulty;
-  let xpReward = template.xpReward;
-  let goldReward = template.goldReward;
+  let difficulty = getDifficultyForLevel(userLevel);
+  let xpReward = DIFFICULTY_REWARDS[difficulty]?.xpReward || template.xpReward;
+  let goldReward = DIFFICULTY_REWARDS[difficulty]?.goldReward || template.goldReward;
 
   if (template.baseReps && template.repScaling != null) {
     const actualReps = template.baseReps + Math.floor(userLevel * template.repScaling);
     title = title.replace(/\{reps\}/g, actualReps);
     if (description) description = description.replace(/\{reps\}/g, actualReps);
-
-    const base = template.baseReps;
-    const baseDiff = template.baseDifficulty || template.difficulty;
-    if (actualReps > base * 1.67) difficulty = "hard";
-    else if (actualReps > base * 1.25) difficulty = "medium";
-    else difficulty = baseDiff;
-
-    xpReward = DIFFICULTY_REWARDS[difficulty]?.xp || xpReward;
-    goldReward = DIFFICULTY_REWARDS[difficulty]?.gold || goldReward;
   }
 
   return { title, description, difficulty, xpReward, goldReward };
@@ -63,7 +84,6 @@ async function applyMissedRequiredPenalties(userId) {
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
-  // Each unique expiry date = 1 missed day; increment missedDaysStreak
   const MISS_MULTS = [1, 1.5, 2, 4, 8];
   const missedDates = new Set(missed.map((t) => new Date(t.expiresAt).toDateString()));
   const newMissedDaysStreak = (user.missedDaysStreak || 0) + missedDates.size;
@@ -83,7 +103,6 @@ async function applyMissedRequiredPenalties(userId) {
 }
 
 async function cleanupExpiredDailyQuests(userId) {
-  // Delete expired daily quests (required + recommended only, not custom/legendary/npc)
   await prisma.task.deleteMany({
     where: {
       userId,
@@ -108,9 +127,20 @@ async function ensureDailyQuests(userId) {
   const now = new Date();
 
   // 3. Check what active daily quests already exist for today
-  const activeDaily = await prisma.task.findMany({
+  let activeDaily = await prisma.task.findMany({
     where: { userId, isDaily: true, expiresAt: { gt: now }, type: { in: ["required", "recommended"] } },
   });
+
+  // 4. Delete existing quests whose difficulty is too high for user's level
+  const maxDiff = getMaxDifficultyForLevel(user.level);
+  const maxDiffOrder = DIFFICULTY_ORDER[maxDiff] ?? 2;
+  const wrongDiffIds = activeDaily
+    .filter(t => !t.completed && (DIFFICULTY_ORDER[t.difficulty] ?? 0) > maxDiffOrder)
+    .map(t => t.id);
+  if (wrongDiffIds.length > 0) {
+    await prisma.task.deleteMany({ where: { id: { in: wrongDiffIds } } });
+    activeDaily = activeDaily.filter(t => !wrongDiffIds.includes(t.id));
+  }
 
   const TARGET_COUNTS = {
     required: DAILY_REQUIRED_PER_BRANCH,
@@ -122,7 +152,6 @@ async function ensureDailyQuests(userId) {
       const existing = activeDaily.filter((t) => t.branch === branch && t.type === type);
       const needed = TARGET_COUNTS[type] - existing.length;
       if (needed < 0) {
-        // Trim excess quests (keep completed ones, delete non-completed excess)
         const toDelete = existing.filter(t => !t.completed).slice(0, -needed);
         if (toDelete.length > 0) {
           await prisma.task.deleteMany({ where: { id: { in: toDelete.map(t => t.id) } } });
@@ -136,7 +165,7 @@ async function ensureDailyQuests(userId) {
       const pool = shuffle(allTemplates.filter((t) => !existingTitles.has(t.title)));
 
       for (let i = 0; i < needed && pool.length > 0; i++) {
-        const preferred = weightedRandomDifficulty(user.level);
+        const preferred = getDifficultyForLevel(user.level);
         let idx = pool.findIndex((t) => t.difficulty === preferred);
         if (idx === -1) idx = 0;
         const [template] = pool.splice(idx, 1);
@@ -161,4 +190,4 @@ async function ensureDailyQuests(userId) {
   }
 }
 
-module.exports = { ensureDailyQuests };
+module.exports = { ensureDailyQuests, getDifficultyForLevel, DIFFICULTY_REWARDS };
