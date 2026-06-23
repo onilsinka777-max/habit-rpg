@@ -108,6 +108,7 @@ model User {
   activeNpcId              String?
   worldMapQuests           WorldMapQuest[]
   seasonQuests             SeasonQuest[]
+  creatorPath              CreatorPath?
   createdAt                DateTime         @default(now())
 }
 
@@ -683,4 +684,15 @@ model SeasonQuest {
   date      DateTime @default(now())
   completed Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+// ── ПУТЬ СОЗДАТЕЛЯ ────────────────────────────────────────────────────────────
+model CreatorPath {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @unique
+  user        User      @relation(fields: [userId], references: [id])
+  currentDay  Int       @default(0)
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  status      String    @default("active")
 }

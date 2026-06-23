@@ -38,20 +38,20 @@ export default function LegendPath({ token, showToast, userLevel }) {
     finally { setBusy(false); }
   };
 
-  if (userLevel < 40) {
+  if (userLevel < 50) {
     return (
       <div className="section-card">
-        <div className="section-eyebrow"><span>🌟</span> Легендарный путь</div>
+        <div className="section-eyebrow"><span>🌳</span> Легендарный путь</div>
         <div style={{ textAlign:"center", padding:"40px 20px" }}>
           <div style={{ fontSize:48, marginBottom:12 }}>🔒</div>
-          <h3 style={{ fontSize:20, fontWeight:700, color:"#f5b637", marginBottom:8 }}>Путь Закрыт</h3>
+          <h3 style={{ fontSize:20, fontWeight:700, color:"#f5b637", marginBottom:8 }}>Легендарный путь</h3>
           <p style={{ color:"rgba(255,255,255,0.45)", fontSize:14, lineHeight:1.6 }}>
-            Легендарный путь откроется на 40 уровне.<br />
-            Ты на уровне {userLevel} — ещё {40 - userLevel} уровней.
+            Откроется на 50 уровне.<br />
+            Твой уровень: {userLevel} / 50
           </p>
           <div style={{ marginTop:20, padding:"12px 20px", background:"rgba(245,182,55,0.08)", border:"1px solid rgba(245,182,55,0.2)", borderRadius:12 }}>
             <p style={{ fontSize:13, color:"rgba(245,182,55,0.8)", margin:0, fontStyle:"italic" }}>
-              «Только те, кто прошёл 40 уровней испытаний, достойны встать на Легендарный путь»
+              «Только те, кто прошёл 50 уровней испытаний, достойны встать на Легендарный путь»
             </p>
           </div>
         </div>

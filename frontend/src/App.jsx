@@ -42,6 +42,8 @@ import SectionTabs from "./components/SectionTabs";
 import Chess from "./components/Chess";
 import Laptev from "./components/Laptev";
 import LaptevAI from "./components/LaptevAI";
+import CreatorPath from "./components/CreatorPath";
+import HallOfFame from "./components/HallOfFame";
 import Sages from "./components/Sages";
 import VoiceInput from "./components/VoiceInput";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
@@ -127,7 +129,9 @@ const NAV_ITEMS = [
   { key:"profile",      label:"Мой профиль",      icon:"👤", theme:PROFILE_THEME  },
   { key:"laptev",       label:"Создатель",         icon:"👑", theme:{ accent:"#7c3aed", glow:"rgba(124,58,237,0.35)" } },
   { key:"sages",        label:"Мудрецы",           icon:"🏛️", theme:{ accent:"#fbbf24", glow:"rgba(251,191,36,0.35)" } },
-  { key:"legend-path",  label:"Легендарный путь", icon:"🌟", theme:{ accent:"#f5b637", glow:"rgba(245,182,55,0.35)" }, lockLevel:40, lockMessage:"Легендарный путь открывается на 40 уровне" },
+  { key:"legend-path",  label:"Легендарный путь", icon:"🌟", theme:{ accent:"#f5b637", glow:"rgba(245,182,55,0.35)" }, lockLevel:50, lockMessage:"Легендарный путь открывается на 50 уровне" },
+  { key:"creator-path", label:"Путь Создателя",  icon:"⚡", theme:{ accent:"#9333ea", glow:"rgba(147,51,234,0.45)" }, lockLevel:75, lockMessage:"Путь Создателя открывается на 75 уровне" },
+  { key:"hall-of-fame", label:"Зал Славы",       icon:"🏆", theme:{ accent:"#f5b637", glow:"rgba(245,182,55,0.35)" } },
 ];
 
 const TYPE_META = {
@@ -490,26 +494,30 @@ export default function App() {
 
 
         {/* ── МИР ──────────────────────────────────────────────────────── */}
-        {["worldmap","mastery","skills","league","chains","marathons","season","legend-path"].includes(view) && (
+        {["worldmap","mastery","skills","league","chains","marathons","season","legend-path","creator-path","hall-of-fame"].includes(view) && (
           <>
             <SectionTabs tabs={[
-              {key:"worldmap",    label:"Карта",         icon:"🗺️"},
-              {key:"chains",      label:"Цепочки",       icon:"⛓️"},
-              {key:"marathons",   label:"Марафоны",      icon:"🏃"},
-              {key:"mastery",     label:"Мастерство",    icon:"🌟"},
-              {key:"skills",      label:"Навыки",        icon:"⚡"},
-              {key:"league",      label:"Лиги",          icon:"🏆"},
-              {key:"season",      label:"Сезон",         icon:"🌅"},
-              {key:"legend-path", label:"Легенда",       icon:"👑"},
+              {key:"worldmap",     label:"Карта",         icon:"🗺️"},
+              {key:"chains",       label:"Цепочки",       icon:"⛓️"},
+              {key:"marathons",    label:"Марафоны",      icon:"🏃"},
+              {key:"mastery",      label:"Мастерство",    icon:"🌟"},
+              {key:"skills",       label:"Навыки",        icon:"⚡"},
+              {key:"league",       label:"Лиги",          icon:"🏆"},
+              {key:"season",       label:"Сезон",         icon:"🌅"},
+              {key:"legend-path",  label:"Легенда",       icon:"👑"},
+              {key:"creator-path", label:"Создатель",     icon:"⚡"},
+              {key:"hall-of-fame", label:"Зал Славы",     icon:"🏆"},
             ]} active={view} onChange={setView} />
-            {view === "worldmap"    && <WorldMap   token={token} userLevel={user?.level||1} showToast={showToast} />}
-            {view === "chains"      && <QuestChains token={token} showToast={showToast} askConfirm={askConfirm} />}
-            {view === "marathons"   && <Marathons   token={token} showToast={showToast} />}
-            {view === "mastery"     && <Mastery     token={token} showToast={showToast} askConfirm={askConfirm} myLevel={user?.level||1} onFinished={loadProfile} />}
-            {view === "skills"      && <SkillTree   token={token} showToast={showToast} />}
-            {view === "league"      && <League      token={token} showToast={showToast} />}
-            {view === "season"      && <Season      token={token} showToast={showToast} />}
-            {view === "legend-path" && <LegendPath  token={token} showToast={showToast} userLevel={user?.level||1} />}
+            {view === "worldmap"     && <WorldMap    token={token} userLevel={user?.level||1} showToast={showToast} />}
+            {view === "chains"       && <QuestChains token={token} showToast={showToast} askConfirm={askConfirm} />}
+            {view === "marathons"    && <Marathons   token={token} showToast={showToast} />}
+            {view === "mastery"      && <Mastery     token={token} showToast={showToast} askConfirm={askConfirm} myLevel={user?.level||1} onFinished={loadProfile} />}
+            {view === "skills"       && <SkillTree   token={token} showToast={showToast} />}
+            {view === "league"       && <League      token={token} showToast={showToast} />}
+            {view === "season"       && <Season      token={token} showToast={showToast} />}
+            {view === "legend-path"  && <LegendPath  token={token} showToast={showToast} userLevel={user?.level||1} />}
+            {view === "creator-path" && <CreatorPath token={token} showToast={showToast} userLevel={user?.level||1} />}
+            {view === "hall-of-fame" && <HallOfFame  token={token} />}
           </>
         )}
 

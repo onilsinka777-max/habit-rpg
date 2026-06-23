@@ -2034,18 +2034,19 @@ app.get("/legend-path",authMiddleware,async(req,res)=>{
   try{
     const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true}});
     // TODO: вернуть ограничение level >= 40 после тестирования
+    if(user.level<50)return res.json({locked:true,level:user.level,unlockedAt:50});
     const completedCount=await prisma.task.count({where:{userId:req.userId,completed:true,type:"legend"}});
     const today=startOfToday();
     const completedToday=await prisma.task.count({where:{userId:req.userId,completed:true,type:"legend",completedAt:{gte:today}}});
     const pendingToday=await prisma.task.count({where:{userId:req.userId,completed:false,type:"legend",expiresAt:{gte:today}}});
-    res.json({completedCount,completedToday,pendingToday,milestones:LEGEND_MILESTONES,unlockedAt:40});
+    res.json({completedCount,completedToday,pendingToday,milestones:LEGEND_MILESTONES,unlockedAt:50});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
 app.post("/legend-path/claim-daily",authMiddleware,async(req,res)=>{
   try{
     const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true,xp:true,gold:true,title:true}});
-    // TODO: вернуть ограничение level >= 40 после тестирования
+    if(user.level<50)return res.status(403).json({message:"Легендарный путь откроется на 50 уровне"});
     const today=startOfToday();
     const alreadyToday=await prisma.task.count({where:{userId:req.userId,type:"legend",expiresAt:{gte:today}}});
     if(alreadyToday>0)return res.status(400).json({message:"Легендарный квест на сегодня уже получен"});
@@ -2056,6 +2057,93 @@ app.post("/legend-path/claim-daily",authMiddleware,async(req,res)=>{
     const task=await prisma.task.create({data:{title,description:`Легендарный квест #${questNum} из 50. Выполни все обязательные квесты сегодня.`,branch:"discipline",type:"legend",difficulty:"hard",xpReward:150,goldReward:75,isDaily:true,expiresAt:endOfToday(),userId:req.userId}});
     res.json({task,questNum});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+// ── ПУТЬ СОЗДАТЕЛЯ ────────────────────────────────────────────────────────────
+const CREATOR_QUESTS=[
+  {day:1, title:"Вызов Создателя: День 1", desc:"Проснись в 5:00 и запиши манифест своей жизни (500+ слов)"},
+  {day:2, title:"Железная воля",           desc:"Выполни ВСЕ квесты дня без единого пропуска"},
+  {day:3, title:"Тело воина",              desc:"200 отжиманий за день (можно подходами)"},
+  {day:4, title:"Разум мудреца",           desc:"Прочитай 50 страниц и напиши конспект"},
+  {day:5, title:"Без телефона",            desc:"Первые 3 часа дня без телефона"},
+  {day:6, title:"Холодный старт",          desc:"7 дней холодного душа подряд (на честность)"},
+  {day:7, title:"Неделя Создателя",        desc:"Стрик 7 дней без единого пропуска"},
+  {day:8, title:"Марафон воли",            desc:"Выполни 15 квестов за один день"},
+  {day:9, title:"Голос лидера",            desc:"Запиши видео о своём прогрессе (на честность)"},
+  {day:10,title:"Десятый рубеж",           desc:"10 дней пути. Напиши письмо себе через год"},
+  {day:11,title:"Час тишины",              desc:"Проведи 1 час в полной тишине и медитации без телефона"},
+  {day:12,title:"Физический максимум",     desc:"Побей свой личный рекорд в любом упражнении"},
+  {day:13,title:"Мастер фокуса",           desc:"2 часа глубокой работы без прерываний, телефон в другой комнате"},
+  {day:14,title:"Две недели стали",        desc:"14 дней пути. Ты изменился. Запиши что изменилось"},
+  {day:15,title:"Выход из зоны комфорта",  desc:"Сделай что-то что давно боялся сделать"},
+  {day:16,title:"Наставник",               desc:"Объясни кому-то один навык или знание которым владеешь"},
+  {day:17,title:"Без сахара",              desc:"День без сахара, фастфуда и мусорной еды"},
+  {day:18,title:"Утренний воин",           desc:"5 дней подряд просыпаться до 6:00 (на честность)"},
+  {day:19,title:"Сила разума",             desc:"Выучи наизусть 10 цитат великих людей и запиши свой комментарий к каждой"},
+  {day:20,title:"Три недели впереди",      desc:"Напиши план на следующие 30 дней своей жизни"},
+  {day:21,title:"Три недели",              desc:"Стрик 21 день. Привычка сформирована. Напиши что изменила система"},
+  {day:22,title:"Предел силы",             desc:"300 отжиманий за день. Без исключений."},
+  {day:23,title:"Информационный детокс",   desc:"24 часа без соцсетей, новостей и развлечений"},
+  {day:24,title:"Слово лидера",            desc:"Публично расскажи о своём пути — пост в соцсетях или видео"},
+  {day:25,title:"Четверть к победе",       desc:"25 дней. Большинство сдались бы. Ты нет. Опиши 5 главных изменений"},
+  {day:26,title:"Ультимативный день",      desc:"Выполни все квесты дня + 100 приседаний + 1 глава книги + благодарность"},
+  {day:27,title:"Без компромиссов",        desc:"День абсолютной дисциплины: подъём в 5, холодный душ, все квесты, сон до 23"},
+  {day:28,title:"Четыре недели",           desc:"28 дней. Запиши письмо тому себе с начала пути"},
+  {day:29,title:"Последний рубеж",         desc:"Финальная подготовка. Выполни ВСЕ квесты и запиши план жизни на год"},
+  {day:30,title:"ФИНАЛ — Я ПОБЕДИЛ СИСТЕМУ",desc:"Выполни все обязательные квесты дня + напиши итоговый манифест 1000+ слов. Ты прошёл путь Создателя."},
+];
+
+app.get("/creator-path/status",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true,name:true}});
+    if(user.level<75)return res.json({locked:true,level:user.level,requiredLevel:75});
+    const cp=await prisma.creatorPath.findUnique({where:{userId:req.userId}});
+    if(!cp)return res.json({started:false,level:user.level});
+    const questData=CREATOR_QUESTS[cp.currentDay]||null;
+    const msSinceStart=Date.now()-new Date(cp.startedAt).getTime();
+    const daysPassed=Math.floor(msSinceStart/(1000*60*60*24));
+    res.json({started:true,currentDay:cp.currentDay,status:cp.status,startedAt:cp.startedAt,completedAt:cp.completedAt,questData,daysPassed,totalDays:30});
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.post("/creator-path/start",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true}});
+    if(user.level<75)return res.status(403).json({message:"Путь Создателя откроется на 75 уровне"});
+    const existing=await prisma.creatorPath.findUnique({where:{userId:req.userId}});
+    if(existing)return res.status(400).json({message:"Путь уже начат"});
+    const cp=await prisma.creatorPath.create({data:{userId:req.userId}});
+    res.json({success:true,creatorPath:cp,questData:CREATOR_QUESTS[0]});
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.post("/creator-path/complete-day",authMiddleware,async(req,res)=>{
+  try{
+    const cp=await prisma.creatorPath.findUnique({where:{userId:req.userId}});
+    if(!cp)return res.status(404).json({message:"Путь не начат"});
+    if(cp.status==="completed")return res.status(400).json({message:"Путь уже завершён"});
+    const nextDay=cp.currentDay+1;
+    const isFinished=nextDay>=30;
+    const updates={currentDay:nextDay};
+    if(isFinished){updates.status="completed";updates.completedAt=new Date();}
+    await prisma.creatorPath.update({where:{userId:req.userId},data:updates});
+    if(isFinished){
+      await prisma.user.update({where:{id:req.userId},data:{gold:{increment:50000},title:"Победитель системы",nicknameEffect:"absolute"}});
+    }
+    const questData=isFinished?null:CREATOR_QUESTS[nextDay];
+    res.json({success:true,nextDay,isFinished,questData,goldReward:isFinished?50000:0});
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.get("/hall-of-fame",authMiddleware,async(req,res)=>{
+  try{
+    const winners=await prisma.creatorPath.findMany({
+      where:{status:"completed"},
+      include:{user:{select:{id:true,name:true,level:true,avatar:true,completedAt:true}}},
+      orderBy:{completedAt:"asc"},
+    });
+    res.json({winners:winners.map(w=>({id:w.user.id,name:w.user.name,level:w.user.level,completedAt:w.completedAt}))});
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
 });
 
 // ── CHESS ─────────────────────────────────────────────────────────────────────
