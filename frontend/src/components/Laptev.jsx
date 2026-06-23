@@ -346,172 +346,218 @@ function botMove(board,wins,losses){
   return all[Math.floor(Math.random()*all.length)];
 }
 
+const BOT_RATING = 1500;
+
+function calcEloChange(myRating, oppRating, result) {
+  const K = 32;
+  const expected = 1 / (1 + Math.pow(10, (oppRating - myRating) / 400));
+  const score = result === 'win' ? 1 : result === 'draw' ? 0.5 : 0;
+  return Math.round(K * (score - expected));
+}
+
 function LaptevChessSection({ token, showToast, user }) {
   const auth = { headers: { Authorization: `Bearer ${token}` } };
-  const [board, setBoard] = useState(INIT_BOARD.map(r=>[...r]));
+  const boardRef = useRef(INIT_BOARD.map(r=>[...r]));
+  const [renderTick, setRenderTick] = useState(0);
   const [sel, setSel] = useState(null);
   const [lm, setLm] = useState([]);
-  const [status, setStatus] = useState("playing"); // playing|win|lose|draw
-  const [log, setLog] = useState([]);
+  const [status, setStatus] = useState("playing");
   const [xpGained, setXpGained] = useState(null);
   const [eggUnlocked, setEggUnlocked] = useState(null);
   const [botComment, setBotComment] = useState(null);
+  const [ratingChange, setRatingChange] = useState(null);
+  const [botThinking, setBotThinking] = useState(false);
+  const workerRef = useRef(null);
 
-  const addLog=(msg)=>setLog(prev=>[msg,...prev].slice(0,8));
+  const myRating = user?.chessRating || 1000;
+  const board = boardRef.current;
 
-  const showBotComment=(msg)=>{
-    setBotComment(msg);
-    setTimeout(()=>setBotComment(null),2500);
-  };
+  useEffect(() => {
+    workerRef.current = new Worker('/chessWorker.js');
+    workerRef.current.onmessage = (e) => {
+      const bm = e.data.move;
+      setBotThinking(false);
+      const nb = boardRef.current.map(r=>[...r]);
+      if(!bm) { finishGame("draw", nb); return; }
+      const botCaptured = nb[bm.tr][bm.tc];
+      nb[bm.tr][bm.tc] = nb[bm.fr][bm.fc];
+      nb[bm.fr][bm.fc] = null;
+      if(nb[bm.tr][bm.tc]==='p'&&bm.tr===7) nb[bm.tr][bm.tc]='q';
+      const comment = botCaptured ? pick(BOT_MSGS_CAPTURE) : inCheck(nb,'w') ? pick(BOT_MSGS_CHECK) : pick(BOT_MSGS_MOVE);
+      setBotComment(comment);
+      setTimeout(() => setBotComment(null), 2500);
+      const playerMoves = legalMovesFor(nb, 'w');
+      if(!playerMoves.length) {
+        boardRef.current = nb; setRenderTick(t=>t+1);
+        finishGame(inCheck(nb,'w') ? "lose" : "draw", nb); return;
+      }
+      boardRef.current = nb;
+      setRenderTick(t=>t+1);
+    };
+    return () => workerRef.current?.terminate();
+  }, []);
 
-  const finishGame=async(result)=>{
+  const finishGame = async (result, finalBoard) => {
+    if(finalBoard) boardRef.current = finalBoard;
     setStatus(result);
-    try{
-      const res=await axios.post(`${API}/chess/vs-bot/result`,{result},auth);
+    const delta = calcEloChange(myRating, BOT_RATING, result === 'player' ? 'win' : result === 'draw' ? 'draw' : 'loss');
+    setRatingChange(delta);
+    try {
+      const res = await axios.post(`${API}/chess/vs-bot/result`, { result, ratingChange: delta }, auth);
       setXpGained(res.data.xp);
-      if(res.data.easterEgg)setEggUnlocked(res.data.easterEgg);
-      const msg=result==="player"?"Ты выиграл. Заслужил. Возвращайся — реванш будет сложнее.":result==="draw"?"Достойно. Равный бой.":"В следующий раз лучше. Практикуйся.";
-      addLog(msg);
-    }catch{}
+      if(res.data.easterEgg) setEggUnlocked(res.data.easterEgg);
+    } catch {}
   };
 
-  const handleClick=(r,c)=>{
-    if(status!=="playing")return;
-    const p=board[r][c];
-    if(sel){
-      const legal=lm.some(([lr,lc])=>lr===r&&lc===c);
-      if(legal){
-        const nb=board.map(row=>[...row]);
-        const captured=nb[r][c];
-        nb[r][c]=nb[sel[0]][sel[1]];
-        nb[sel[0]][sel[1]]=null;
-        if(nb[r][c]==='P'&&r===0)nb[r][c]='Q';
-        setSel(null);setLm([]);
-
-        // Check game state after player move
-        const oppMoves=legalMovesFor(nb,'b');
-        if(!oppMoves.length){
-          if(inCheck(nb,'b')){setBoard(nb);finishGame("player");return;}
-          else{setBoard(nb);finishGame("draw");return;}
+  const handleClick = (r, c) => {
+    if(status !== "playing" || botThinking) return;
+    const p = board[r][c];
+    if(sel) {
+      if(lm.some(([lr,lc]) => lr===r && lc===c)) {
+        const nb = board.map(row=>[...row]);
+        nb[r][c] = nb[sel[0]][sel[1]]; nb[sel[0]][sel[1]] = null;
+        if(nb[r][c]==='P' && r===0) nb[r][c] = 'Q';
+        setSel(null); setLm([]);
+        const oppMoves = legalMovesFor(nb, 'b');
+        if(!oppMoves.length) {
+          boardRef.current = nb; setRenderTick(t=>t+1);
+          finishGame(inCheck(nb,'b') ? "player" : "draw", nb); return;
         }
-        setBoard(nb);
-
-        // Bot move
-        setTimeout(()=>{
-          const wins=user?.chessWins||0,losses=user?.chessLosses||0;
-          const bm=botMove(nb,wins,losses);
-          if(!bm){setBoard(nb);finishGame("draw");return;}
-          const nb2=nb.map(row=>[...row]);
-          const botCaptured=nb2[bm.tr][bm.tc];
-          nb2[bm.tr][bm.tc]=nb2[bm.fr][bm.fc];
-          nb2[bm.fr][bm.fc]=null;
-          if(nb2[bm.tr][bm.tc]==='p'&&bm.tr===7)nb2[bm.tr][bm.tc]='q';
-
-          const comment=botCaptured?pick(BOT_MSGS_CAPTURE):inCheck(nb2,'w')?pick(BOT_MSGS_CHECK):pick(BOT_MSGS_MOVE);
-          showBotComment(comment);
-
-          const playerMoves=legalMovesFor(nb2,'w');
-          if(!playerMoves.length){
-            if(inCheck(nb2,'w')){setBoard(nb2);finishGame("lose");return;}
-            else{setBoard(nb2);finishGame("draw");return;}
-          }
-          setBoard(nb2);
-        },400);
-      }else if(p&&clr(p)==='w'){
-        const moves=[];
-        legalMovesFor(board,'w').filter(m=>m.fr===r&&m.fc===c).forEach(m=>moves.push([m.tr,m.tc]));
-        setSel([r,c]);setLm(moves);
-      }else{setSel(null);setLm([]);}
-    }else{
-      if(!p||clr(p)!=='w'){setSel(null);setLm([]);return;}
-      const moves=[];
-      legalMovesFor(board,'w').filter(m=>m.fr===r&&m.fc===c).forEach(m=>moves.push([m.tr,m.tc]));
-      setSel([r,c]);setLm(moves);
+        boardRef.current = nb; setRenderTick(t=>t+1);
+        setBotThinking(true);
+        workerRef.current?.postMessage({ board: nb });
+      } else if(p && clr(p)==='w') {
+        const moves = legalMovesFor(board,'w').filter(m=>m.fr===r&&m.fc===c).map(m=>[m.tr,m.tc]);
+        setSel([r,c]); setLm(moves);
+      } else { setSel(null); setLm([]); }
+    } else {
+      if(!p || clr(p)!=='w') return;
+      const moves = legalMovesFor(board,'w').filter(m=>m.fr===r&&m.fc===c).map(m=>[m.tr,m.tc]);
+      setSel([r,c]); setLm(moves);
     }
   };
 
-  const reset=()=>{setBoard(INIT_BOARD.map(r=>[...r]));setSel(null);setLm([]);setStatus("playing");setLog([]);setXpGained(null);setEggUnlocked(null);};
+  const resign = () => { if(status==="playing") finishGame("lose", null); };
+  const reset = () => {
+    workerRef.current?.terminate();
+    workerRef.current = new Worker('/chessWorker.js');
+    workerRef.current.onmessage = (e) => {
+      const bm = e.data.move; setBotThinking(false);
+      const nb = boardRef.current.map(r=>[...r]);
+      if(!bm) { finishGame("draw", nb); return; }
+      const botCaptured = nb[bm.tr][bm.tc];
+      nb[bm.tr][bm.tc] = nb[bm.fr][bm.fc]; nb[bm.fr][bm.fc] = null;
+      if(nb[bm.tr][bm.tc]==='p'&&bm.tr===7) nb[bm.tr][bm.tc]='q';
+      const comment = botCaptured ? pick(BOT_MSGS_CAPTURE) : inCheck(nb,'w') ? pick(BOT_MSGS_CHECK) : pick(BOT_MSGS_MOVE);
+      setBotComment(comment); setTimeout(() => setBotComment(null), 2500);
+      const playerMoves = legalMovesFor(nb,'w');
+      if(!playerMoves.length) { boardRef.current = nb; setRenderTick(t=>t+1); finishGame(inCheck(nb,'w')?"lose":"draw", nb); return; }
+      boardRef.current = nb; setRenderTick(t=>t+1);
+    };
+    boardRef.current = INIT_BOARD.map(r=>[...r]);
+    setSel(null); setLm([]); setStatus("playing");
+    setXpGained(null); setEggUnlocked(null); setRatingChange(null); setBotThinking(false);
+    setRenderTick(t=>t+1);
+  };
 
-  const kingInCheck=inCheck(board,'w');
-  let kingPos=null;
-  if(kingInCheck){outer:for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(board[r][c]==='K'){kingPos=[r,c];break outer;}}
+  const kingInCheck = inCheck(board,'w');
+  let kingPos = null;
+  if(kingInCheck) { outer: for(let r=0;r<8;r++) for(let c=0;c<8;c++) if(board[r][c]==='K'){kingPos=[r,c];break outer;} }
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-      {/* Bot comment bubble */}
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      {/* Elo ratings */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 10px", background:"rgba(124,58,237,0.06)", borderRadius:10, border:"1px solid rgba(124,58,237,0.15)" }}>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>Вы (белые)</div>
+          <div style={{ fontWeight:800, fontSize:16, color:"#fff" }}>{myRating}</div>
+        </div>
+        <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", fontStyle:"italic" }}>vs</div>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>LAPTEV (чёрные)</div>
+          <div style={{ fontWeight:800, fontSize:16, color:"#c4b5fd" }}>{BOT_RATING}</div>
+        </div>
+      </div>
+
+      {/* Bot comment */}
       {botComment && (
-        <div style={{
-          background:"rgba(26,10,46,0.95)", border:"1px solid rgba(124,58,237,0.4)",
-          borderRadius:10, padding:"8px 12px",
-          fontSize:13, color:"rgba(255,255,255,0.8)", fontStyle:"italic",
-          textAlign:"center", animation:"fadeInUp 0.2s ease",
-        }}>LAPTEV: "{botComment}"</div>
+        <div style={{ background:"rgba(26,10,46,0.95)", border:"1px solid rgba(124,58,237,0.4)", borderRadius:10, padding:"8px 12px", fontSize:13, color:"rgba(255,255,255,0.8)", fontStyle:"italic", textAlign:"center" }}>
+          LAPTEV: "{botComment}"
+        </div>
+      )}
+
+      {/* Bot thinking */}
+      {botThinking && (
+        <div style={{ textAlign:"center", fontSize:12, color:"#a78bfa" }}>🤔 LAPTEV думает...</div>
       )}
 
       {/* Result popup */}
-      {status!=="playing" && (
-        <div style={{ background:"rgba(26,10,46,0.95)",border:"1px solid #7c3aed",borderRadius:14,padding:"18px",textAlign:"center" }}>
-          <div style={{ fontSize:32, marginBottom:8 }}>
-            {status==="win"?"🏆":status==="draw"?"🤝":"😤"}
+      {status !== "playing" && (
+        <div style={{ background:"rgba(26,10,46,0.97)", border:"1px solid #7c3aed", borderRadius:14, padding:"18px", textAlign:"center" }}>
+          <div style={{ fontSize:36, marginBottom:8 }}>
+            {status==="player" ? "🏆" : status==="draw" ? "🤝" : "😤"}
           </div>
-          <div style={{ fontWeight:900, fontSize:18, color:status==="win"?"#34d399":status==="draw"?"#fbbf24":"#ef4444", marginBottom:4 }}>
-            {status==="win"?"Победа!":status==="draw"?"Ничья":"Поражение"}
+          <div style={{ fontWeight:900, fontSize:20, color:status==="player"?"#34d399":status==="draw"?"#fbbf24":"#ef4444", marginBottom:6 }}>
+            {status==="player" ? "Победа!" : status==="draw" ? "Ничья" : "Поражение"}
           </div>
-          {xpGained && <div style={{ fontSize:13, color:"#a78bfa", marginBottom:12 }}>+{xpGained} XP</div>}
+          {ratingChange !== null && (
+            <div style={{ fontSize:15, fontWeight:700, color:ratingChange>=0?"#34d399":"#ef4444", marginBottom:6 }}>
+              {ratingChange>=0?"+":""}{ratingChange} рейтинга
+            </div>
+          )}
+          {xpGained && <div style={{ fontSize:13, color:"#a78bfa", marginBottom:8 }}>+{xpGained} XP</div>}
           {eggUnlocked && (
-            <div style={{ background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:10,padding:"10px",marginBottom:12 }}>
+            <div style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:10, padding:"10px", marginBottom:10 }}>
               <div style={{ fontSize:20 }}>{eggUnlocked.icon||"♟️"}</div>
-              <div style={{ fontWeight:700, color:"#fbbf24", fontSize:13 }}>Пасхалка: {eggUnlocked.title}</div>
+              <div style={{ fontWeight:700, color:"#fbbf24", fontSize:13 }}>🥚 {eggUnlocked.title}</div>
               <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>+{eggUnlocked.rewardGold}💰 +{eggUnlocked.rewardXp}XP</div>
             </div>
           )}
-          <button onClick={reset} style={{ padding:"10px 28px",background:"linear-gradient(135deg,#7c3aed,#4c1d95)",border:"none",borderRadius:10,cursor:"pointer",color:"#fff",fontWeight:700 }}>Сыграть снова</button>
+          <button onClick={reset} style={{ padding:"10px 28px", background:"linear-gradient(135deg,#7c3aed,#4c1d95)", border:"none", borderRadius:10, cursor:"pointer", color:"#fff", fontWeight:700 }}>Сыграть снова</button>
         </div>
       )}
 
-      {/* LAPTEV info */}
-      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", background:"rgba(124,58,237,0.06)", borderRadius:10, border:"1px solid rgba(124,58,237,0.15)" }}>
-        <div style={{ width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#7c3aed,#1e1b4b)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900,color:"#c4b5fd",border:"1px solid #7c3aed" }}>L</div>
-        <div>
-          <div style={{ fontWeight:700, fontSize:12, color:"#c4b5fd" }}>LAPTEV (чёрные)</div>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>Средний уровень · иногда ошибается</div>
-        </div>
-        <div style={{ marginLeft:"auto", fontSize:11, color:"rgba(255,255,255,0.4)" }}>Вы (белые) ♔</div>
-      </div>
-
       {/* Board */}
       <div style={{ display:"flex", justifyContent:"center" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(8,1fr)", width:"min(340px,100%)", aspectRatio:"1", border:"2px solid rgba(124,58,237,0.35)", borderRadius:6, overflow:"hidden", boxShadow:"0 0 30px rgba(124,58,237,0.15)" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(8,1fr)", width:"min(340px,100%)", aspectRatio:"1", border:"2px solid rgba(124,58,237,0.4)", borderRadius:6, overflow:"hidden", boxShadow:"0 0 24px rgba(124,58,237,0.2)" }}>
           {board.map((row,r)=>row.map((piece,c)=>{
-            const light=(r+c)%2===0;
-            const isSel=sel?.[0]===r&&sel?.[1]===c;
-            const isLegal=lm.some(([lr,lc])=>lr===r&&lc===c);
-            const isKingCheck=kingPos&&kingPos[0]===r&&kingPos[1]===c;
+            const light = (r+c)%2===0;
+            const isSel = sel?.[0]===r && sel?.[1]===c;
+            const isLegal = lm.some(([lr,lc])=>lr===r&&lc===c);
+            const isKingCheck = kingPos && kingPos[0]===r && kingPos[1]===c;
             return (
               <div key={`${r}${c}`} onClick={()=>handleClick(r,c)} style={{
-                background:isSel?"rgba(124,58,237,0.5)":isKingCheck?"rgba(239,68,68,0.4)":light?"#1a1040":"#0d0820",
-                display:"flex",alignItems:"center",justifyContent:"center",
-                cursor:"pointer",aspectRatio:"1",position:"relative",
-                border:"1px solid rgba(45,27,105,0.5)",transition:"background 0.1s",
+                background: isSel ? "rgba(124,58,237,0.55)" : isKingCheck ? "rgba(239,68,68,0.45)" : light ? "#2d2060" : "#1a1040",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                cursor: botThinking||status!=="playing" ? "default" : "pointer",
+                aspectRatio:"1", position:"relative",
               }}>
-                {isLegal&&!piece&&<div style={{ width:"30%",height:"30%",borderRadius:"50%",background:"rgba(52,211,153,0.55)" }}/>}
-                {isLegal&&piece&&<div style={{ position:"absolute",inset:0,border:"2px solid rgba(52,211,153,0.6)",boxSizing:"border-box",pointerEvents:"none" }}/>}
-                {piece&&<span style={{ fontSize:"clamp(14px,4vw,30px)",lineHeight:1,color:isW(piece)?"#e2e8f0":"#a78bfa",textShadow:isW(piece)?"0 0 8px rgba(255,255,255,0.4)":"0 0 12px #7c3aed",userSelect:"none" }}>{GLYPHS[piece]}</span>}
+                {isLegal && !piece && <div style={{ width:"32%", height:"32%", borderRadius:"50%", background:"rgba(52,211,153,0.6)" }}/>}
+                {isLegal && piece && <div style={{ position:"absolute", inset:0, border:"2px solid rgba(52,211,153,0.65)", boxSizing:"border-box", pointerEvents:"none" }}/>}
+                {piece && <span style={{
+                  fontSize:"clamp(16px,4.2vw,32px)", lineHeight:1, userSelect:"none",
+                  color: isW(piece) ? "#FFFFFF" : "#c4b5fd",
+                  textShadow: isW(piece)
+                    ? "0 0 3px #000, 0 0 6px #000, 2px 2px 0 #000"
+                    : "0 0 8px #7c3aed, 0 0 15px #7c3aed, 0 0 3px #000",
+                }}>{GLYPHS[piece]}</span>}
               </div>
             );
           }))}
         </div>
       </div>
 
-      {/* Status */}
-      <div style={{ textAlign:"center", fontSize:12, color:status==="playing"?(kingInCheck?"#ef4444":"rgba(255,255,255,0.4)"):"#7c3aed" }}>
-        {status==="playing"?(kingInCheck?"⚠️ Шах! Защищайтесь":"Ваш ход (белые)"):`Игра завершена`}
-      </div>
-
-      {/* Log */}
-      {log.length>0&&(
-        <div style={{ background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,padding:"8px 12px" }}>
-          {log.map((l,i)=><div key={i} style={{ fontSize:11,color:"rgba(255,255,255,0.45)",marginBottom:2 }}>💬 {l}</div>)}
+      {/* Controls */}
+      {status === "playing" && (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div style={{ fontSize:12, color:kingInCheck?"#ef4444":"rgba(255,255,255,0.4)" }}>
+            {botThinking ? "⏳ Ход LAPTEV..." : kingInCheck ? "⚠️ Шах!" : "Ваш ход ♙"}
+          </div>
+          <button onClick={resign} disabled={botThinking} style={{
+            background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)",
+            borderRadius:8, padding:"5px 12px", color:"#ef4444",
+            cursor:"pointer", fontSize:12, fontWeight:700,
+          }}>🏳️ Сдаться</button>
         </div>
       )}
     </div>

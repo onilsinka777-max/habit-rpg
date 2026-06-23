@@ -65,6 +65,18 @@ function AvatarCircle({ user, size, onGoToProfile, onAvatarChange }) {
   );
 }
 
+const NEON_STYLE = `
+  @keyframes neonPulse {
+    0%,100% { text-shadow:0 0 5px #7c3aed,0 0 10px #7c3aed; color:#a78bfa; }
+    50% { text-shadow:0 0 10px #a78bfa,0 0 20px #7c3aed,0 0 30px #7c3aed; color:#c4b5fd; }
+  }
+  .player-badge {
+    animation: neonPulse 2s ease-in-out infinite;
+    font-size:11px; font-weight:700; letter-spacing:1px;
+    text-transform:uppercase; margin-right:8px;
+  }
+`;
+
 export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, onGoToProfile, onAvatarChange }) {
   const xpToNext  = user?.xpToNextLevel || 100;
   const xpPercent = Math.min(((user?.xp || 0) / xpToNext) * 100, 100);
@@ -73,10 +85,9 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, o
   const showTip = (key) => setTooltip(key);
   const hideTip = () => setTooltip(null);
 
-  const titleBadge = user?.title && !["Новичок","Игрок"].includes(user.title);
-
   return (
     <div className="player-card">
+      <style>{NEON_STYLE}</style>
       {tooltip && (
         <div className="pc-tooltip">
           {tooltip === "gold"  && "Нажми, чтобы перейти в магазин"}
@@ -92,20 +103,8 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, o
       <div className="player-info">
         <div className="player-row">
           <span className="player-email">
-            {titleBadge && (
-              <span style={{ fontSize:10, fontWeight:700, color:"#fbbf24", marginRight:5,
-                background:"rgba(251,191,36,0.12)", borderRadius:4, padding:"1px 5px",
-                border:"1px solid rgba(251,191,36,0.25)", textShadow:"0 0 8px #fbbf24" }}>
-                {user.title}
-              </span>
-            )}
-            <span className={user.nicknameEffect ? `nick-${user.nicknameEffect}` : ""}>{user.name}</span>
-            {user.flowActive && (
-              <span style={{ fontSize:10, color:"#34d399", marginLeft:6, fontWeight:700,
-                background:"rgba(52,211,153,0.12)", padding:"1px 5px", borderRadius:4 }}>
-                🔥 ПОТОК +25%
-              </span>
-            )}
+            <span className="player-badge">ИГРОК</span>
+            <span className={user?.nicknameEffect ? `nick-${user.nicknameEffect}` : ""}>{user?.name}</span>
           </span>
           <button className="btn btn-ghost btn-sm" onClick={onLogout}>Выйти</button>
         </div>
@@ -114,12 +113,17 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, o
           <span className="player-stat-btn"
             onClick={() => onGoToShop && onGoToShop()}
             onMouseEnter={() => showTip("gold")} onMouseLeave={hideTip}>
-            💰 {user.gold}
+            💰 {user?.gold}
           </span>
           <span className="player-stat-btn"
             onMouseEnter={() => showTip("xp")} onMouseLeave={hideTip}>
-            {user.xp} / {xpToNext} XP
+            {user?.xp} / {xpToNext} XP
           </span>
+          {(user?.streak > 0) && (
+            <span style={{ fontSize:12, fontWeight:700, color:"#fb923c" }}>
+              🔥 {user.streak}
+            </span>
+          )}
         </div>
 
         <div className="xp-bar" onMouseEnter={() => showTip("xp")} onMouseLeave={hideTip}>
@@ -131,7 +135,7 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, o
         </div>
         <div style={{ fontSize:10, color:"#a78bfa", textAlign:"right", marginTop:2,
           textShadow:"0 0 8px rgba(124,58,237,0.6)" }}>
-          {user.level} ур.
+          {user?.level} ур.
         </div>
       </div>
     </div>

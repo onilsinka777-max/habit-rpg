@@ -157,6 +157,7 @@ export default function App() {
 
   const [view,         setView]         = useState("quests");
   const [viewProfileId, setViewProfileId] = useState(null);
+  const [flowFlash,    setFlowFlash]    = useState(false);
   const [rulesOpen,    setRulesOpen]    = useState(false);
   const [activeBranch, setActiveBranch] = useState("discipline");
 
@@ -307,8 +308,9 @@ export default function App() {
         const dr = completeRes.data.dropReward;
         showToast(`✨ Случайный дроп: +${dr.amount} ${dr.type === "xp" ? "XP" : "золота"}!`, "success");
       }
-      if (completeRes.data.combo >= 3) {
-        showToast(`🔥 Комбо ×${completeRes.data.combo}! +${completeRes.data.comboBonus}% XP`, "success");
+      if (completeRes.data.comboBonus > 0) {
+        setFlowFlash(true);
+        setTimeout(() => setFlowFlash(false), 3000);
       }
       for (const ach of (completeRes.data.newAchievements || [])) {
         showToast(`${ach.icon} Достижение: «${ach.label}»`, "success");
@@ -412,11 +414,6 @@ export default function App() {
                 {onlineCount}
               </div>
             )}
-            {user?.streak > 0 && (
-              <div style={{ fontSize:12, fontWeight:700, color:"#a78bfa", display:"flex", alignItems:"center", gap:3 }}>
-                🔥 {user.streak}
-              </div>
-            )}
             <button className="rules-btn" title={soundOn ? "Звук вкл" : "Звук выкл"}
               onClick={() => { const next = !soundOn; setSoundOn(next); setSound(next); }}
               style={{ fontSize:16 }}>
@@ -448,6 +445,17 @@ export default function App() {
             onGoToProfile={() => setView("profile")}
             onAvatarChange={(av) => setUser(prev => ({ ...prev, avatar: av }))}
           />
+        )}
+
+        {flowFlash && (
+          <div style={{
+            position:"fixed", top:"50%", right:16, transform:"translateY(-50%)",
+            background:"linear-gradient(135deg,rgba(52,211,153,0.9),rgba(16,185,129,0.9))",
+            color:"#0b0e17", fontWeight:900, fontSize:14, padding:"8px 16px",
+            borderRadius:12, zIndex:9999, boxShadow:"0 0 20px rgba(52,211,153,0.5)",
+            animation:"fadeSlideIn 0.3s ease",
+            pointerEvents:"none",
+          }}>🔥 +25% XP</div>
         )}
 
         {/* ── МИР ──────────────────────────────────────────────────────── */}

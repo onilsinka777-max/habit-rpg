@@ -103,10 +103,28 @@ const ACHIEVEMENT_META={
   legend_10:        {label:"Легендарный путь",    desc:"10 легендарных квестов",                 icon:"👑", xpReward:500},
   legendary_done:   {label:"Легендарный",         desc:"Выполни первый легендарный квест",       icon:"⚔️", xpReward:200},
   chain_first:      {label:"Сила цепи",           desc:"Заверши шаг в цепочке квестов",          icon:"⛓️", xpReward:100},
-  pomodoro_10:      {label:"Мастер фокуса",       desc:"Заверши 10 помодоро-сессий",             icon:"⏱️", xpReward:80},
-  sage_added:       {label:"Мудрец совета",       desc:"Попасть в раздел Мудрецы",              icon:"🏛️", xpReward:200, hidden:true},
+  pomodoro_10:      {label:"Мастер фокуса",        desc:"Заверши 10 помодоро-сессий",              icon:"⏱️",  xpReward:80},
+  pomodoro_100:     {label:"Хранитель времени",   desc:"100 помодоро-сессий",                     icon:"⏰",  xpReward:500},
+  sage_added:       {label:"Мудрец совета",        desc:"Попасть в раздел Мудрецы",              icon:"🏛️", xpReward:200, hidden:true},
+  perfect_day:      {label:"Идеальный день",       desc:"Выполни все обязательные квесты дня",    icon:"✅",  xpReward:200},
+  combo_master:     {label:"Мастер комбо",         desc:"Активируй режим потока 10 раз",          icon:"⚡",  xpReward:300},
+  first_season_quest:{label:"Дитя сезона",         desc:"Выполни первый сезонный квест",          icon:"🌟",  xpReward:100},
+  season_quests_30: {label:"Сезонный воин",        desc:"30 сезонных квестов",                    icon:"❄️",  xpReward:500},
+  world_map_5:      {label:"Исследователь",        desc:"Открой 5 локаций на карте мира",         icon:"🗺️", xpReward:300},
+  world_map_all:    {label:"Картограф",            desc:"Открой все локации карты мира",          icon:"🌍",  xpReward:1000},
+  journal_10:       {label:"Летописец",            desc:"10 записей в дневнике",                  icon:"📔",  xpReward:150},
+  goals_5:          {label:"Целеустремлённый",     desc:"Выполни 5 целей",                        icon:"🎯",  xpReward:300},
+  chest_7:          {label:"Сундучник",            desc:"Получи сундук за стрик 7 дней",          icon:"📦",  xpReward:100},
+  chest_28:         {label:"Легендарный сундук",   desc:"Получи сундук за стрик 28 дней",         icon:"🏆",  xpReward:500},
+  npc_activated:    {label:"Нашёл наставника",     desc:"Активируй NPC наставника",               icon:"🧙",  xpReward:100},
+  profile_complete: {label:"Личность",             desc:"Загрузи аватар",                         icon:"👤",  xpReward:100},
+  skill_first:      {label:"Первый навык",         desc:"Разблокируй первый навык",               icon:"✨",  xpReward:150},
+  skills_all_branch:{label:"Мастер навыков",       desc:"Разблокируй все навыки ветки",           icon:"🌟",  xpReward:1000},
+  legend_path_complete:{label:"Легенда",           desc:"Завершить Легендарный путь (50 квестов)",icon:"♾️",  xpReward:10000, goldReward:5000},
+  streak_60:        {label:"Два месяца",           desc:"Стрик 60 дней",                          icon:"🔥",  xpReward:750},
+  level_40:         {label:"Мастер",               desc:"Достигни 40 уровня",                     icon:"🔮",  xpReward:600},
   // ── Финальное (скрытое) ────────────────────────────────────────────────────
-  all_achievements: {label:"Игрок, достигший величия", desc:"Получи 79 других достижений",      icon:"🌌", xpReward:5000, goldReward:2000, hidden:true},
+  all_achievements: {label:"Игрок, достигший величия", desc:"Получи все достижения",             icon:"🌌",  xpReward:5000, goldReward:2000, hidden:true},
 };
 
 // Title is ONLY set by mastery finish / level 50 / legend path. Achievement count no longer drives it.
@@ -2261,11 +2279,32 @@ app.get("/online-count",async(req,res)=>{
 // ── CHESS VS BOT ──────────────────────────────────────────────────────────────
 app.post("/chess/vs-bot/result",authMiddleware,async(req,res)=>{
   try{
-    const{result}=req.body; // "player"|"bot"|"draw"
-    const xp=result==="player"?15:result==="draw"?10:5;
-    await prisma.user.update({where:{id:req.userId},data:{xp:{increment:xp}}});
+    const{result,ratingChange}=req.body; // result: "player"|"lose"|"draw"
+    const isWin=result==="player";
+    const isDraw=result==="draw";
+    const xp=isWin?20:isDraw?10:5;
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{chessRating:true,chessWins:true,chessLosses:true}});
+    const BOT_RATING=1500;
+    const K=32,expected=1/(1+Math.pow(10,(BOT_RATING-(user.chessRating||1000))/400));
+    const score=isWin?1:isDraw?0.5:0;
+    const delta=ratingChange??Math.round(K*(score-expected));
+    const newRating=Math.max(100,(user.chessRating||1000)+delta);
+    await prisma.user.update({
+      where:{id:req.userId},
+      data:{
+        xp:{increment:xp},
+        chessRating:newRating,
+        ...(isWin?{chessWins:{increment:1}}:{}),
+        ...(!isWin&&!isDraw?{chessLosses:{increment:1}}:{}),
+      }
+    });
+    // Grant chess achievements
+    const updated=await prisma.user.findUnique({where:{id:req.userId},select:{chessWins:true,chessRating:true}});
+    if((updated.chessWins||0)>=1)checkEasterEgg(req.userId,"chess_first").catch(()=>{});
+    if((updated.chessWins||0)>=5)checkEasterEgg(req.userId,"chess_5wins").catch(()=>{});
+    if((updated.chessRating||1000)>=1500)checkEasterEgg(req.userId,"chess_rating1500").catch(()=>{});
     let easterEgg=null;
-    if(result==="player"){
+    if(isWin){
       const egg=await prisma.easterEgg.findUnique({where:{key:"beat_laptev"}}).catch(()=>null);
       if(egg){
         const alreadyUnlocked=await prisma.easterEggUnlock.findFirst({where:{userId:req.userId,eggId:egg.id}}).catch(()=>null);
@@ -2276,7 +2315,7 @@ app.post("/chess/vs-bot/result",authMiddleware,async(req,res)=>{
         }
       }
     }
-    res.json({xp,easterEgg});
+    res.json({xp,ratingChange:delta,newRating,easterEgg});
   }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
 });
 

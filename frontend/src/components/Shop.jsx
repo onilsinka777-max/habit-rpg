@@ -114,7 +114,20 @@ function ShopCard({ item, gold, loadingId, onPurchase, streakFreezeCount, onUseC
                 )
               ) : !isArtifact && (
                 item.purchased && !item.repeatable ? (
-                  <span className="shop-owned-badge">Куплено</span>
+                  item.effect?.startsWith("pdf_") ? (
+                    <div style={{ display:"flex", gap:6 }}>
+                      <span className="shop-owned-badge">Куплено</span>
+                      <a
+                        href={item.contentUrl || "#"}
+                        download
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-primary btn-sm"
+                        style={{ textDecoration:"none" }}>
+                        📥 Скачать
+                      </a>
+                    </div>
+                  ) : <span className="shop-owned-badge">Куплено</span>
                 ) : (
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     {item.effect === "streak_freeze" && <span className="shop-owned-badge">У тебя: {streakFreezeCount}</span>}
