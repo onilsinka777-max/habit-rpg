@@ -488,10 +488,6 @@ export default function App() {
           />
         )}
 
-        {user && view === "quests" && (
-          <LaptevAI user={user} onNavigate={setView} />
-        )}
-
 
         {/* ── МИР ──────────────────────────────────────────────────────── */}
         {["worldmap","mastery","skills","league","chains","marathons","season","legend-path","creator-path","hall-of-fame"].includes(view) && (

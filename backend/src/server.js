@@ -1938,7 +1938,10 @@ app.get("/skills",authMiddleware,async(req,res)=>{
     const result=skills.map(s=>{
       const requires=JSON.parse(s.requires||"[]");
       const prereqsMet=requires.every(id=>unlockedIds.has(id));
-      return{...s,requires,unlocked:unlockedIds.has(s.id),available:prereqsMet&&!unlockedIds.has(s.id)&&user.level>=s.levelRequired&&user.gold>=s.goldCost};
+      const unlocked=unlockedIds.has(s.id);
+      const canUnlock=user.level>=s.levelRequired;
+      const available=prereqsMet&&!unlocked&&canUnlock&&user.gold>=s.goldCost;
+      return{...s,requires,unlocked,available,canUnlock,prereqsMet};
     });
     res.json({skills:result,gold:user.gold,level:user.level});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
@@ -1952,7 +1955,7 @@ app.post("/skills/:id/unlock",authMiddleware,async(req,res)=>{
     const existing=await prisma.userSkill.findUnique({where:{userId_skillId:{userId:req.userId,skillId}}});
     if(existing)return res.status(400).json({message:"Уже изучен"});
     const user=await prisma.user.findUnique({where:{id:req.userId},select:{gold:true,level:true}});
-    if(user.level<skill.levelRequired)return res.status(400).json({message:`Нужен уровень ${skill.levelRequired}`});
+    if(user.level<skill.levelRequired)return res.status(400).json({message:`Нужен уровень ${skill.levelRequired}. Твой уровень: ${user.level}`});
     if(user.gold<skill.goldCost)return res.status(400).json({message:"Недостаточно золота"});
     const requires=JSON.parse(skill.requires||"[]");
     if(requires.length>0){

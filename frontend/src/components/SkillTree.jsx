@@ -79,29 +79,35 @@ export default function SkillTree({ token, showToast }) {
               {[1,2,3,4,5].map(tier => {
                 const skill = branchSkills.find(s => s.tier === tier);
                 if (!skill) return <div key={tier} />;
+                const levelLocked = !skill.canUnlock;
+                const prereqLocked = !skill.prereqsMet && !skill.unlocked;
+                const noGold = skill.canUnlock && skill.prereqsMet && !skill.unlocked && !skill.available;
                 return (
-                  <div key={tier} style={{
+                  <div key={tier} title={levelLocked ? `Откроется на уровне ${skill.levelRequired}` : prereqLocked ? "Сначала изучи предыдущий навык" : ""} style={{
                     background: skill.unlocked
                       ? `${color}22`
-                      : skill.available
+                      : skill.canUnlock && skill.prereqsMet
                       ? "rgba(255,255,255,0.06)"
+                      : skill.canUnlock
+                      ? "rgba(255,255,255,0.04)"
                       : "rgba(255,255,255,0.02)",
-                    border: `1px solid ${skill.unlocked ? color : skill.available ? color+"44" : "rgba(255,255,255,0.07)"}`,
+                    border: `1px solid ${skill.unlocked ? color : skill.canUnlock ? color+"44" : "rgba(255,255,255,0.07)"}`,
                     borderRadius:12, padding:12,
-                    opacity: skill.unlocked || skill.available ? 1 : 0.5,
+                    opacity: skill.unlocked || skill.canUnlock ? 1 : 0.45,
                     transition:"all 0.2s",
                     position:"relative",
+                    cursor: levelLocked ? "not-allowed" : "default",
                   }}>
                     {/* Tier label */}
-                    <div style={{ fontSize:9, fontWeight:700, color:skill.unlocked?color:"rgba(255,255,255,0.3)", letterSpacing:1, marginBottom:6 }}>
+                    <div style={{ fontSize:9, fontWeight:700, color:skill.unlocked?color:skill.canUnlock?"rgba(255,255,255,0.5)":"rgba(255,255,255,0.2)", letterSpacing:1, marginBottom:6 }}>
                       Т{tier}
                     </div>
 
                     <div style={{ fontSize:22, textAlign:"center", marginBottom:8 }}>
-                      {skill.unlocked ? skill.icon : skill.available ? skill.icon : "🔒"}
+                      {skill.canUnlock ? skill.icon : "🔒"}
                     </div>
 
-                    <div style={{ fontSize:12, fontWeight:700, textAlign:"center", marginBottom:4, lineHeight:1.3, color: skill.unlocked ? "#f1f5f9" : "rgba(255,255,255,0.6)" }}>
+                    <div style={{ fontSize:12, fontWeight:700, textAlign:"center", marginBottom:4, lineHeight:1.3, color: skill.unlocked ? "#f1f5f9" : skill.canUnlock ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.3)" }}>
                       {skill.name}
                     </div>
 
@@ -111,7 +117,19 @@ export default function SkillTree({ token, showToast }) {
 
                     {skill.unlocked ? (
                       <div style={{ textAlign:"center", fontSize:11, color:"#34d399", fontWeight:700 }}>✓ Изучен</div>
-                    ) : skill.available ? (
+                    ) : levelLocked ? (
+                      <div style={{ textAlign:"center", fontSize:10, color:"rgba(255,255,255,0.25)", fontWeight:600 }}>
+                        🔒 Уровень {skill.levelRequired}
+                      </div>
+                    ) : prereqLocked ? (
+                      <div style={{ textAlign:"center", fontSize:10, color:"rgba(255,255,255,0.25)" }}>
+                        Нужен Т{tier-1}
+                      </div>
+                    ) : noGold ? (
+                      <div style={{ textAlign:"center", fontSize:10, color:"rgba(251,191,36,0.5)" }}>
+                        Нужно {skill.goldCost}g
+                      </div>
+                    ) : (
                       <button
                         className="btn btn-primary"
                         disabled={!!busy}
@@ -119,10 +137,6 @@ export default function SkillTree({ token, showToast }) {
                         style={{ width:"100%", fontSize:11, padding:"6px 8px", background:color, color:"#0b0e17" }}>
                         {busy===skill.id ? "..." : `${skill.goldCost}g`}
                       </button>
-                    ) : (
-                      <div style={{ textAlign:"center", fontSize:10, color:"rgba(255,255,255,0.3)" }}>
-                        Ур.{skill.levelRequired}
-                      </div>
                     )}
                   </div>
                 );
