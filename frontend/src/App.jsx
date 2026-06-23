@@ -153,6 +153,8 @@ export default function App() {
   const [loadingDone,   setLoadingDone]   = useState(false);
   const [themeChosen,   setThemeChosen]   = useState(() => !!localStorage.getItem("theme_chosen"));
   const [npcDone,       setNpcDone]       = useState(() => !!localStorage.getItem("welcome_npc_done"));
+  const [showWelcomeRules, setShowWelcomeRules] = useState(false);
+  const [welcomeSlide, setWelcomeSlide]   = useState(0);
   const [token,    setToken]    = useState(localStorage.getItem("token") || "");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
@@ -268,6 +270,10 @@ export default function App() {
       console.log("[register] POST", `${API}/auth/register`, { email });
       await axios.post(`${API}/auth/register`, { email, password });
       showToast("Аккаунт создан! Теперь войди", "success");
+      localStorage.removeItem("rules_shown");
+      localStorage.removeItem("welcome_shown");
+      setWelcomeSlide(0);
+      setShowWelcomeRules(true);
     } catch (e) { showToast(e.response?.data?.message || "Ошибка регистрации", "error"); }
   };
 
@@ -788,6 +794,49 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ── Welcome Rules Slides ── */}
+      {showWelcomeRules && (() => {
+        const SLIDES = [
+          { emoji:"🎮", title:"Добро пожаловать в LevelUp!", text:"Геймификация твоей жизни. Прокачивай себя как персонажа в RPG — каждый день." },
+          { emoji:"⚔️", title:"Выполняй квесты каждый день", text:"За каждый квест — XP и золото. Копи опыт, повышай уровень, разблокируй новые возможности." },
+          { emoji:"🔥", title:"Не прерывай стрик", text:"Пропустил день — получи штраф золотом. Чем длиннее стрик, тем больше награды на финише." },
+          { emoji:"🚀", title:"Готов начать?", text:"Твой путь начинается здесь. Первый квест уже ждёт тебя.", isLast:true },
+        ];
+        const slide = SLIDES[welcomeSlide];
+        const close = () => { localStorage.setItem("rules_shown","true"); setShowWelcomeRules(false); };
+        return (
+          <div style={{ position:'fixed', inset:0, zIndex:10002, background:'rgba(0,0,0,0.92)',
+            display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <div style={{ background:'linear-gradient(135deg,#0b0e1a,#1a0a2e)',
+              border:'1px solid rgba(124,58,237,0.4)', borderRadius:24,
+              padding:'40px 28px', maxWidth:340, width:'90%', textAlign:'center',
+              boxShadow:'0 0 60px rgba(124,58,237,0.3)' }}>
+              <div style={{ fontSize:54, marginBottom:16 }}>{slide.emoji}</div>
+              <h2 style={{ fontSize:20, fontWeight:900, color:'#c4b5fd', marginBottom:12, lineHeight:1.3 }}>{slide.title}</h2>
+              <p style={{ fontSize:14, color:'rgba(255,255,255,0.6)', lineHeight:1.7, marginBottom:28 }}>{slide.text}</p>
+              {/* Dots */}
+              <div style={{ display:'flex', justifyContent:'center', gap:6, marginBottom:24 }}>
+                {SLIDES.map((_,i) => (
+                  <div key={i} style={{ width:8, height:8, borderRadius:'50%',
+                    background: i===welcomeSlide ? '#7c3aed' : 'rgba(255,255,255,0.15)',
+                    transition:'background 0.2s' }}/>
+                ))}
+              </div>
+              {slide.isLast ? (
+                <button className="btn btn-primary" style={{ width:'100%', fontSize:16, padding:'14px', fontWeight:900, letterSpacing:1 }} onClick={close}>
+                  НАЧАТЬ ПУТЬ ⚡
+                </button>
+              ) : (
+                <div style={{ display:'flex', gap:10 }}>
+                  <button className="btn btn-ghost" style={{ flex:1 }} onClick={close}>Пропустить</button>
+                  <button className="btn btn-primary" style={{ flex:2 }} onClick={() => setWelcomeSlide(s => s+1)}>Далее →</button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── LAPTEV Milestone Popup ── */}
       {laptevMilestone && (
