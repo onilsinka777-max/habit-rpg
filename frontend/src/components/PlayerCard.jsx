@@ -131,6 +131,7 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, o
             width: `${xpPercent}%`,
             background: "linear-gradient(90deg, #7c3aed, #a78bfa)",
             boxShadow: "0 0 8px #7c3aed",
+            transition: "width 0.8s cubic-bezier(0.34,1.56,0.64,1)",
           }}/>
         </div>
         <div style={{ fontSize:10, color:"#a78bfa", textAlign:"right", marginTop:2,

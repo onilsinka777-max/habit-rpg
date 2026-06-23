@@ -44,6 +44,7 @@ import Laptev from "./components/Laptev";
 import Sages from "./components/Sages";
 import VoiceInput from "./components/VoiceInput";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
+import RewardAnimation from "./components/RewardAnimation";
 import ToastContainer from "./components/Toast";
 import "./App.css";
 
@@ -174,6 +175,7 @@ export default function App() {
   const [toasts,             setToasts]             = useState([]);
   const [confirmDialog,      setConfirmDialog]      = useState(null);
   const [levelUpInfo,        setLevelUpInfo]        = useState(null);
+  const [rewardAnim,         setRewardAnim]         = useState(null); // {xp, gold}
   const [streakModal,        setStreakModal]         = useState(null);
   const [showNicknameModal,  setShowNicknameModal]  = useState(false);
   const [showScrollModal,    setShowScrollModal]    = useState(false);
@@ -299,6 +301,13 @@ export default function App() {
       const completeRes = await axios.patch(`${API}/tasks/${id}/complete`, {}, authHeaders);
       await loadTasks();
       playQuestComplete();
+      // Show reward animation
+      const xpGained = completeRes.data.xpReward || 0;
+      const goldGained = completeRes.data.goldReward || 0;
+      if (xpGained > 0 || goldGained > 0) {
+        setRewardAnim({ xp: xpGained, gold: goldGained });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
       if (completeRes.data.freezeConsumed) showToast("Заморозка стрика сработала — серия не сброшена!", "success");
       if (completeRes.data.streakJustCompleted) { setStreakModal({ streak: completeRes.data.newStreak }); playStreakComplete(); }
       if (completeRes.data.petCreated) showToast("🥚 Питомец появился! Зайди во вкладку «Питомец»", "success");
@@ -671,15 +680,51 @@ export default function App() {
         </div>
       )}
 
+      {rewardAnim && (
+        <RewardAnimation
+          xp={rewardAnim.xp}
+          gold={rewardAnim.gold}
+          onComplete={() => setRewardAnim(null)}
+        />
+      )}
+
       {levelUpInfo && (
-        <div className="modal-overlay" onClick={() => setLevelUpInfo(null)}>
-          <div className="modal-card level-up-card" onClick={e => e.stopPropagation()}>
-            <div className="level-up-badge">{levelUpInfo.level}</div>
-            <p className="modal-eyebrow">Новый уровень</p>
-            <h3 className="modal-title">Уровень повышен!</h3>
-            <p className="modal-text">Ты прокачался до {levelUpInfo.level} уровня. Продолжай в том же духе.</p>
-            {levelUpInfo.unlock && <div className="level-up-unlock">{levelUpInfo.unlock}</div>}
-            <button className="btn btn-primary" onClick={() => setLevelUpInfo(null)}>Отлично</button>
+        <div style={{
+          position:'fixed', inset:0, zIndex:10000,
+          background:'rgba(0,0,0,0.85)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          animation:'fadeIn 0.3s ease',
+        }} onClick={() => setLevelUpInfo(null)}>
+          <div style={{
+            background:'linear-gradient(135deg,#1a0a3e,#0d0820)',
+            border:'2px solid #7c3aed',
+            borderRadius:24,
+            padding:'40px 32px',
+            textAlign:'center',
+            maxWidth:320,
+            boxShadow:'0 0 60px rgba(124,58,237,0.5), 0 0 120px rgba(124,58,237,0.2)',
+            animation:'levelUpPop 0.5s cubic-bezier(0.34,1.56,0.64,1)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:64, marginBottom:8, filter:'drop-shadow(0 0 20px #a78bfa)' }}>⚡</div>
+            <div style={{
+              fontSize:72, fontWeight:900, lineHeight:1,
+              background:'linear-gradient(135deg,#c4b5fd,#7c3aed,#a78bfa)',
+              WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
+              marginBottom:8, textShadow:'none',
+            }}>{levelUpInfo.level}</div>
+            <div style={{ fontSize:14, fontWeight:700, color:'#a78bfa', letterSpacing:3, textTransform:'uppercase', marginBottom:12 }}>Новый уровень</div>
+            <p style={{ fontSize:15, color:'rgba(255,255,255,0.7)', lineHeight:1.6, margin:'0 0 20px' }}>
+              Ты прокачался до <strong style={{ color:'#c4b5fd' }}>{levelUpInfo.level}</strong> уровня. Продолжай в том же духе.
+            </p>
+            {levelUpInfo.unlock && (
+              <div style={{
+                background:'rgba(124,58,237,0.15)', border:'1px solid rgba(124,58,237,0.4)',
+                borderRadius:10, padding:'10px 16px', marginBottom:20,
+                fontSize:13, color:'#c4b5fd', fontWeight:600,
+              }}>{levelUpInfo.unlock}</div>
+            )}
+            <button className="btn btn-primary" style={{ width:'100%', fontSize:16 }}
+              onClick={() => setLevelUpInfo(null)}>Отлично!</button>
           </div>
         </div>
       )}

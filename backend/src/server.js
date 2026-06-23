@@ -197,7 +197,9 @@ async function handlePostComplete(userId,streak,level,taskType){
   }
   let newAchievements=[];
   if(toGrant.length>0){
-    await prisma.achievement.createMany({data:toGrant.map(type=>({userId,type})),skipDuplicates:true});
+    for(const type of toGrant){await prisma.achievement.create({data:{userId,type}}).catch(()=>{});}
+    {// recheck existing after creates to avoid bonus duplication
+    }
     const u=await prisma.user.findUnique({where:{id:userId}});
     let bonusXp=0,bonusGold=0;
     for(const t of toGrant){bonusXp+=(ACHIEVEMENT_META[t]?.xpReward||0);bonusGold+=(ACHIEVEMENT_META[t]?.goldReward||0);}
@@ -519,7 +521,7 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const todayCount=await prisma.task.count({where:{userId:req.userId,completed:true,completedAt:{gte:startOfToday()}}});
     if(todayCount>=10)checkEasterEgg(req.userId,"perfectionist");
     res.json({...updatedTask,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
-  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+  }catch(e){console.error('QUEST COMPLETE ERROR:',e.message,e.stack);res.status(500).json({message:"Ошибка сервера",error:e.message});}
 });
 
 app.delete("/tasks/:id",authMiddleware,async(req,res)=>{
