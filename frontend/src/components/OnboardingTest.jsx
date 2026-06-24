@@ -37,11 +37,23 @@ const QUESTIONS = [
 ];
 
 const CLASS_INFO = {
-  warrior: { icon: "⚔️", color: "#fb7878", title: "Воин", desc: "Ты рождён для дисциплины и физической силы. Твой путь — испытания тела и воли." },
-  sage:    { icon: "📚", color: "#38bdf8", title: "Мудрец", desc: "Знания — твоя сила. Ты растёшь через обучение и саморазвитие." },
-  balance: { icon: "☯️", color: "#34d399", title: "Гармоничный", desc: "Ты ищешь баланс во всём. Равномерное развитие всех сторон жизни — твой путь." },
-  explorer:{ icon: "🗺️", color: "#f5b637", title: "Исследователь", desc: "Тебе нравится пробовать новое. Каждый день — новое открытие." },
-  strategist:{icon:"🧭", color:"#c084fc", title:"Стратег", desc:"Ты думаешь на несколько шагов вперёд. Планирование — твоё оружие." },
+  warrior:    { icon: "⚔️", color: "#fb7878", title: "Воин",           desc: "Ты рождён для дисциплины и физической силы. Твой путь — испытания тела и воли." },
+  sage:       { icon: "📚", color: "#38bdf8", title: "Мудрец",         desc: "Знания — твоя сила. Ты растёшь через обучение и саморазвитие." },
+  balance:    { icon: "☯️", color: "#34d399", title: "Гармоничный",    desc: "Ты ищешь баланс во всём. Равномерное развитие всех сторон жизни — твой путь." },
+  explorer:   { icon: "🗺️", color: "#f5b637", title: "Исследователь", desc: "Тебе нравится пробовать новое. Каждый день — новое открытие." },
+  strategist: { icon: "🧭", color: "#c084fc", title: "Стратег",       desc: "Ты думаешь на несколько шагов вперёд. Планирование — твоё оружие." },
+};
+
+const CLASS_BRANCH_RU = {
+  warrior:    'Дисциплины',
+  sage:       'Знаний',
+  strategist: 'Дисциплины',
+  explorer:   'Фитнеса',
+  balance:    'всех веток',
+  leader:     'Дисциплины',
+  monk:       'Саморазвития',
+  athlete:    'Фитнеса',
+  mage:       'Знаний',
 };
 
 export default function OnboardingTest({ token, onComplete }) {
@@ -81,7 +93,17 @@ export default function OnboardingTest({ token, onComplete }) {
           <div style={{ fontSize:72, marginBottom:16, animation:"quest-flash 0.6s ease" }}>{cls.icon}</div>
           <div style={{ fontSize:11, fontWeight:700, letterSpacing:3, color:cls.color, marginBottom:8 }}>ТВОЙ КЛАСС</div>
           <h2 style={{ fontSize:32, fontWeight:900, color:cls.color, margin:"0 0 12px" }}>{cls.title}</h2>
-          <p style={{ fontSize:15, color:"rgba(255,255,255,0.7)", lineHeight:1.7, marginBottom:32 }}>{cls.desc}</p>
+          <p style={{ fontSize:15, color:"rgba(255,255,255,0.7)", lineHeight:1.7, marginBottom:16 }}>{cls.desc}</p>
+
+          <div style={{
+            background:'rgba(124,58,237,0.1)', border:'1px solid rgba(124,58,237,0.3)',
+            borderRadius:10, padding:'12px 16px', marginBottom:24, textAlign:'center',
+          }}>
+            <div style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginBottom:4, letterSpacing:1 }}>БОНУС КЛАССА</div>
+            <div style={{ fontSize:14, color:'#a78bfa', fontWeight:700 }}>
+              +10% XP за квесты {CLASS_BRANCH_RU[result.suggestedClass] || 'всех веток'}
+            </div>
+          </div>
 
           <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, padding:16, marginBottom:28, textAlign:"left" }}>
             <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.4)", letterSpacing:1, marginBottom:10 }}>ТВОИ ОТВЕТЫ</div>

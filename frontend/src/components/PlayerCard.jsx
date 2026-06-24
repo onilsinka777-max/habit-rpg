@@ -3,6 +3,18 @@ import axios from "axios";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
+const CLASS_ICONS = {
+  warrior:    '⚔️',
+  sage:       '📚',
+  balance:    '☯️',
+  explorer:   '🗺️',
+  strategist: '🧭',
+  leader:     '👑',
+  monk:       '🧘',
+  athlete:    '💪',
+  mage:       '🧙',
+};
+
 function AvatarCircle({ user, size, onGoToProfile, onAvatarChange }) {
   const inputRef = useRef(null);
 
@@ -21,6 +33,8 @@ function AvatarCircle({ user, size, onGoToProfile, onAvatarChange }) {
     reader.readAsDataURL(file);
   };
 
+  const userClass = user.effectiveMasteryPath || user.autoClass || null;
+  const classIcon = CLASS_ICONS[userClass] || null;
   const initials = (user.name || user.email || "?")[0].toUpperCase();
 
   return (
@@ -36,13 +50,15 @@ function AvatarCircle({ user, size, onGoToProfile, onAvatarChange }) {
       ) : (
         <div style={{
           width:size, height:size, borderRadius:"50%",
-          background:"rgba(124,58,237,0.15)",
-          border:"2px solid rgba(124,58,237,0.3)",
+          background:"linear-gradient(135deg,rgba(124,58,237,0.25),rgba(76,29,149,0.35))",
+          border:"2px solid rgba(124,58,237,0.4)",
           display:"flex", alignItems:"center", justifyContent:"center",
-          fontSize:size*0.38, fontWeight:900, color:"rgba(255,255,255,0.5)",
+          fontSize: classIcon ? 28 : size*0.38, fontWeight:900, color:"rgba(255,255,255,0.5)",
           position:"relative",
         }}>
-          <span style={{ opacity: user.name ? 0.7 : 0.3 }}>{user.name ? initials : "📷"}</span>
+          <span style={{ opacity: classIcon ? 1 : (user.name ? 0.7 : 0.3) }}>
+            {classIcon || (user.name ? initials : "📷")}
+          </span>
           <div style={{
             position:"absolute", inset:0, borderRadius:"50%",
             background:"rgba(124,58,237,0.12)",

@@ -473,7 +473,11 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     // ── Active NPC: +10% XP bonus in NPC's branch ────────────────────────────
     const activeNpc=cu.activeNpcId?getNpc(cu.activeNpcId):null;
     const npcBonusMult=activeNpc&&activeNpc.branch===task.branch?1.1:1;
-    const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult);
+    const CLASS_BRANCH={warrior:'discipline',sage:'knowledge',strategist:'discipline',explorer:'fitness',balance:null,leader:'discipline'};
+    const userClass=cu.masteryPath||autoClass;
+    const classBranch=CLASS_BRANCH[userClass]||null;
+    const classBonusMult=(classBranch&&task.branch===classBranch)?1.1:1.0;
+    const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult);
     const{xp,level}=applyXpGain(cu.xp,cu.level,xpGained);
     const goldGain=Math.floor(task.goldReward*getGoldMultiplier()*mMult.gold*goldM);
     // ── Random drop (10%) ────────────────────────────────────────────────────
