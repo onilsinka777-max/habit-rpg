@@ -298,7 +298,9 @@ function getAvailableNodes(pathId, completedSet) {
 
 const REPEATABLE_SHOP_EFFECTS = ["streak_freeze","xp_boost_24h","gold_boost_24h"];
 
-function getXpToNextLevel(level) { return 1000 + (level-1)*100; }
+function getXpToNextLevel(level) {
+  return Math.floor(3000 + (level - 1) * 200 + Math.pow(level - 1, 2) * 15);
+}
 
 function applyXpGain(currentXp, currentLevel, xpGain) {
   let xp = currentXp + xpGain;
