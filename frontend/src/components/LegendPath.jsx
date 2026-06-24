@@ -80,27 +80,27 @@ function QuestNode({ num, done, current, milestone, nodeRef }) {
   let nodeStyle;
   if (milestone) {
     nodeStyle = done ? {
-      background:"linear-gradient(135deg,#4c1d95,#7c3aed)",
-      border:"2px solid #a78bfa",
-      boxShadow:"0 0 20px rgba(124,58,237,0.6)",
+      background:"linear-gradient(135deg,#d97706,#f5b637)",
+      border:"2px solid #ffd700",
+      boxShadow:"0 0 20px rgba(245,182,55,0.6)",
       fontSize:22,
     } : {
-      background:"rgba(76,29,149,0.18)",
-      border:"2px solid rgba(167,139,250,0.2)",
+      background:"rgba(217,119,6,0.18)",
+      border:"2px solid rgba(255,215,0,0.2)",
       fontSize:18,
       opacity:0.5,
     };
   } else if (done) {
     nodeStyle = {
-      background:"#7c3aed",
-      boxShadow:"0 0 8px #7c3aed",
+      background:"#f5b637",
+      boxShadow:"0 0 8px #f5b637",
       fontSize:9,
       color:"#fff",
     };
   } else if (current) {
     nodeStyle = {
-      background:"rgba(124,58,237,0.25)",
-      border:"2px solid #a78bfa",
+      background:"rgba(245,182,55,0.25)",
+      border:"2px solid #ffd700",
       animation:"currentPulse 2s ease-in-out infinite",
     };
   } else {
@@ -131,7 +131,7 @@ function QuestNode({ num, done, current, milestone, nodeRef }) {
           color:"rgba(255,255,255,0.18)",
           whiteSpace:"nowrap",
           fontWeight:done?700:400,
-          color: done ? "rgba(167,139,250,0.5)" : "rgba(255,255,255,0.15)",
+          color: done ? "rgba(255,215,0,0.5)" : "rgba(255,255,255,0.15)",
         }}>
           {num}
         </span>
@@ -143,7 +143,7 @@ function QuestNode({ num, done, current, milestone, nodeRef }) {
           position:"absolute",
           right:"calc(100% + 10px)",
           fontSize:10,
-          color: done ? "#a78bfa" : "rgba(167,139,250,0.35)",
+          color: done ? "#ffd700" : "rgba(255,215,0,0.35)",
           whiteSpace:"nowrap",
           fontWeight:700,
           textAlign:"right",
@@ -159,15 +159,15 @@ function QuestNode({ num, done, current, milestone, nodeRef }) {
           bottom:"calc(100% + 8px)",
           left:"50%", transform:"translateX(-50%)",
           background:"rgba(8,4,24,0.97)",
-          border:"1px solid #7c3aed",
+          border:"1px solid #f5b637",
           borderRadius:8,
           padding:"8px 14px",
           whiteSpace:"nowrap",
           zIndex:10,
           pointerEvents:"none",
-          boxShadow:"0 0 20px rgba(124,58,237,0.4)",
+          boxShadow:"0 0 20px rgba(245,182,55,0.4)",
         }}>
-          <div style={{ fontSize:13, fontWeight:700, color:"#a78bfa", marginBottom:3 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"#ffd700", marginBottom:3 }}>
             {milestone.icon} {milestone.label}
           </div>
           <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)" }}>
@@ -191,7 +191,7 @@ function Particles() {
           width: i % 3 === 0 ? 8 : 5,
           height: i % 3 === 0 ? 8 : 5,
           borderRadius:"50%",
-          background: i % 3 === 0 ? "#f5b637" : i % 3 === 1 ? "#a78bfa" : "rgba(255,255,255,0.8)",
+          background: i % 3 === 0 ? "#f5b637" : i % 3 === 1 ? "#ffd700" : "rgba(255,255,255,0.8)",
           animation:`particleUp ${1.4 + (i%4)*0.3}s ease-out ${i*0.07}s forwards`,
           opacity:0,
         }} />
@@ -261,7 +261,7 @@ export default function LegendPath({ token, showToast, userLevel }) {
       background:"linear-gradient(180deg,#020208 0%,#0d0520 40%,#1a0a2e 100%)",
       minHeight:"60vh", display:"flex", alignItems:"center", justifyContent:"center",
     }}>
-      <div style={{ color:"rgba(167,139,250,0.5)", fontSize:13 }}>Загрузка...</div>
+      <div style={{ color:"rgba(255,215,0,0.5)", fontSize:13 }}>Загрузка...</div>
     </div>
   );
 
@@ -292,7 +292,7 @@ export default function LegendPath({ token, showToast, userLevel }) {
       {flashActive && (
         <div style={{
           position:"fixed", inset:0, zIndex:99, pointerEvents:"none",
-          background:"radial-gradient(ellipse at center, rgba(167,139,250,0.35) 0%, transparent 65%)",
+          background:"radial-gradient(ellipse at center, rgba(255,215,0,0.35) 0%, transparent 65%)",
           animation:"lgFlash 1.1s ease-out forwards",
         }} />
       )}
@@ -309,7 +309,7 @@ export default function LegendPath({ token, showToast, userLevel }) {
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
             <div style={{ fontSize:15, fontWeight:800, letterSpacing:0.5, color:"#e2e8f0" }}>
               🏔️ Восхождение:{" "}
-              <span style={{ color:"#a78bfa" }}>{completed}</span>
+              <span style={{ color:"#ffd700" }}>{completed}</span>
               <span style={{ color:"rgba(255,255,255,0.3)" }}> / 50</span>
             </div>
             {completed >= 50 && (
@@ -322,9 +322,9 @@ export default function LegendPath({ token, showToast, userLevel }) {
           <div style={{ height:6, background:"rgba(255,255,255,0.06)", borderRadius:3, overflow:"hidden", marginBottom:distToNext ? 6 : 0 }}>
             <div style={{
               height:"100%", width:`${pct}%`,
-              background:"linear-gradient(90deg,#3b0764,#7c3aed,#a78bfa)",
+              background:"linear-gradient(90deg,#92400e,#f5b637,#ffd700)",
               borderRadius:3,
-              boxShadow:"0 0 12px rgba(124,58,237,0.7)",
+              boxShadow:"0 0 12px rgba(245,182,55,0.7)",
               transition:"width 0.9s cubic-bezier(0.34,1.56,0.64,1)",
             }} />
           </div>
@@ -332,7 +332,7 @@ export default function LegendPath({ token, showToast, userLevel }) {
           {distToNext && (
             <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", textAlign:"center" }}>
               До следующей награды:{" "}
-              <span style={{ color:"#a78bfa", fontWeight:600 }}>{distToNext}</span>
+              <span style={{ color:"#ffd700", fontWeight:600 }}>{distToNext}</span>
               {" "}{distToNext === 1 ? "квест" : distToNext < 5 ? "квеста" : "квестов"}
               {" · "}{MILESTONES[nextMilestone]?.icon} {MILESTONES[nextMilestone]?.label}
             </div>
@@ -372,8 +372,8 @@ export default function LegendPath({ token, showToast, userLevel }) {
               left:"50%", transform:"translateX(-50%)",
               width:2,
               height:doneH,
-              background:"#7c3aed",
-              boxShadow:"0 0 10px #7c3aed, 0 0 4px #a78bfa",
+              background:"#f5b637",
+              boxShadow:"0 0 10px #f5b637, 0 0 4px #ffd700",
               transition:"height 0.6s",
             }} />
 
@@ -423,14 +423,14 @@ export default function LegendPath({ token, showToast, userLevel }) {
                 <div key={n} style={{
                   display:"flex", alignItems:"center", gap:10,
                   padding:"8px 12px", borderRadius:10,
-                  background: reached ? "rgba(124,58,237,0.09)" : "rgba(255,255,255,0.02)",
-                  border:`1px solid ${reached ? "rgba(167,139,250,0.25)" : "rgba(255,255,255,0.05)"}`,
+                  background: reached ? "rgba(245,182,55,0.09)" : "rgba(255,255,255,0.02)",
+                  border:`1px solid ${reached ? "rgba(255,215,0,0.25)" : "rgba(255,255,255,0.05)"}`,
                   opacity: reached ? 1 : 0.48,
                   transition:"opacity 0.3s, border-color 0.3s",
                 }}>
                   <span style={{ fontSize:18, flexShrink:0 }}>{reached ? "✅" : m.icon}</span>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:reached ? "#a78bfa" : "rgba(255,255,255,0.45)" }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:reached ? "#ffd700" : "rgba(255,255,255,0.45)" }}>
                       {num}. {m.label}
                     </div>
                     <div style={{ fontSize:11, color:"rgba(255,255,255,0.28)" }}>
@@ -438,7 +438,7 @@ export default function LegendPath({ token, showToast, userLevel }) {
                     </div>
                   </div>
                   {reached && (
-                    <span style={{ fontSize:9, fontWeight:700, color:"#a78bfa", letterSpacing:1 }}>
+                    <span style={{ fontSize:9, fontWeight:700, color:"#ffd700", letterSpacing:1 }}>
                       ПРОЙДЕНО
                     </span>
                   )}
@@ -459,13 +459,13 @@ export default function LegendPath({ token, showToast, userLevel }) {
         }}>
           <div style={{
             background:"linear-gradient(135deg,rgba(26,10,46,0.98),rgba(13,8,32,0.98))",
-            border:"2px solid #7c3aed",
-            boxShadow:"0 0 30px rgba(124,58,237,0.4), 0 -8px 32px rgba(5,0,18,0.85)",
+            border:"2px solid #f5b637",
+            boxShadow:"0 0 30px rgba(245,182,55,0.4), 0 -8px 32px rgba(5,0,18,0.85)",
             borderRadius:14,
             padding:"14px 16px",
             backdropFilter:"blur(12px)",
           }}>
-            <div style={{ fontSize:9, color:"rgba(167,139,250,0.6)", letterSpacing:2, textTransform:"uppercase", marginBottom:5 }}>
+            <div style={{ fontSize:9, color:"rgba(255,215,0,0.6)", letterSpacing:2, textTransform:"uppercase", marginBottom:5 }}>
               ДЕНЬ {currentNum} ИЗ 50
             </div>
             <div style={{ fontSize:16, fontWeight:800, color:"#f1f5f9", marginBottom:4, lineHeight:1.3 }}>
@@ -485,7 +485,7 @@ export default function LegendPath({ token, showToast, userLevel }) {
               </span>
 
               {hasPending ? (
-                <span style={{ fontSize:12, color:"rgba(167,139,250,0.75)", fontWeight:600 }}>
+                <span style={{ fontSize:12, color:"rgba(255,215,0,0.75)", fontWeight:600 }}>
                   ⚔️ Квест активен
                 </span>
               ) : (
@@ -493,12 +493,12 @@ export default function LegendPath({ token, showToast, userLevel }) {
                   onClick={claimDaily}
                   disabled={busy}
                   style={{
-                    background: busy ? "rgba(124,58,237,0.4)" : "linear-gradient(135deg,#4c1d95,#7c3aed)",
+                    background: busy ? "rgba(245,182,55,0.4)" : "linear-gradient(135deg,#d97706,#f5b637)",
                     border:"none", borderRadius:8,
                     padding:"9px 22px",
                     color:"#fff", fontWeight:700, fontSize:13,
                     cursor: busy ? "not-allowed" : "pointer",
-                    boxShadow: busy ? "none" : "0 0 16px rgba(124,58,237,0.5)",
+                    boxShadow: busy ? "none" : "0 0 16px rgba(245,182,55,0.5)",
                     transition:"all 0.2s",
                     letterSpacing:0.3,
                   }}
@@ -534,8 +534,8 @@ export default function LegendPath({ token, showToast, userLevel }) {
 
       <style>{`
         @keyframes currentPulse {
-          0%,100% { box-shadow: 0 0 10px #7c3aed, 0 0 20px #7c3aed }
-          50%      { box-shadow: 0 0 20px #a78bfa, 0 0 40px #7c3aed, 0 0 60px rgba(124,58,237,0.3) }
+          0%,100% { box-shadow: 0 0 10px #f5b637, 0 0 20px #f5b637 }
+          50%      { box-shadow: 0 0 25px #ffd700, 0 0 50px rgba(245,182,55,0.5) }
         }
         @keyframes particleUp {
           0%   { transform: translateY(0)      scale(1);   opacity:1 }
