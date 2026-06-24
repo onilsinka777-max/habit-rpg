@@ -826,7 +826,12 @@ export default function App() {
                 </section>
               ) : activeBranch === "custom" ? (
                 <section className="quest-section">
-                  <div className="section-eyebrow"><span>✏️</span> Свои квесты</div>
+                  <div className="section-eyebrow" style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <span><span>✏️</span> Свои квесты</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:"rgba(167,139,250,0.7)" }}>
+                      Своих квестов: {customTasks.length}
+                    </span>
+                  </div>
                   <div className="new-quest-form" style={{ flexWrap:"wrap" }}>
                     <input className="input" placeholder="Название квеста" value={newTaskTitle}
                       onChange={e => setNewTaskTitle(e.target.value)}
@@ -837,7 +842,7 @@ export default function App() {
                     <button className="btn btn-primary" onClick={createTask} disabled={customSlotsLeft === 0 || !newTaskTitle.trim()}>Добавить</button>
                   </div>
                   <p style={{ fontSize:11, color:"rgba(255,255,255,0.3)", margin:"4px 0 8px" }}>
-                    Ветка назначается автоматически · После выполнения квест исчезает
+                    Ветка назначается автоматически · Слотов сегодня: {customSlotsLeft}/{customQuestsMax}
                   </p>
                   {customTasks.length === 0 ? (
                     <p className="empty-state">Нет своих квестов — добавь первый выше.</p>
