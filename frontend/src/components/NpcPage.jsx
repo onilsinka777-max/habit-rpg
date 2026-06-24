@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 const BRANCH_COLORS = { discipline:"#8d8cf8", fitness:"#fb7878", self_development:"#34d399", knowledge:"#38bdf8" };
 
-export default function NpcPage({ token, showToast }) {
+export default function NpcPage({ token, showToast, userLevel=1 }) {
+  if (userLevel < 5) return <LockedFeature requiredLevel={5} currentLevel={userLevel} icon="🧙" title="Наставники" description="Получай задания от NPC персонажей с уникальными наградами" />;
   const [npcs, setNpcs]       = useState([]);
   const [activeNpcId, setActiveNpcId] = useState(null);
   const [loading, setLoading] = useState(true);

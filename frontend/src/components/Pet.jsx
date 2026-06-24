@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -20,7 +21,8 @@ function Bar({ value, color, label }) {
   );
 }
 
-export default function Pet({ token, showToast }) {
+export default function Pet({ token, showToast, userLevel=1 }) {
+  if (userLevel < 9) return <LockedFeature requiredLevel={9} currentLevel={userLevel} icon="🥚" title="Питомец" description="Твой верный спутник появится скоро..." />;
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
   const [data,       setData]       = useState(null);
   const [busy,       setBusy]       = useState(false);

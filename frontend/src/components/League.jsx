@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -23,7 +24,8 @@ function getTimeToReset() {
   return `${d}д ${h}ч ${m}м`;
 }
 
-export default function League({ token, showToast }) {
+export default function League({ token, showToast, userLevel=1 }) {
+  if (userLevel < 6) return <LockedFeature requiredLevel={6} currentLevel={userLevel} icon="🏆" title="Лиги" description="Соревнуйся с другими игроками каждую неделю" />;
   const [data, setData]   = useState(null);
   const [loading, setLoading] = useState(true);
   const auth = { headers: { Authorization: `Bearer ${token}` } };

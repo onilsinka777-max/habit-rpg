@@ -562,27 +562,25 @@ export default function App() {
         {/* ── МИР ──────────────────────────────────────────────────────── */}
         {["worldmap","mastery","skills","league","chains","marathons","season","legend-path","creator-path","hall-of-fame"].includes(view) && (
           <>
-            {(() => { const f = getUnlockedFeatures(user?.level||1); return (
             <SectionTabs tabs={[
-              {key:"worldmap",     label:"Карта",         icon:"🗺️"},
-              f.chains          && {key:"chains",       label:"Цепочки",       icon:"⛓️"},
-              f.marathons       && {key:"marathons",    label:"Марафоны",      icon:"🏃"},
-              f.mastery         && {key:"mastery",      label:"Мастерство",    icon:"🌟"},
-              f.skills          && {key:"skills",       label:"Навыки",        icon:"⚡"},
-              f.league          && {key:"league",       label:"Лиги",          icon:"🏆"},
-              f.season          && {key:"season",       label:"Сезон",         icon:"🌅"},
-              f["legend-path"]  && {key:"legend-path",  label:"Легенда",       icon:"👑"},
-              f["creator-path"] && {key:"creator-path", label:"Создатель",     icon:"⚡"},
-              f["hall-of-fame"] && {key:"hall-of-fame", label:"Зал Славы",     icon:"🏆"},
-            ].filter(Boolean)} active={view} onChange={setView} />
-            ); })()}
+              {key:"worldmap",     label:"Карта",      icon:"🗺️"},
+              {key:"chains",       label:"Цепочки",    icon:"⛓️"},
+              {key:"marathons",    label:"Марафоны",   icon:"🏃"},
+              {key:"mastery",      label:"Мастерство", icon:"🌟"},
+              {key:"skills",       label:"Навыки",     icon:"⚡"},
+              {key:"league",       label:"Лиги",       icon:"🏆"},
+              {key:"season",       label:"Сезон",      icon:"🌅"},
+              {key:"legend-path",  label:"Легенда",    icon:"👑"},
+              {key:"creator-path", label:"Создатель",  icon:"⚡"},
+              {key:"hall-of-fame", label:"Зал Славы",  icon:"🏆"},
+            ]} active={view} onChange={setView} />
             {view === "worldmap"     && <WorldMap    token={token} userLevel={user?.level||1} showToast={showToast} />}
-            {view === "chains"       && <QuestChains token={token} showToast={showToast} askConfirm={askConfirm} />}
-            {view === "marathons"    && <Marathons   token={token} showToast={showToast} />}
+            {view === "chains"       && <QuestChains token={token} showToast={showToast} askConfirm={askConfirm} userLevel={user?.level||1} />}
+            {view === "marathons"    && <Marathons   token={token} showToast={showToast} userLevel={user?.level||1} />}
             {view === "mastery"      && <Mastery     token={token} showToast={showToast} askConfirm={askConfirm} myLevel={user?.level||1} onFinished={loadProfile} />}
-            {view === "skills"       && <SkillTree   token={token} showToast={showToast} />}
-            {view === "league"       && <League      token={token} showToast={showToast} />}
-            {view === "season"       && <Season      token={token} showToast={showToast} />}
+            {view === "skills"       && <SkillTree   token={token} showToast={showToast} userLevel={user?.level||1} />}
+            {view === "league"       && <League      token={token} showToast={showToast} userLevel={user?.level||1} />}
+            {view === "season"       && <Season      token={token} showToast={showToast} userLevel={user?.level||1} />}
             {view === "legend-path"  && <LegendPath  token={token} showToast={showToast} userLevel={user?.level||1} />}
             {view === "creator-path" && <CreatorPath token={token} showToast={showToast} userLevel={user?.level||1} />}
             {view === "hall-of-fame" && <HallOfFame  token={token} />}
@@ -592,21 +590,19 @@ export default function App() {
         {/* ── СОЦИАЛКА ─────────────────────────────────────────────────── */}
         {["friends","clan","feed","npc","gratitude","chess"].includes(view) && (
           <>
-            {(() => { const f = getUnlockedFeatures(user?.level||1); return (
             <SectionTabs tabs={[
-              {key:"friends",   label:"Друзья",       icon:"🤝"},
-              f.clan        && {key:"clan",      label:"Клан",         icon:"⚔️"},
-              {key:"chess",     label:"Шахматы",      icon:"♟️"},
-              {key:"feed",      label:"Лента",        icon:"📡"},
-              f.npc         && {key:"npc",       label:"Наставники",   icon:"🧙"},
-              {key:"gratitude", label:"Благодарность",icon:"🌿"},
-            ].filter(Boolean)} active={view} onChange={setView} />
-            ); })()}
+              {key:"friends",   label:"Друзья",        icon:"🤝"},
+              {key:"clan",      label:"Клан",          icon:"⚔️"},
+              {key:"chess",     label:"Шахматы",       icon:"♟️"},
+              {key:"feed",      label:"Лента",         icon:"📡"},
+              {key:"npc",       label:"Наставники",    icon:"🧙"},
+              {key:"gratitude", label:"Благодарность", icon:"🌿"},
+            ]} active={view} onChange={setView} />
             {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} onChessInvite={(gid) => { setChessGameId(gid || null); setView("chess"); }} onViewProfile={(id) => { setViewProfileId(id); setView("profile"); }} />}
             {view === "clan"      && <Clan     token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level||1} />}
             {view === "chess"     && <Chess    token={token} showToast={showToast} gameId={chessGameId} />}
             {view === "feed"      && <Feed     token={token} showToast={showToast} />}
-            {view === "npc"       && <NpcPage  token={token} showToast={showToast} />}
+            {view === "npc"       && <NpcPage  token={token} showToast={showToast} userLevel={user?.level||1} />}
             {view === "gratitude" && <Gratitude token={token} showToast={showToast} />}
           </>
         )}
@@ -614,29 +610,27 @@ export default function App() {
         {/* ── ПРОФИЛЬ ──────────────────────────────────────────────────── */}
         {["profile","achievements","stats","shop","library","journal","goals","pet","pomodoro","report","laptev","sages"].includes(view) && (
           <>
-            {(() => { const f = getUnlockedFeatures(user?.level||1); return (
             <SectionTabs tabs={[
-              {key:"profile",      label:"Обзор",         icon:"🪪"},
-              {key:"achievements", label:"Достижения",    icon:"🏅"},
-              {key:"stats",        label:"Статистика",    icon:"📊"},
-              f.shop         && {key:"shop",         label:"Магазин",       icon:"🛒"},
-              {key:"library",      label:"Библиотека",    icon:"📚"},
-              {key:"journal",      label:"Дневник",       icon:"📔"},
-              {key:"goals",        label:"Цели",          icon:"🎯"},
-              f.pet          && {key:"pet",          label:"Питомец",       icon:"🐾"},
-              {key:"pomodoro",     label:"Помодоро",      icon:"⏱️"},
-              {key:"laptev",       label:"Создатель",     icon:"👑"},
-              {key:"sages",        label:"Мудрецы",       icon:"🏛️"},
-            ].filter(Boolean)} active={view} onChange={setView} />
-            ); })()}
+              {key:"profile",      label:"Обзор",      icon:"🪪"},
+              {key:"achievements", label:"Достижения", icon:"🏅"},
+              {key:"stats",        label:"Статистика", icon:"📊"},
+              {key:"shop",         label:"Магазин",    icon:"🛒"},
+              {key:"library",      label:"Библиотека", icon:"📚"},
+              {key:"journal",      label:"Дневник",    icon:"📔"},
+              {key:"goals",        label:"Цели",       icon:"🎯"},
+              {key:"pet",          label:"Питомец",    icon:"🐾"},
+              {key:"pomodoro",     label:"Помодоро",   icon:"⏱️"},
+              {key:"laptev",       label:"Создатель",  icon:"👑"},
+              {key:"sages",        label:"Мудрецы",    icon:"🏛️"},
+            ]} active={view} onChange={setView} />
             {view === "profile"      && <Profile     token={token} showToast={showToast} userId={viewProfileId} currentUserId={user?.id} onBack={viewProfileId ? () => { setViewProfileId(null); setView("friends"); } : null} />}
             {view === "achievements" && <Achievements token={token} showToast={showToast} />}
             {view === "stats"        && <Stats        token={token} />}
-            {view === "shop"         && <Shop items={shopItems} gold={user?.gold||0} loadingId={shopLoadingId} onPurchase={purchaseItem} streakFreezeCount={user?.streakFreezeCount||0} token={token} showToast={showToast} onProfileRefresh={loadProfile} />}
+            {view === "shop"         && <Shop items={shopItems} gold={user?.gold||0} loadingId={shopLoadingId} onPurchase={purchaseItem} streakFreezeCount={user?.streakFreezeCount||0} token={token} showToast={showToast} onProfileRefresh={loadProfile} userLevel={user?.level||1} />}
             {view === "library"      && <Library      library={library} token={token} showToast={showToast} onProfileRefresh={loadProfile} />}
             {view === "journal"      && <Journal      token={token} showToast={showToast} />}
             {view === "goals"        && <Goals        token={token} showToast={showToast} askConfirm={askConfirm} />}
-            {view === "pet"          && <Pet          token={token} showToast={showToast} userStreak={user?.streak||0} />}
+            {view === "pet"          && <Pet          token={token} showToast={showToast} userStreak={user?.streak||0} userLevel={user?.level||1} />}
             {view === "pomodoro"     && <Pomodoro     token={token} showToast={showToast} onXpGained={loadProfile} />}
             {view === "report"       && <WeeklyReport token={token} showToast={showToast} />}
             {view === "laptev"       && <Laptev       token={token} user={user} showToast={showToast} onNavigate={setView} />}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -228,14 +229,7 @@ export default function Mastery({ token, showToast, askConfirm, myLevel, onFinis
     finally { setBusy(false); }
   };
 
-  if (myLevel < 25) {
-    return (
-      <section className="quest-section">
-        <div className="section-eyebrow"><span>🌟</span> Мастерство</div>
-        <p className="empty-state">Ветка откроется на 25 уровне.</p>
-      </section>
-    );
-  }
+  if (myLevel < 25) return <LockedFeature requiredLevel={25} currentLevel={myLevel} icon="🌳" title="Путь Мастерства" description="Выбери специализацию и прокачай её до предела" />;
 
   if (!status) return <p className="empty-state">Загрузка...</p>;
 

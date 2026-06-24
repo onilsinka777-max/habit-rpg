@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import VoiceInput from "./VoiceInput";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -238,12 +239,7 @@ export default function Clan({ token, showToast, askConfirm, currentUserId, myLe
 
   if (myLevel < 10) {
     return (
-      <section className="quest-section">
-        <div className="section-eyebrow">
-          <span>⚔️</span> Кланы
-        </div>
-        <p className="empty-state">Кланы открываются на 10 уровне — продолжай выполнять квесты!</p>
-      </section>
+      <LockedFeature requiredLevel={10} currentLevel={myLevel} icon="🏰" title="Кланы" description="Создай клан или вступи в существующий. Вместе сильнее." />
     );
   }
 

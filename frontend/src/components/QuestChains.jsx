@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -8,7 +9,8 @@ const BRANCH_COLORS = {
   self_development: "#34d399", knowledge: "#38bdf8",
 };
 
-export default function QuestChains({ token, showToast, askConfirm }) {
+export default function QuestChains({ token, showToast, askConfirm, userLevel=1 }) {
+  if (userLevel < 3) return <LockedFeature requiredLevel={3} currentLevel={userLevel} icon="⛓️" title="Цепочки квестов" description="Выполняй квесты последовательно и получай большие награды" />;
   const [chains, setChains]     = useState([]);
   const [progress, setProgress] = useState([]);
   const [loading, setLoading]   = useState(true);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -38,26 +39,7 @@ export default function LegendPath({ token, showToast, userLevel }) {
     finally { setBusy(false); }
   };
 
-  if (userLevel < 50) {
-    return (
-      <div className="section-card">
-        <div className="section-eyebrow"><span>🌳</span> Легендарный путь</div>
-        <div style={{ textAlign:"center", padding:"40px 20px" }}>
-          <div style={{ fontSize:48, marginBottom:12 }}>🔒</div>
-          <h3 style={{ fontSize:20, fontWeight:700, color:"#f5b637", marginBottom:8 }}>Легендарный путь</h3>
-          <p style={{ color:"rgba(255,255,255,0.45)", fontSize:14, lineHeight:1.6 }}>
-            Откроется на 50 уровне.<br />
-            Твой уровень: {userLevel} / 50
-          </p>
-          <div style={{ marginTop:20, padding:"12px 20px", background:"rgba(245,182,55,0.08)", border:"1px solid rgba(245,182,55,0.2)", borderRadius:12 }}>
-            <p style={{ fontSize:13, color:"rgba(245,182,55,0.8)", margin:0, fontStyle:"italic" }}>
-              «Только те, кто прошёл 50 уровней испытаний, достойны встать на Легендарный путь»
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (userLevel < 50) return <LockedFeature requiredLevel={50} currentLevel={userLevel} icon="🌟" title="Легендарный путь" description="50 испытаний для тех кто дошёл до вершины" />;
 
   if (loading) return <div className="section-card"><p style={{ textAlign:"center", padding:32, opacity:0.5 }}>Загрузка...</p></div>;
 

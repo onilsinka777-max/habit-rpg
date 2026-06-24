@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -24,7 +25,8 @@ function RankBar({ xp, nextXp, rank }) {
   );
 }
 
-export default function Season({ token, showToast }) {
+export default function Season({ token, showToast, userLevel=1 }) {
+  if (userLevel < 7) return <LockedFeature requiredLevel={7} currentLevel={userLevel} icon="🌟" title="Сезонные квесты" description="Уникальные квесты текущего сезона с особыми наградами" />;
   const [season, setSeason]           = useState(null);
   const [progress, setProgress]       = useState(null);
   const [board, setBoard]             = useState([]);

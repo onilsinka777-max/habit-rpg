@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -236,7 +237,8 @@ function WeeklyTab({ token, gold, onPurchase, loadingId }) {
   );
 }
 
-export default function Shop({ items, gold, loadingId, onPurchase, streakFreezeCount, token, showToast, onProfileRefresh }) {
+export default function Shop({ items, gold, loadingId, onPurchase, streakFreezeCount, token, showToast, onProfileRefresh, userLevel=1 }) {
+  if (userLevel < 2) return <LockedFeature requiredLevel={2} currentLevel={userLevel} icon="🛒" title="Магазин" description="Трать золото на бусты, косметику и PDF чеклисты" />;
   const [tab, setTab]           = useState("boost");
   const [cardBusy, setCardBusy] = useState(null);
   const auth = { headers: { Authorization: `Bearer ${token}` } };

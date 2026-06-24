@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-export default function CreatorPath({ token, showToast, userLevel }) {
+export default function CreatorPath({ token, showToast, userLevel=1 }) {
   const [data, setData]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy]   = useState(false);
@@ -54,37 +55,9 @@ export default function CreatorPath({ token, showToast, userLevel }) {
   // ── Locked screen ───────────────────────────────────────────────────────────
   if (!data || data.locked) {
     return (
-      <div className="section-card">
-        <style>{`
-          @keyframes cpGlow { 0%,100%{box-shadow:0 0 20px rgba(147,51,234,0.4)} 50%{box-shadow:0 0 50px rgba(192,38,211,0.7)} }
-        `}</style>
-        <div style={{ textAlign:"center", padding:"40px 16px" }}>
-          <div style={{
-            width:80, height:80, borderRadius:"50%", margin:"0 auto 16px",
-            background:"linear-gradient(135deg,#1a0a2e,#2d1b69)",
-            border:"2px solid #9333ea", display:"flex", alignItems:"center", justifyContent:"center",
-            fontSize:36, animation:"cpGlow 2s ease-in-out infinite",
-          }}>⚡</div>
-          <h3 style={{ fontSize:22, fontWeight:900, letterSpacing:2,
-            background:"linear-gradient(90deg,#9333ea,#c026d3)",
-            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-            marginBottom:8 }}>ПУТЬ СОЗДАТЕЛЯ</h3>
-          <p style={{ color:"rgba(255,255,255,0.5)", fontSize:14, lineHeight:1.6, marginBottom:4 }}>
-            Испытание для избранных.
-          </p>
-          <p style={{ color:"rgba(255,255,255,0.4)", fontSize:14, marginBottom:20 }}>
-            Откроется на 75 уровне.<br/>
-            Твой уровень: <strong style={{ color:"#9333ea" }}>{userLevel} / 75</strong>
-          </p>
-          <div style={{ background:"rgba(147,51,234,0.08)", border:"1px solid rgba(147,51,234,0.2)",
-            borderRadius:12, padding:"12px 16px", fontSize:13, color:"rgba(147,51,234,0.8)", fontStyle:"italic" }}>
-            «30 дней. Соревнование с LAPTEV. Победи систему.»
-          </div>
-        </div>
-      </div>
+      <LockedFeature requiredLevel={75} currentLevel={userLevel} icon="⚡" title="Путь Создателя" description="30 дней. Соревнование с LAPTEV. Победи систему." />
     );
   }
-
   // ── Not started ─────────────────────────────────────────────────────────────
   if (!data.started) {
     return (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -7,7 +8,8 @@ const BRANCH_COLORS  = { discipline:"#8d8cf8", fitness:"#fb7878", self_developme
 const BRANCH_LABELS  = { discipline:"Дисциплина", fitness:"Фитнес", self_development:"Саморазвитие", knowledge:"Знания" };
 const BRANCH_ICONS   = { discipline:"🛡️", fitness:"💪", self_development:"🌸", knowledge:"📚" };
 
-export default function SkillTree({ token, showToast }) {
+export default function SkillTree({ token, showToast, userLevel=1 }) {
+  if (userLevel < 8) return <LockedFeature requiredLevel={8} currentLevel={userLevel} icon="⚡" title="Дерево навыков" description="Прокачивай пассивные способности за золото" />;
   const [data, setData]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy]   = useState(null);

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import LockedFeature from "./LockedFeature";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-export default function Marathons({ token, showToast }) {
+export default function Marathons({ token, showToast, userLevel=1 }) {
+  if (userLevel < 4) return <LockedFeature requiredLevel={4} currentLevel={userLevel} icon="🏃" title="Марафоны" description="Долгосрочные испытания на 7-30 дней с крутыми призами" />;
   const [marathons, setMarathons] = useState([]);
   const [loading, setLoading]     = useState(true);
   const auth = { headers: { Authorization: `Bearer ${token}` } };
