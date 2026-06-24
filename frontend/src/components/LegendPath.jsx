@@ -248,20 +248,25 @@ export default function LegendPath({ token, showToast, userLevel }) {
     finally { setBusy(false); }
   };
 
-  if (userLevel < 50) return (
-    <LockedFeature
-      requiredLevel={50} currentLevel={userLevel}
-      icon="🌟" title="Легендарный путь"
-      description="50 испытаний для тех кто дошёл до вершины"
-    />
-  );
-
   if (loading) return (
     <div style={{
       background:"linear-gradient(180deg,#020208 0%,#0d0520 40%,#1a0a2e 100%)",
-      minHeight:"60vh", display:"flex", alignItems:"center", justifyContent:"center",
+      minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center",
     }}>
       <div style={{ color:"rgba(255,215,0,0.5)", fontSize:13 }}>Загрузка...</div>
+    </div>
+  );
+
+  if (data?.locked) return (
+    <div style={{
+      background:"linear-gradient(180deg,#020208 0%,#0d0520 40%,#1a0a2e 100%)",
+      minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center",
+    }}>
+      <LockedFeature
+        requiredLevel={data.unlockedAt || 50} currentLevel={data.level || userLevel}
+        icon="🌟" title="Легендарный путь"
+        description="50 испытаний для тех кто дошёл до вершины"
+      />
     </div>
   );
 
