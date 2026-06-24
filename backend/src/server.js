@@ -3212,40 +3212,25 @@ setInterval(async()=>{
         if(!existInvite)await createNotification(u.id,"dark_side_invite","⚫ Система говорит...","_system_: Ты думаешь что строишь дисциплину. На самом деле ты строишь клетку. Я покажу тебе другой путь. Открой если не боишься.").catch(()=>{});
       }
     }
-    // Принудительный возврат: darkSideChoice=null, уведомление > 24ч
-    const pendingUsers=await prisma.user.findMany({
-      where:{darkSideActive:true,darkSideChoice:null},
-      include:{notifications:{where:{type:'dark_side_choice'},orderBy:{createdAt:'desc'},take:1}}
+    // Принудительный возврат: shadow выбор сделан > 24ч назад + все тёмные квесты сегодня выполнены
+    const yesterday=new Date(now.getTime()-24*60*60*1000);
+    const shadowUsers=await prisma.user.findMany({
+      where:{darkSideActive:true,darkSideChoice:'shadow',updatedAt:{lt:yesterday}}
     });
-    for(const u of pendingUsers){
-      const choiceNotif=u.notifications[0];
-      if(!choiceNotif)continue;
-      const hoursSinceNotif=(now.getTime()-new Date(choiceNotif.createdAt).getTime())/(1000*60*60);
-      if(hoursSinceNotif>=24){
-        await prisma.user.update({where:{id:u.id},data:{darkSideActive:false,darkSideChoice:'forced',antagonistPathActive:true,xp:{increment:200}}});
-        await createNotification(u.id,"dark_side_forced_return","⚡ LAPTEV вернул тебя","Время вышло. Я говорил что все возвращаются. Система ждала тебя. Добро пожаловать обратно. Твой путь продолжается.").catch(()=>{});
-        console.log('Принудительный возврат (no choice):', u.id);
-      }
-    }
-    // Принудительный возврат: shadow выбор 3 дня назад
-    const shadowUsers=await prisma.user.findMany({where:{darkSideActive:true,darkSideChoice:"shadow"}});
     for(const u of shadowUsers){
-      if(!u.darkSideStartedAt)continue;
-      const daysSince=Math.floor((now.getTime()-new Date(u.darkSideStartedAt).getTime())/(1000*60*60*24));
-      if(daysSince>=4){
-        await prisma.user.update({where:{id:u.id},data:{darkSideActive:false,darkSideChoice:"forced",antagonistPathActive:true,xp:{increment:200}}});
-        await createNotification(u.id,"dark_side_forced_return","⚡ LAPTEV вернул тебя","Как я и говорил. Система всегда побеждает. +200 XP за возвращение. Путь Антагониста открыт.").catch(()=>{});
-        const exSW=await prisma.achievement.findFirst({where:{userId:u.id,type:"shadow_walker"}});
-        if(!exSW){
-          await prisma.achievement.create({data:{userId:u.id,type:"shadow_walker"}}).catch(()=>{});
-          await prisma.user.update({where:{id:u.id},data:{gold:{increment:750},xp:{increment:1500}}});
-        }
-        const exPA=await prisma.achievement.findFirst({where:{userId:u.id,type:"path_of_antagonist"}});
-        if(!exPA){
-          await prisma.achievement.create({data:{userId:u.id,type:"path_of_antagonist"}}).catch(()=>{});
-          await prisma.user.update({where:{id:u.id},data:{gold:{increment:1000},xp:{increment:2000}}});
-        }
+      const darkTasksToday=await prisma.task.findMany({
+        where:{userId:u.id,branch:'dark',isDaily:true,createdAt:{gte:startOfToday()}}
+      });
+      if(darkTasksToday.length===0)continue;
+      if(!darkTasksToday.every(t=>t.completed))continue;
+      await prisma.user.update({where:{id:u.id},data:{darkSideActive:false,darkSideChoice:'forced',antagonistPathActive:true}});
+      await createNotification(u.id,"dark_side_forced_return","⚡ LAPTEV вернул тебя","LAPTEV: Время вышло. Я говорил что все возвращаются. Система ждала тебя. Добро пожаловать обратно.").catch(()=>{});
+      const exSW=await prisma.achievement.findFirst({where:{userId:u.id,type:"shadow_walker"}});
+      if(!exSW){
+        await prisma.achievement.create({data:{userId:u.id,type:"shadow_walker"}}).catch(()=>{});
+        await prisma.user.update({where:{id:u.id},data:{gold:{increment:750},xp:{increment:1500}}});
       }
+      console.log('Принудительный возврат (shadow + all dark done):', u.id);
     }
   }catch(e){console.error("CRON ERROR:",e.message);}
 },60*60*1000);

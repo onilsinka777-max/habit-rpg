@@ -113,10 +113,7 @@ export default function DarkSideChoice({ token, user, onChoose }) {
               ОСТАТЬСЯ В ТЕНИ
             </div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, textAlign: "center", maxWidth: 200, marginBottom: 28 }}>
-              Золото. Свобода. Хаос.<br/>Но кем ты станешь?<br/>
-              <span style={{ fontSize: 11, color: "rgba(255,80,80,0.6)", marginTop: 6, display: "block" }}>
-                Хорошо. Но через 24ч LAPTEV вернёт тебя принудительно.
-              </span>
+              Золото × 5 каждый квест.<br/>Но уровень продолжит падать.
             </div>
             <button onClick={(e) => { e.stopPropagation(); choose("shadow"); }}
               disabled={!!choosing} style={{
