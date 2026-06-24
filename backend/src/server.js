@@ -2263,7 +2263,8 @@ app.get("/legend-path",authMiddleware,async(req,res)=>{
     const today=startOfToday();
     const completedToday=await prisma.task.count({where:{userId:req.userId,completed:true,type:"legend",completedAt:{gte:today}}});
     const pendingToday=await prisma.task.count({where:{userId:req.userId,completed:false,type:"legend",expiresAt:{gte:today}}});
-    res.json({completedCount,completedToday,pendingToday,milestones:LEGEND_MILESTONES,unlockedAt:50});
+    const currentQuest=pendingToday>0?await prisma.task.findFirst({where:{userId:req.userId,completed:false,type:"legend",expiresAt:{gte:today}},select:{id:true,title:true,description:true}}):null;
+    res.json({completedCount,completedToday,pendingToday,currentQuest,milestones:LEGEND_MILESTONES,unlockedAt:50});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
