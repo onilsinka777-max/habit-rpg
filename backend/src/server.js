@@ -164,11 +164,10 @@ async function handlePostComplete(userId,streak,level,taskType){
   const user=await prisma.user.findUnique({where:{id:userId},select:{gold:true,chessWins:true,chessRating:true,streak:true,streakFreezeCount:true}});
   const existing=await prisma.achievement.findMany({where:{userId},select:{type:true}});
   const existingSet=new Set(existing.map(a=>a.type));
-  // Hall of Fame: first time reaching 50 legendary quests
+  // Legendary path completion: title only, no HallOfFame (HallOfFame is for Creator Path only)
   if(legendaryCount>=50){
-    const already=await prisma.hallOfFame.findFirst({where:{userId,type:"legendary_path"}}).catch(()=>null);
-    if(!already){
-      await prisma.hallOfFame.create({data:{userId,type:"legendary_path"}}).catch(()=>{});
+    const alreadyLegend=await prisma.user.findUnique({where:{id:userId},select:{title:true}}).catch(()=>null);
+    if(alreadyLegend&&alreadyLegend.title!=="Легенда"&&alreadyLegend.title!=="Победитель системы"){
       await prisma.user.update({where:{id:userId},data:{title:"Легенда"}}).catch(()=>{});
     }
   }
@@ -291,36 +290,41 @@ async function solveArchive(userId){
 }
 
 async function calculateRewards(cu,task,{comboMult=1,npcBonusMult=1,autoClass=null}={}){
-  const now=new Date();
-  const xpBActive=cu.xpBoostExpiresAt&&new Date(cu.xpBoostExpiresAt)>now;
-  const gBActive=cu.goldBoostExpiresAt&&new Date(cu.goldBoostExpiresAt)>now;
-  const xpM=(xpBActive?1.5:1)*(cu.xpBoostPermanent?1.25:1);
-  const goldM=(gBActive?1.5:1)*(cu.goldBoostPermanent?1.25:1);
-  const mMult=getMasteryMultipliers(cu.masteryPath||autoClass,task.branch);
-  const CLASS_BRANCH={warrior:'discipline',sage:'knowledge',strategist:'discipline',explorer:'fitness',balance:null,leader:'discipline'};
-  const classBranch=CLASS_BRANCH[cu.masteryPath||autoClass]||null;
-  const classBonusMult=(classBranch&&task.branch===classBranch)?1.1:1.0;
-  const archiveMult=cu.archiveXpBonus?1.1:1.0;
-  const pet=await prisma.pet.findUnique({where:{userId:cu.id}}).catch(()=>null);
-  const petStage=pet?(cu.streak>=30?'adult':cu.streak>=14?'baby':'egg'):null;
-  const petMult=petStage==='adult'?1.05:petStage==='baby'?1.02:1.0;
-  const userSkills=await prisma.userSkill.findMany({where:{userId:cu.id},include:{skill:true}}).catch(()=>[]);
-  let skillXpMult=1.0,skillGoldMult=1.0;
-  for(const us of userSkills){
-    const{effect,value}=us.skill;
-    if(effect==='global_xp_boost')skillXpMult*=(1+value);
-    else if(effect==='required_xp_boost'&&task.type==='required'&&task.branch==='discipline')skillXpMult*=(1+value);
-    else if((effect==='fitness_xp'||effect==='fitness_xp_major')&&task.branch==='fitness')skillXpMult*=(1+value);
-    else if((effect==='knowledge_xp'||effect==='knowledge_xp_major'||effect==='knowledge_master')&&task.branch==='knowledge')skillXpMult*=(1+value);
-    else if((effect==='self_xp'||effect==='self_xp_major')&&task.branch==='self_development')skillXpMult*=(1+value);
-    if(effect==='all_required_gold'&&task.type==='required')skillGoldMult*=value;
-    if(effect==='fitness_gold'&&task.branch==='fitness')skillGoldMult*=(1+value/100);
+  try{
+    const now=new Date();
+    const xpBActive=cu.xpBoostExpiresAt&&new Date(cu.xpBoostExpiresAt)>now;
+    const gBActive=cu.goldBoostExpiresAt&&new Date(cu.goldBoostExpiresAt)>now;
+    const xpM=(xpBActive?1.5:1)*(cu.xpBoostPermanent?1.25:1);
+    const goldM=(gBActive?1.5:1)*(cu.goldBoostPermanent?1.25:1);
+    const mMult=getMasteryMultipliers(cu.masteryPath||autoClass,task.branch);
+    const CLASS_BRANCH={warrior:'discipline',sage:'knowledge',strategist:'discipline',explorer:'fitness',balance:null,leader:'discipline'};
+    const classBranch=CLASS_BRANCH[cu.masteryPath||autoClass]||null;
+    const classBonusMult=(classBranch&&task.branch===classBranch)?1.1:1.0;
+    const archiveMult=cu.archiveXpBonus?1.1:1.0;
+    const pet=await prisma.pet.findUnique({where:{userId:cu.id}}).catch(()=>null);
+    const petStage=pet?(cu.streak>=30?'adult':cu.streak>=14?'baby':'egg'):null;
+    const petMult=petStage==='adult'?1.05:petStage==='baby'?1.02:1.0;
+    const userSkills=await prisma.userSkill.findMany({where:{userId:cu.id},include:{skill:true}}).catch(()=>[]);
+    let skillXpMult=1.0,skillGoldMult=1.0;
+    for(const us of userSkills){
+      const{effect,value}=us.skill;
+      if(effect==='global_xp_boost')skillXpMult*=(1+value);
+      else if(effect==='required_xp_boost'&&task.type==='required'&&task.branch==='discipline')skillXpMult*=(1+value);
+      else if((effect==='fitness_xp'||effect==='fitness_xp_major')&&task.branch==='fitness')skillXpMult*=(1+value);
+      else if((effect==='knowledge_xp'||effect==='knowledge_xp_major'||effect==='knowledge_master')&&task.branch==='knowledge')skillXpMult*=(1+value);
+      else if((effect==='self_xp'||effect==='self_xp_major')&&task.branch==='self_development')skillXpMult*=(1+value);
+      if(effect==='all_required_gold'&&task.type==='required')skillGoldMult*=value;
+      if(effect==='fitness_gold'&&task.branch==='fitness')skillGoldMult*=(1+value/100);
+    }
+    const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult*archiveMult*petMult*skillXpMult);
+    const goldGained=Math.floor(task.goldReward*getGoldMultiplier()*mMult.gold*goldM*classBonusMult*skillGoldMult);
+    const totalXpMult=Math.round(mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult*archiveMult*petMult*skillXpMult*100)/100;
+    const totalGoldMult=Math.round(mMult.gold*goldM*classBonusMult*skillGoldMult*100)/100;
+    return{xpGained,goldGained,multipliers:{total_xp:totalXpMult,total_gold:totalGoldMult,breakdown:{xpBoost:xpM,goldBoost:goldM,classBonus:classBonusMult,petBonus:petMult,archiveBonus:archiveMult,skillXpBonus:Math.round(skillXpMult*100)/100,skillGoldBonus:Math.round(skillGoldMult*100)/100,comboBonus:comboMult,npcBonus:npcBonusMult,masteryBonus:mMult.xp}}};
+  }catch(e){
+    console.error('calculateRewards error:',e.message);
+    return{xpGained:task.xpReward||15,goldGained:task.goldReward||8,multipliers:{total_xp:1,total_gold:1,breakdown:{}}};
   }
-  const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult*archiveMult*petMult*skillXpMult);
-  const goldGained=Math.floor(task.goldReward*getGoldMultiplier()*mMult.gold*goldM*classBonusMult*skillGoldMult);
-  const totalXpMult=Math.round(mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult*archiveMult*petMult*skillXpMult*100)/100;
-  const totalGoldMult=Math.round(mMult.gold*goldM*classBonusMult*skillGoldMult*100)/100;
-  return{xpGained,goldGained,multipliers:{total_xp:totalXpMult,total_gold:totalGoldMult,breakdown:{xpBoost:xpM,goldBoost:goldM,classBonus:classBonusMult,petBonus:petMult,archiveBonus:archiveMult,skillXpBonus:Math.round(skillXpMult*100)/100,skillGoldBonus:Math.round(skillGoldMult*100)/100,comboBonus:comboMult,npcBonus:npcBonusMult,masteryBonus:mMult.xp}}};
 }
 
 app.get("/",async(req,res)=>{const u=await prisma.user.count();res.json({message:"SERVER WORKS",users:u});});

@@ -219,7 +219,7 @@ export default function HallOfFame({ token }) {
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <div style={{ flex:1, height:1, background:"linear-gradient(90deg,transparent,rgba(245,182,55,0.2))" }}/>
             <span style={{ fontSize:11, color:"rgba(245,182,55,0.3)", fontStyle:"italic" }}>
-              Заверши Легендарный путь (50 квестов) чтобы войти в историю
+              Заверши Путь Создателя (30 дней) чтобы войти в историю
             </span>
             <div style={{ flex:1, height:1, background:"linear-gradient(90deg,rgba(245,182,55,0.2),transparent)" }}/>
           </div>

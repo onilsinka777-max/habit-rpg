@@ -2,13 +2,14 @@ const BRANCHES = ["discipline","fitness","self_development","knowledge"];
 const TASK_TYPES = ["required","recommended","custom","legendary"];
 const DIFFICULTIES = ["easy","medium","hard"];
 
-const BASE_XP = 15;
+const BASE_XP   = 15;
+const BASE_GOLD = 8;
 const DIFFICULTY_REWARDS = {
-  easy:      { xp: BASE_XP,      gold: 8,   xpReward: BASE_XP,      goldReward: 8,   label: 'Простой'     },
-  medium:    { xp: BASE_XP * 2,  gold: 15,  xpReward: BASE_XP * 2,  goldReward: 15,  label: 'Средний'     },
-  hard:      { xp: BASE_XP * 4,  gold: 30,  xpReward: BASE_XP * 4,  goldReward: 30,  label: 'Сложный'     },
-  legendary: { xp: BASE_XP * 10, gold: 75,  xpReward: BASE_XP * 10, goldReward: 75,  label: 'Легендарный' },
-  absolute:  { xp: BASE_XP * 15, gold: 112, xpReward: BASE_XP * 15, goldReward: 112, label: 'Абсолют'     },
+  easy:      { xp: BASE_XP,       gold: BASE_GOLD,       xpReward: BASE_XP,       goldReward: BASE_GOLD,       label: 'Простой'     },
+  medium:    { xp: BASE_XP * 2,   gold: BASE_GOLD * 2,   xpReward: BASE_XP * 2,   goldReward: BASE_GOLD * 2,   label: 'Средний'     },
+  hard:      { xp: BASE_XP * 4,   gold: BASE_GOLD * 4,   xpReward: BASE_XP * 4,   goldReward: BASE_GOLD * 4,   label: 'Сложный'     },
+  legendary: { xp: BASE_XP * 10,  gold: BASE_GOLD * 10,  xpReward: BASE_XP * 10,  goldReward: BASE_GOLD * 10,  label: 'Легендарный' },
+  absolute:  { xp: BASE_XP * 15,  gold: BASE_GOLD * 15,  xpReward: BASE_XP * 15,  goldReward: BASE_GOLD * 15,  label: 'Абсолют'     },
 };
 
 const DAILY_REQUIRED_PER_BRANCH    = 2;
