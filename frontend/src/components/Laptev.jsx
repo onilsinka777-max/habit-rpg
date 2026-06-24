@@ -122,7 +122,7 @@ export default function Laptev({ token, user, showToast, onNavigate }) {
   const [msgs, setMsgs] = useState([]);
   const [input, setInput]     = useState("");
   const [sending, setSending] = useState(false);
-  const [msgsLeft, setMsgsLeft] = useState(10);
+  const [msgsLeft, setMsgsLeft] = useState(5);
   const [tab, setTab]         = useState("chat");
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const userMsgCount = msgs.filter(m => m.role === "user").length;
@@ -139,7 +139,7 @@ export default function Laptev({ token, user, showToast, onNavigate }) {
         } else {
           setMsgs([{ role:"assistant", content:"Привет. Я Антон. Создал эту систему для себя — она изменила мою жизнь. Теперь она твоя. О чём поговорим?" }]);
         }
-        setMsgsLeft(data.messagesLeft ?? 10);
+        setMsgsLeft(data.messagesLeft ?? 5);
       })
       .catch(() => {
         setMsgs([{ role:"assistant", content:"Привет. Я Антон. Создал эту систему для себя — она изменила мою жизнь. Теперь она твоя. О чём поговорим?" }]);
@@ -160,7 +160,7 @@ export default function Laptev({ token, user, showToast, onNavigate }) {
       const history = newMsgs.slice(-9).slice(0,-1).map(m => ({ role:m.role, content:m.content }));
       const res = await axios.post(`${API}/laptev/chat`, { message:text, history }, auth);
       setMsgs(prev => [...prev, { role:"assistant", content:res.data.reply }]);
-      setMsgsLeft(res.data.messagesLeft ?? 9);
+      setMsgsLeft(res.data.messagesLeft ?? 4);
     } catch(e) {
       const msg = e.response?.data?.message || "Ошибка связи";
       setMsgs(prev => [...prev, { role:"assistant", content:msg }]);
@@ -296,7 +296,7 @@ export default function Laptev({ token, user, showToast, onNavigate }) {
             {msgsLeft <= 0 ? (
               <span style={{ marginLeft:"auto", fontSize:10, color:"rgba(239,68,68,0.7)", fontWeight:600 }}>Лимит исчерпан</span>
             ) : (
-              <span style={{ marginLeft:"auto", fontSize:10, color:"rgba(255,255,255,0.25)" }}>{msgsLeft}/10 сообщений</span>
+              <span style={{ marginLeft:"auto", fontSize:10, color:"rgba(255,255,255,0.25)" }}>{msgsLeft}/5 сообщений</span>
             )}
           </div>
 

@@ -2325,7 +2325,7 @@ app.post("/laptev/chat",authMiddleware,async(req,res)=>{
     const today=startOfToday();
     const isToday=user.laptevMsgDate&&new Date(user.laptevMsgDate)>=today;
     const count=isToday?user.laptevMsgCount:0;
-    if(count>=10)return res.status(429).json({message:"На сегодня хватит. Иди делай квесты. Завтра продолжим.",messagesLeft:0});
+    if(count>=5)return res.status(429).json({message:"На сегодня хватит. Иди делай квесты. Завтра продолжим.",messagesLeft:0});
     const{message,history=[]}=req.body;
     if(!message?.trim())return res.status(400).json({message:"Пустое сообщение"});
     // Compute branch stats for coaching context
@@ -2352,7 +2352,7 @@ app.post("/laptev/chat",authMiddleware,async(req,res)=>{
     await prisma.user.update({where:{id:req.userId},data:{laptevMsgCount:isToday?{increment:1}:1,laptevMsgDate:new Date()}});
     await prisma.laptevMessage.create({data:{userId:req.userId,role:"user",content:message}});
     await prisma.laptevMessage.create({data:{userId:req.userId,role:"assistant",content:reply}});
-    res.json({reply,messagesLeft:10-(isToday?count+1:1)});
+    res.json({reply,messagesLeft:5-(isToday?count+1:1)});
   }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
 });
 
@@ -2367,7 +2367,7 @@ app.get("/laptev/history",authMiddleware,async(req,res)=>{
     const todayCount=await prisma.laptevMessage.count({
       where:{userId:req.userId,role:"user",createdAt:{gte:today}},
     });
-    res.json({messages,todayCount,messagesLeft:Math.max(0,10-todayCount)});
+    res.json({messages,todayCount,messagesLeft:Math.max(0,5-todayCount)});
   }catch(e){res.status(500).json({message:"Ошибка сервера"});}
 });
 
