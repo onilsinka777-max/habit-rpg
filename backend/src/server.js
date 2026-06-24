@@ -307,7 +307,7 @@ app.get("/me",authMiddleware,async(req,res)=>{
     chessRating:user.chessRating||1000,
     activeNpcId:user.activeNpcId||null,
     missedDaysStreak:user.missedDaysStreak||0,
-    tasksToday:await prisma.task.count({where:{userId:req.userId,completed:true,updatedAt:{gte:today}}}).catch(()=>0),
+    tasksToday:await prisma.task.count({where:{userId:req.userId,completed:true,createdAt:{gte:today}}}).catch(()=>0),
     xpToday:0,
   });
   // Update lastLoginAt
@@ -2331,7 +2331,7 @@ app.post("/laptev/chat",authMiddleware,async(req,res)=>{
     // Compute branch stats for coaching context
     const BRANCHES=["discipline","fitness","self_development","knowledge"];
     const weekAgo=new Date(Date.now()-7*24*60*60*1000);
-    const weeklyTasks=await prisma.task.findMany({where:{userId:req.userId,completed:true,updatedAt:{gte:weekAgo}},select:{branch:true,xpReward:true}});
+    const weeklyTasks=await prisma.task.findMany({where:{userId:req.userId,completed:true,createdAt:{gte:weekAgo}},select:{branch:true,xpReward:true}});
     const branchXp={};
     BRANCHES.forEach(b=>branchXp[b]=0);
     weeklyTasks.forEach(t=>{if(branchXp[t.branch]!==undefined)branchXp[t.branch]+=(t.xpReward||0);});
