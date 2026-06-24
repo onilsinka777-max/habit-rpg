@@ -576,7 +576,11 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const classBranch=CLASS_BRANCH[userClass]||null;
     const classBonusMult=(classBranch&&task.branch===classBranch)?1.1:1.0;
     const archiveMult=cu.archiveXpBonus?1.1:1.0;
-    const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult*archiveMult);
+    // ── Pet XP bonus ─────────────────────────────────────────────────────────
+    const pet=await prisma.pet.findUnique({where:{userId:req.userId}}).catch(()=>null);
+    const petStage=pet?(cu.streak>=30?'adult':cu.streak>=14?'baby':'egg'):null;
+    const petMult=petStage==='adult'?1.05:petStage==='baby'?1.02:1.0;
+    const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult*archiveMult*petMult);
     const{xp,level}=applyXpGain(cu.xp,cu.level,xpGained);
     const goldGain=Math.floor(task.goldReward*getGoldMultiplier()*mMult.gold*goldM);
     // ── Random drop (10%) ────────────────────────────────────────────────────
@@ -2800,11 +2804,11 @@ app.get("/shared-streak/active",authMiddleware,async(req,res)=>{
 
 // ── БОСС НЕДЕЛИ ───────────────────────────────────────────────────────────────
 function getBossTemplate(memberCount){
-  if(memberCount<=5)return{name:"Теневой страж",description:"Древний хранитель лени охраняет врата прогресса",totalQuests:50,rewardGold:200,rewardXp:500};
-  if(memberCount<=10)return{name:"Повелитель прокрастинации",description:"Он питается отложенными делами и несбыточными планами",totalQuests:120,rewardGold:400,rewardXp:1000};
-  if(memberCount<=20)return{name:"Архидемон слабости",description:"Тысячи лет он побеждал людей. Но не ваш клан.",totalQuests:250,rewardGold:800,rewardXp:2000};
-  if(memberCount<=50)return{name:"Хаос-повелитель",description:"Воплощение хаоса и беспорядка. Победи его — докажи что система работает.",totalQuests:500,rewardGold:1500,rewardXp:4000};
-  return{name:"АБСОЛЮТНАЯ ТЬМА",description:"Финальный враг. Никто ещё не побеждал его. Вы — первые?",totalQuests:1000,rewardGold:3000,rewardXp:8000};
+  if(memberCount<=5)return{name:"Теневой страж",description:"Древний хранитель лени охраняет врата прогресса",totalQuests:200,rewardGold:1000,rewardXp:2000};
+  if(memberCount<=10)return{name:"Повелитель прокрастинации",description:"Он питается отложенными делами и несбыточными планами",totalQuests:480,rewardGold:1000,rewardXp:2000};
+  if(memberCount<=20)return{name:"Архидемон слабости",description:"Тысячи лет он побеждал людей. Но не ваш клан.",totalQuests:1000,rewardGold:1000,rewardXp:2000};
+  if(memberCount<=50)return{name:"Хаос-повелитель",description:"Воплощение хаоса и беспорядка.",totalQuests:2000,rewardGold:1000,rewardXp:2000};
+  return{name:"АБСОЛЮТНАЯ ТЬМА",description:"Финальный враг. Никто ещё не побеждал его.",totalQuests:4000,rewardGold:1000,rewardXp:2000};
 }
 
 async function ensureWeeklyBoss(clanId){

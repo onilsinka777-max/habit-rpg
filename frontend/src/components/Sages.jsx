@@ -44,7 +44,7 @@ export default function Sages({ token, showToast }) {
       {loading ? (
         <p className="empty-state">Загрузка...</p>
       ) : sages.length === 0 ? (
-        <p className="empty-state">Зал пуст. Первые мудрецы скоро появятся.</p>
+        <p className="empty-state">Здесь пока никого нет. Стань первым Мудрецом.</p>
       ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
           {sages.map((sage, i) => (

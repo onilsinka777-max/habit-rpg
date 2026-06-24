@@ -21,7 +21,7 @@ function Bar({ value, color, label }) {
   );
 }
 
-export default function Pet({ token, showToast, userLevel=1 }) {
+export default function Pet({ token, showToast, userLevel=1, userStreak=0 }) {
   if (userLevel < 9) return <LockedFeature requiredLevel={9} currentLevel={userLevel} icon="🥚" title="Питомец" description="Твой верный спутник появится скоро..." />;
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
   const [data,       setData]       = useState(null);
@@ -115,6 +115,25 @@ export default function Pet({ token, showToast, userLevel=1 }) {
         <span style={{ fontSize:12, color:"rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.06)", borderRadius:6, padding:"2px 8px" }}>
           {STAGE_LABEL[pet.stage]}
         </span>
+
+        {/* XP bonus / hatch info */}
+        <div style={{ marginTop:10 }}>
+          {pet.stage === "adult" && (
+            <div style={{ fontSize:12, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.2)", borderRadius:8, padding:"5px 12px", display:"inline-block" }}>
+              🐾 Бонус: +5% XP ко всем квестам
+            </div>
+          )}
+          {pet.stage === "baby" && (
+            <div style={{ fontSize:12, color:"#fbbf24", background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:8, padding:"5px 12px", display:"inline-block" }}>
+              🐾 Бонус: +2% XP ко всем квестам
+            </div>
+          )}
+          {pet.stage === "egg" && (
+            <div style={{ fontSize:12, color:"rgba(255,255,255,0.35)", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:8, padding:"5px 12px", display:"inline-block" }}>
+              🥚 Вылупится через {Math.max(1, 14 - userStreak)} {14 - userStreak === 1 ? "день" : (14 - userStreak < 5 ? "дня" : "дней")}
+            </div>
+          )}
+        </div>
       </div>
 
       <div style={{ maxWidth:320, margin:"0 auto", padding:"0 8px" }}>
