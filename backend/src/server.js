@@ -2984,8 +2984,7 @@ app.post("/player2/unlock-peace",authMiddleware,async(req,res)=>{
     if(!user)return res.status(404).json({message:"Not found"});
     if(!user.player2Completed)return res.status(400).json({message:"Сначала пройди все 7 квестов Игрока №2"});
     if(user.peaceUnlocked)return res.status(400).json({message:"Ветка уже открыта"});
-    if(user.gold<2000)return res.status(400).json({message:`Нужно 2000 золота. У тебя: ${user.gold}`});
-    await prisma.user.update({where:{id:req.userId},data:{peaceUnlocked:true,gold:{decrement:2000}}});
+    await prisma.user.update({where:{id:req.userId},data:{peaceUnlocked:true}});
     const existing=await prisma.achievement.findFirst({where:{userId:req.userId,type:"peace_unlocked"}});
     if(!existing){
       await prisma.achievement.create({data:{userId:req.userId,type:"peace_unlocked"}}).catch(()=>{});

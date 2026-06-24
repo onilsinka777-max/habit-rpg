@@ -18,8 +18,7 @@ const FINAL_MSG = `Видишь разницу?
 Называется — ПОКОЙ.
 Квесты про сосредоточенность и внутренний контроль.
 Самые сложные в системе.
-
-2000 золота. И она твоя навсегда.`;
+Она твоя.`;
 
 function TypeWriter({ text, speed = 28, onDone }) {
   const [count, setCount] = useState(0);
@@ -384,15 +383,10 @@ export default function Player2({ token, showToast, onPeaceUnlocked }) {
                     className="p2-btn"
                     style={{ width: "100%", padding: "14px", fontSize: 15, background: "rgba(74,53,112,0.4)", borderColor: "#4a3570", color: "#c4b5fd" }}
                     onClick={unlockPeace}
-                    disabled={unlocking || (status?.gold || 0) < 2000}
+                    disabled={unlocking}
                   >
-                    {unlocking ? "..." : "Открыть ветку ПОКОЙ — 2000 💰"}
+                    {unlocking ? "..." : "Открыть ветку ПОКОЙ"}
                   </button>
-                  {(status?.gold || 0) < 2000 && (
-                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 8, textAlign: "center" }}>
-                      Накопи 2000 золота и вернись. Сейчас: {status?.gold || 0} 💰
-                    </div>
-                  )}
                 </>
               )}
             </div>
