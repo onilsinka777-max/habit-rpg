@@ -2037,6 +2037,22 @@ app.get("/search",authMiddleware,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
+app.post("/easter/logo", authMiddleware, async(req,res)=>{
+  try {
+    const key="easter_logo";
+    const egg=await prisma.easterEgg.findUnique({where:{key}}).catch(()=>null);
+    if(!egg){
+      await prisma.user.update({where:{id:req.userId},data:{gold:{increment:500}}});
+      return res.json({gold:500,message:"Секрет найден!"});
+    }
+    const already=await prisma.easterEggUnlock.findFirst({where:{userId:req.userId,eggId:egg.id}}).catch(()=>null);
+    if(already) return res.json({message:"already"});
+    await prisma.easterEggUnlock.create({data:{userId:req.userId,eggId:egg.id}}).catch(()=>{});
+    await prisma.user.update({where:{id:req.userId},data:{gold:{increment:500}}});
+    res.json({gold:500,message:"Секрет найден!"});
+  } catch(e){ res.status(500).json({message:"Ошибка"}); }
+});
+
 app.get("/health",(req,res)=>res.json({status:"ok"}));
 // ── LEGEND PATH ───────────────────────────────────────────────────────────────
 const LEGEND_MILESTONES={5:{gold:100,xp:500,title:"Ученик Легенды"},10:{gold:200,xp:1000,title:"Воин Легенды"},25:{gold:500,xp:2500,title:"Страж Легенды"},40:{gold:1000,xp:5000,title:"Мастер Легенды"},50:{gold:2000,xp:10000,title:"ЛЕГЕНДА"}};

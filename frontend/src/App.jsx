@@ -46,6 +46,7 @@ import CreatorPath from "./components/CreatorPath";
 import HallOfFame from "./components/HallOfFame";
 import Sages from "./components/Sages";
 import VoiceInput from "./components/VoiceInput";
+import UnlockNotification from "./components/UnlockNotification";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
 import StarField from "./components/StarField";
 import RewardToastContainer, { showRewardToast } from "./components/ToastNotification";
@@ -149,6 +150,34 @@ function getDifficultyMeta(key) {
   return DIFFICULTIES.find(d => d.key === key) || DIFFICULTIES[0];
 }
 
+function getUnlockedFeatures(level) {
+  return {
+    quests: true, profile: true, worldmap: true, journal: true,
+    goals: true, pomodoro: true, stats: true, achievements: true,
+    library: true, feed: true, gratitude: true, chess: true,
+    friends: true, laptev: true, sages: true, report: true,
+    "hall-of-fame": true,
+    shop: level >= 2,
+    chains: level >= 3,
+    marathons: level >= 4,
+    npc: level >= 5,
+    league: level >= 6,
+    season: level >= 7,
+    skills: level >= 8,
+    pet: level >= 9,
+    clan: level >= 10,
+    mastery: level >= 15,
+    "legend-path": level >= 50,
+    "creator-path": level >= 75,
+  };
+}
+
+const UNLOCK_AT = {
+  2:'shop', 3:'chains', 4:'marathons', 5:'npc',
+  6:'league', 7:'season', 8:'skills', 9:'pet',
+  10:'clans', 15:'mastery', 50:'legendPath', 75:'creatorPath',
+};
+
 export default function App() {
   const [loadingDone,   setLoadingDone]   = useState(false);
   const [themeChosen,   setThemeChosen]   = useState(() => !!localStorage.getItem("theme_chosen"));
@@ -201,6 +230,11 @@ export default function App() {
   const [scrollError,        setScrollError]        = useState("");
   const [scrollBusy,         setScrollBusy]         = useState(false);
   const [onlineCount,        setOnlineCount]        = useState(null);
+  const [unlockFeature,      setUnlockFeature]      = useState(null);
+  const [easterEggPopup,     setEasterEggPopup]     = useState(null);
+
+  const clickCountRef = useRef(0);
+  const clickTimerRef = useRef(null);
 
   const currentNavItem = NAV_ITEMS.find(n => n.key === view);
   const branchTheme    = TAB_BRANCHES.find(b => b.key === activeBranch) || BRANCHES[0];
@@ -389,6 +423,20 @@ export default function App() {
   useEffect(() => { if (token && (view === "shop" || view === "library")) { loadShop(); loadLibrary(); } }, [token, view]);
 
   useEffect(() => {
+    if (!user?.level) return;
+    const shown = JSON.parse(localStorage.getItem('unlock_shown') || '{}');
+    const feature = UNLOCK_AT[user.level];
+    if (feature && !shown[user.level]) {
+      const t = setTimeout(() => {
+        setUnlockFeature(feature);
+        shown[user.level] = true;
+        localStorage.setItem('unlock_shown', JSON.stringify(shown));
+      }, 1500);
+      return () => clearTimeout(t);
+    }
+  }, [user?.level]);
+
+  useEffect(() => {
     const handler = (e) => {
       if (!token) return;
       if (e.ctrlKey && e.key === "k") { e.preventDefault(); setSearchOpen(v => !v); return; }
@@ -402,6 +450,22 @@ export default function App() {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
   }, []);
+
+  const handleLogoClick = () => {
+    clickCountRef.current++;
+    clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = setTimeout(() => { clickCountRef.current = 0; }, 3000);
+    if (clickCountRef.current >= 7) {
+      clickCountRef.current = 0;
+      const found = localStorage.getItem('easter_logo');
+      if (!found) {
+        localStorage.setItem('easter_logo', 'true');
+        fetch(`${API}/easter/logo`, { method:'POST', headers:{ Authorization:`Bearer ${token}` } })
+          .then(r => r.json()).then(d => { if (d.gold) loadProfile(); }).catch(() => {});
+        setEasterEggPopup({ icon:'🎯', title:'Ты нашёл секрет', text:'Большинство даже не догадывались что это можно нажать. +500 золота.' });
+      }
+    }
+  };
 
   const branchTasks    = tasks.filter(t => t.branch === activeBranch && (t.type === "required" || t.type === "recommended"));
   const legendaryTasks = tasks.filter(t => t.type === "legendary" && !t.completed && (!t.expiresAt || new Date(t.expiresAt) > new Date()));
@@ -452,7 +516,7 @@ export default function App() {
         <header className="topbar">
           <div>
             <p className="topbar-eyebrow">ГЕЙМИФИКАЦИЯ ЖИЗНИ</p>
-            <h1 className="brand-title levelup-title">LevelUp</h1>
+            <h1 className="brand-title levelup-title" onClick={handleLogoClick} style={{ cursor:'default', userSelect:'none' }}>LevelUp</h1>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
             {onlineCount !== null && (
@@ -498,18 +562,20 @@ export default function App() {
         {/* ── МИР ──────────────────────────────────────────────────────── */}
         {["worldmap","mastery","skills","league","chains","marathons","season","legend-path","creator-path","hall-of-fame"].includes(view) && (
           <>
+            {(() => { const f = getUnlockedFeatures(user?.level||1); return (
             <SectionTabs tabs={[
               {key:"worldmap",     label:"Карта",         icon:"🗺️"},
-              {key:"chains",       label:"Цепочки",       icon:"⛓️"},
-              {key:"marathons",    label:"Марафоны",      icon:"🏃"},
-              {key:"mastery",      label:"Мастерство",    icon:"🌟"},
-              {key:"skills",       label:"Навыки",        icon:"⚡"},
-              {key:"league",       label:"Лиги",          icon:"🏆"},
-              {key:"season",       label:"Сезон",         icon:"🌅"},
-              {key:"legend-path",  label:"Легенда",       icon:"👑"},
-              {key:"creator-path", label:"Создатель",     icon:"⚡"},
-              {key:"hall-of-fame", label:"Зал Славы",     icon:"🏆"},
-            ]} active={view} onChange={setView} />
+              f.chains          && {key:"chains",       label:"Цепочки",       icon:"⛓️"},
+              f.marathons       && {key:"marathons",    label:"Марафоны",      icon:"🏃"},
+              f.mastery         && {key:"mastery",      label:"Мастерство",    icon:"🌟"},
+              f.skills          && {key:"skills",       label:"Навыки",        icon:"⚡"},
+              f.league          && {key:"league",       label:"Лиги",          icon:"🏆"},
+              f.season          && {key:"season",       label:"Сезон",         icon:"🌅"},
+              f["legend-path"]  && {key:"legend-path",  label:"Легенда",       icon:"👑"},
+              f["creator-path"] && {key:"creator-path", label:"Создатель",     icon:"⚡"},
+              f["hall-of-fame"] && {key:"hall-of-fame", label:"Зал Славы",     icon:"🏆"},
+            ].filter(Boolean)} active={view} onChange={setView} />
+            ); })()}
             {view === "worldmap"     && <WorldMap    token={token} userLevel={user?.level||1} showToast={showToast} />}
             {view === "chains"       && <QuestChains token={token} showToast={showToast} askConfirm={askConfirm} />}
             {view === "marathons"    && <Marathons   token={token} showToast={showToast} />}
@@ -526,14 +592,16 @@ export default function App() {
         {/* ── СОЦИАЛКА ─────────────────────────────────────────────────── */}
         {["friends","clan","feed","npc","gratitude","chess"].includes(view) && (
           <>
+            {(() => { const f = getUnlockedFeatures(user?.level||1); return (
             <SectionTabs tabs={[
               {key:"friends",   label:"Друзья",       icon:"🤝"},
-              {key:"clan",      label:"Клан",         icon:"⚔️"},
+              f.clan        && {key:"clan",      label:"Клан",         icon:"⚔️"},
               {key:"chess",     label:"Шахматы",      icon:"♟️"},
               {key:"feed",      label:"Лента",        icon:"📡"},
-              {key:"npc",       label:"Наставники",   icon:"🧙"},
+              f.npc         && {key:"npc",       label:"Наставники",   icon:"🧙"},
               {key:"gratitude", label:"Благодарность",icon:"🌿"},
-            ]} active={view} onChange={setView} />
+            ].filter(Boolean)} active={view} onChange={setView} />
+            ); })()}
             {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} onChessInvite={(gid) => { setChessGameId(gid || null); setView("chess"); }} onViewProfile={(id) => { setViewProfileId(id); setView("profile"); }} />}
             {view === "clan"      && <Clan     token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level||1} />}
             {view === "chess"     && <Chess    token={token} showToast={showToast} gameId={chessGameId} />}
@@ -546,19 +614,21 @@ export default function App() {
         {/* ── ПРОФИЛЬ ──────────────────────────────────────────────────── */}
         {["profile","achievements","stats","shop","library","journal","goals","pet","pomodoro","report","laptev","sages"].includes(view) && (
           <>
+            {(() => { const f = getUnlockedFeatures(user?.level||1); return (
             <SectionTabs tabs={[
               {key:"profile",      label:"Обзор",         icon:"🪪"},
               {key:"achievements", label:"Достижения",    icon:"🏅"},
               {key:"stats",        label:"Статистика",    icon:"📊"},
-              {key:"shop",         label:"Магазин",       icon:"🛒"},
+              f.shop         && {key:"shop",         label:"Магазин",       icon:"🛒"},
               {key:"library",      label:"Библиотека",    icon:"📚"},
               {key:"journal",      label:"Дневник",       icon:"📔"},
               {key:"goals",        label:"Цели",          icon:"🎯"},
-              {key:"pet",          label:"Питомец",       icon:"🐾"},
+              f.pet          && {key:"pet",          label:"Питомец",       icon:"🐾"},
               {key:"pomodoro",     label:"Помодоро",      icon:"⏱️"},
               {key:"laptev",       label:"Создатель",     icon:"👑"},
               {key:"sages",        label:"Мудрецы",       icon:"🏛️"},
-            ]} active={view} onChange={setView} />
+            ].filter(Boolean)} active={view} onChange={setView} />
+            ); })()}
             {view === "profile"      && <Profile     token={token} showToast={showToast} userId={viewProfileId} currentUserId={user?.id} onBack={viewProfileId ? () => { setViewProfileId(null); setView("friends"); } : null} />}
             {view === "achievements" && <Achievements token={token} showToast={showToast} />}
             {view === "stats"        && <Stats        token={token} />}
@@ -837,6 +907,23 @@ export default function App() {
           </div>
         );
       })()}
+
+      {/* ── Unlock Notification ── */}
+      {unlockFeature && <UnlockNotification feature={unlockFeature} onClose={() => setUnlockFeature(null)} />}
+
+      {/* ── Easter Egg Popup ── */}
+      {easterEggPopup && (
+        <div style={{ position:'fixed', inset:0, zIndex:10003, background:'rgba(0,0,0,0.88)', display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={() => setEasterEggPopup(null)}>
+          <div style={{ background:'linear-gradient(135deg,#0b0e1a,#1a0a2e)', border:'2px solid #f5b637', borderRadius:24, padding:'40px 28px', maxWidth:320, textAlign:'center', boxShadow:'0 0 60px rgba(245,182,55,0.4)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:52, marginBottom:12 }}>{easterEggPopup.icon}</div>
+            <h2 style={{ fontSize:20, fontWeight:900, color:'#fcd34d', marginBottom:10 }}>{easterEggPopup.title}</h2>
+            <p style={{ fontSize:13, color:'rgba(255,255,255,0.6)', lineHeight:1.7, marginBottom:24 }}>{easterEggPopup.text}</p>
+            <button className="btn btn-primary" style={{ width:'100%' }} onClick={() => setEasterEggPopup(null)}>Принять!</button>
+          </div>
+        </div>
+      )}
 
       {/* ── LAPTEV Milestone Popup ── */}
       {laptevMilestone && (
