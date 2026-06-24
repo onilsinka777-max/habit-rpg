@@ -79,6 +79,7 @@ const BRANCHES = [
 
 const CUSTOM_BRANCH = { key:"custom",  label:"Свои",  icon:"✏️",  accent:"#a78bfa", glow:"rgba(167,139,250,0.35)" };
 const PEACE_BRANCH  = { key:"peace",   label:"Покой", icon:"🌑",  accent:"#4a3570", glow:"rgba(74,53,112,0.45)"  };
+const DARK_BRANCH   = { key:"dark", label:"Саморазрушение", icon:"💀", accent:"#cc0000", glow:"rgba(204,0,0,0.35)" };
 const TAB_BRANCHES  = [...BRANCHES, CUSTOM_BRANCH];
 
 const MASTERY_UNLOCK_LEVEL = 25;
@@ -380,20 +381,19 @@ export default function App() {
       await loadTasks();
       playQuestComplete();
       const d = completeRes.data;
-      const mult = d.multipliers?.total_xp;
-      const multStr = (mult && mult > 1.05) ? ` ×${mult}` : '';
-      const comboStr = d.comboBonus > 0 ? ` (+25% комбо)` : '';
-      const xpLabel = `✨ +${d.xpGained} XP${comboStr}${multStr}`;
-      const goldLabel = `💰 +${d.goldGained} золота`;
-      if (d.xpGained)   showRewardToast(xpLabel, 'xp');
-      if (d.goldGained) showRewardToast(goldLabel, 'gold');
-      if (taskObj?.isNpcQuest && taskObj?.npcName) showRewardToast(`⚡ Задание ${taskObj.npcName} выполнено!`, 'level');
-      if (d.streakJustCompleted) { setStreakModal({ streak: d.newStreak }); playStreakComplete(); }
-      // Тёмная сторона: показываем особые сообщения
       if (d.darkSide) {
-        showRewardToast(`💰 +${d.goldGained} золота`, 'gold');
-        if (d.xpLost) showRewardToast(`💔 -${d.xpLost} XP`, 'xp');
-        showToast(d.message, "error");
+        const xpLost = Math.abs(d.xpGained || 0);
+        showRewardToast(`💀 -${xpLost} XP · +${d.goldGained} золота`, 'error');
+      } else {
+        const mult = d.multipliers?.total_xp;
+        const multStr = (mult && mult > 1.05) ? ` ×${mult}` : '';
+        const comboStr = d.comboBonus > 0 ? ` (+25% комбо)` : '';
+        const xpLabel = `✨ +${d.xpGained} XP${comboStr}${multStr}`;
+        const goldLabel = `💰 +${d.goldGained} золота`;
+        if (d.xpGained)   showRewardToast(xpLabel, 'xp');
+        if (d.goldGained) showRewardToast(goldLabel, 'gold');
+        if (taskObj?.isNpcQuest && taskObj?.npcName) showRewardToast(`⚡ Задание ${taskObj.npcName} выполнено!`, 'level');
+        if (d.streakJustCompleted) { setStreakModal({ streak: d.newStreak }); playStreakComplete(); }
       }
       const res = await axios.get(`${API}/me`, authHeaders);
       setUser(res.data);
@@ -501,6 +501,8 @@ export default function App() {
   };
 
   useEffect(() => { if (token) { loadProfile(); loadTasks(); axios.get(`${API}/online-count`,authHeaders).then(r=>setOnlineCount(r.data.count)).catch(()=>{}); } }, [token]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (user?.darkSideActive) setActiveBranch("dark"); }, [user?.darkSideActive]);
   useEffect(() => {
     if (!token) return;
     const pollUnread = () => axios.get(`${API}/messages/unread-count`, authHeaders).then(r => setUnreadMessages(r.data.count || 0)).catch(() => {});
@@ -809,7 +811,7 @@ export default function App() {
               </section>
             )}
 
-            {legendaryTasks.length > 0 && (
+            {legendaryTasks.length > 0 && !user?.darkSideActive && (
               <section className="legendary-section">
                 <div className="section-eyebrow"><span>🏆</span> Легендарный квест недели</div>
                 {legendaryTasks.map(t => (
@@ -820,7 +822,10 @@ export default function App() {
             )}
 
             <nav className="branch-tabs">
-              {[...TAB_BRANCHES, ...(user?.peaceUnlocked ? [PEACE_BRANCH] : [])].map(b => (
+              {(user?.darkSideActive
+                ? [DARK_BRANCH]
+                : [...TAB_BRANCHES, ...(user?.peaceUnlocked ? [PEACE_BRANCH] : [])]
+              ).map(b => (
                 <button key={b.key}
                   className={`branch-tab ${activeBranch === b.key ? "active" : ""}`}
                   style={activeBranch === b.key ? { background: b.accent, boxShadow: `0 8px 20px ${b.glow}` } : undefined}
@@ -831,7 +836,56 @@ export default function App() {
             </nav>
 
             <div className="branch-content" key={activeBranch}>
-              {activeBranch === "peace" ? (
+              {activeBranch === "dark" ? (
+                <section className="quest-section">
+                  <style>{`@keyframes darkGlow{0%,100%{box-shadow:0 0 8px rgba(204,0,0,0.2)}50%{box-shadow:0 0 20px rgba(204,0,0,0.5)}}`}</style>
+                  <div className="section-eyebrow" style={{color:"#cc0000"}}>
+                    <span>💀</span> КВЕСТЫ САМОРАЗРУШЕНИЯ
+                  </div>
+                  {branchTasks.length === 0 ? (
+                    <p className="empty-state" style={{color:"rgba(204,0,0,0.5)"}}>Квесты загружаются...</p>
+                  ) : (
+                    <div className="quest-list">
+                      {branchTasks.map(t => (
+                        <div key={t.id} style={{
+                          background:"linear-gradient(135deg,#1a0000,#0d0000)",
+                          border:"1px solid rgba(204,0,0,0.3)",
+                          borderLeft:"4px solid #cc0000",
+                          borderRadius:12, marginBottom:10, overflow:"hidden",
+                          animation:"darkGlow 3s ease-in-out infinite",
+                        }}>
+                          <div style={{padding:"12px 14px"}}>
+                            <div style={{fontSize:11,color:"#7a0000",fontWeight:700,marginBottom:4}}>
+                              💀 {t.type === "required" ? "ОБЯЗАТЕЛЬНО" : "РЕКОМЕНДУЕТСЯ"}
+                            </div>
+                            <div style={{fontSize:14,fontWeight:600,color:"#ffaaaa",marginBottom:6}}>{t.title}</div>
+                            {t.description && <div style={{fontSize:12,color:"rgba(255,150,150,0.45)",marginBottom:8,lineHeight:1.5}}>{t.description}</div>}
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                              <span style={{fontSize:11}}>
+                                <span style={{color:"#cc0000"}}>-{Math.abs(t.xpReward)} XP</span>
+                                {" · "}
+                                <span style={{color:"#f5b637"}}>+{t.goldReward} 💰</span>
+                              </span>
+                              <button
+                                onClick={() => confirmComplete(t)}
+                                disabled={loadingTaskId === t.id || t.completed}
+                                style={{
+                                  background: t.completed ? "rgba(122,0,0,0.3)" : "linear-gradient(135deg,#7a0000,#cc0000)",
+                                  color: t.completed ? "#7a0000" : "#fff",
+                                  border:"1px solid #cc0000", borderRadius:8,
+                                  padding:"5px 14px", fontSize:12, fontWeight:700,
+                                  cursor: t.completed ? "default" : "pointer",
+                                }}>
+                                {loadingTaskId === t.id ? "..." : t.completed ? "✓" : "Выполнить"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ) : activeBranch === "peace" ? (
                 <section className="quest-section">
                   <style>{`
                     @keyframes peacePulse {

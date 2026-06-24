@@ -660,31 +660,33 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     if(!task)return res.status(404).json({message:"Task not found"});
     if(task.userId!==req.userId)return res.status(403).json({message:"Forbidden"});
     if(task.completed)return res.status(400).json({message:"Already completed"});
-    const updatedTask=await prisma.task.update({where:{id:taskId},data:{completed:true,completedAt:new Date()}});
+    // Fetch user BEFORE marking complete to validate dark side state
     const cu=await prisma.user.findUnique({where:{id:req.userId}});
     const now=new Date();const today=startOfToday();
 
-    // ── Тёмная сторона: особая механика ─────────────────────────────────────
-    if(cu.darkSideActive&&!cu.darkSideChoice){
-      const darkGold=task.goldReward*5;
-      const darkXpLoss=task.xpReward*3;
-      let newXp=Math.max(0,cu.xp-darkXpLoss);
+    // ── Тёмная сторона: блокируем обычные квесты ─────────────────────────────
+    if(cu.darkSideActive&&!cu.darkSideChoice&&task.branch!=='dark'){
+      return res.status(400).json({message:"На тёмной стороне доступны только квесты саморазрушения.",code:"DARK_SIDE_ACTIVE"});
+    }
+
+    const updatedTask=await prisma.task.update({where:{id:taskId},data:{completed:true,completedAt:new Date()}});
+
+    // ── Тёмные квесты: xpReward отрицательный, goldReward напрямую ───────────
+    if(task.branch==='dark'){
+      const goldGained=task.goldReward;
+      let newXp=cu.xp+task.xpReward; // xpReward < 0
       let newLevel=cu.level;
-      while(newLevel>1&&newXp<=0){
-        newLevel--;
-        newXp=Math.max(0,getXpToNextLevel(newLevel)+newXp);
-      }
+      while(newLevel>1&&newXp<0){newLevel--;newXp=getXpToNextLevel(newLevel)+newXp;}
+      if(newXp<0)newXp=0;
       const hoursSince=cu.darkSideStartedAt?(Date.now()-new Date(cu.darkSideStartedAt).getTime())/(1000*60*60):0;
       const currentDarkDay=Math.floor(hoursSince/24)+1;
-      await prisma.user.update({where:{id:req.userId},data:{xp:newXp,level:newLevel,gold:{increment:darkGold},darkSideDay:currentDarkDay,lastActiveQuestDate:now}});
+      await prisma.user.update({where:{id:req.userId},data:{xp:newXp,level:newLevel,gold:{increment:goldGained},darkSideDay:currentDarkDay,lastActiveQuestDate:now}});
       if(hoursSince>=20){
         const choiceNotif=await prisma.notification.findFirst({where:{userId:req.userId,type:"dark_side_choice"}});
-        if(!choiceNotif){
-          await createNotification(req.userId,"dark_side_choice","⚫ LAPTEV говорит","LAPTEV: Я вижу что происходит. Твой уровень падает. Твой аватар меняется. Ты ещё можешь вернуться. Или остаться в тени навсегда.");
-        }
+        if(!choiceNotif)await createNotification(req.userId,"dark_side_choice","⚫ LAPTEV говорит","LAPTEV: Я вижу что происходит. Твой уровень падает. Твой аватар меняется. Ты ещё можешь вернуться. Или остаться в тени навсегда.");
       }
-      const darkMsg=currentDarkDay===1?"Золото льётся рекой. Но ты чувствуешь что теряешь что-то важное.":"Тьма усиливается.";
-      return res.json({...updatedTask,darkSide:true,goldGained:darkGold,xpLost:darkXpLoss,newLevel,newXp,leveledUp:false,message:darkMsg,newAchievements:[],petCreated:false});
+      const darkMsg=currentDarkDay===1?"Золото получено. Уровень падает.":`День ${currentDarkDay}. Тьма усиливается.`;
+      return res.json({...updatedTask,darkSide:true,xpGained:task.xpReward,goldGained,newLevel,newXp,leveledUp:false,message:darkMsg,newAchievements:[],petCreated:false});
     }
 
     // ── Flow mode: 5+ quests in 30 min → flat +25% XP ───────────────────────

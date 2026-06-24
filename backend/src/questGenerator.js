@@ -266,6 +266,39 @@ async function ensureDailyQuests(userId) {
   if (user.peaceUnlocked) {
     await ensurePeaceQuests(userId, user);
   }
+
+  // Dark side branch
+  if (user.darkSideActive && !user.darkSideChoice) {
+    await ensureDarkQuests(userId);
+  }
+}
+
+async function ensureDarkQuests(userId) {
+  const today = startOfToday();
+
+  await prisma.task.deleteMany({
+    where: { userId, branch: 'dark', isDaily: true, expiresAt: { lt: today } },
+  });
+
+  const existing = await prisma.task.findMany({
+    where: { userId, branch: 'dark', isDaily: true, expiresAt: { gte: today } },
+  });
+  if (existing.length > 0) return;
+
+  const required    = await prisma.questTemplate.findMany({ where: { branch: 'dark', type: 'required'    } });
+  const recommended = shuffle(await prisma.questTemplate.findMany({ where: { branch: 'dark', type: 'recommended' } })).slice(0, 4);
+  const expiresAt   = endOfToday();
+
+  for (const t of [...required, ...recommended]) {
+    await prisma.task.create({
+      data: {
+        title: t.title, description: t.description,
+        branch: 'dark', type: t.type, difficulty: t.difficulty,
+        xpReward: t.xpReward, goldReward: t.goldReward,
+        isDaily: true, expiresAt, userId,
+      },
+    });
+  }
 }
 
 module.exports = { ensureDailyQuests, getDifficultyForLevel, DIFFICULTY_REWARDS };
