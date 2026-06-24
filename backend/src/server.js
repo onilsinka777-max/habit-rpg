@@ -390,6 +390,76 @@ app.get("/me",authMiddleware,async(req,res)=>{
   await prisma.user.update({where:{id:req.userId},data:{lastLoginAt:now}}).catch(()=>{});
 });
 
+app.get("/bonuses",authMiddleware,async(req,res)=>{
+  try{
+    const now=new Date();
+    const user=await prisma.user.findUnique({
+      where:{id:req.userId},
+      include:{userSkills:{include:{skill:true}},pet:true},
+    });
+    const autoClass=user.masteryPath?null:await computeAutoClass(req.userId);
+    const CLASS_BRANCH_B={warrior:'discipline',sage:'knowledge',strategist:'discipline',explorer:'fitness',balance:null,leader:'discipline'};
+    const CLASS_NAMES_B={warrior:'Воин',sage:'Мудрец',strategist:'Стратег',explorer:'Следопыт',balance:'Баланс',leader:'Лидер'};
+    const BRANCH_NAMES_B={discipline:'Дисциплина',fitness:'Фитнес',knowledge:'Знания',self_development:'Саморазвитие'};
+    const bonuses=[];
+    let totalXpMult=1.0,totalGoldMult=1.0;
+    // 1. XP буст
+    const xpBActive=user.xpBoostExpiresAt&&new Date(user.xpBoostExpiresAt)>now;
+    if(xpBActive){
+      bonuses.push({icon:'⚡',name:'Буст опыта (24ч)',description:'Временный буст из магазина',xpBonus:'+50% XP',source:'Магазин',expiresAt:user.xpBoostExpiresAt});
+      totalXpMult*=1.5;
+    }
+    if(user.xpBoostPermanent){
+      bonuses.push({icon:'⚡',name:'Постоянный буст XP',description:'Куплен навсегда',xpBonus:'+25% XP',source:'Магазин'});
+      totalXpMult*=1.25;
+    }
+    // 2. Gold буст
+    const gBActive=user.goldBoostExpiresAt&&new Date(user.goldBoostExpiresAt)>now;
+    if(gBActive){
+      bonuses.push({icon:'💰',name:'Буст золота (24ч)',description:'Временный буст из магазина',goldBonus:'+50% золота',source:'Магазин',expiresAt:user.goldBoostExpiresAt});
+      totalGoldMult*=1.5;
+    }
+    if(user.goldBoostPermanent){
+      bonuses.push({icon:'💰',name:'Постоянный буст золота',description:'Куплен навсегда',goldBonus:'+25% золота',source:'Магазин'});
+      totalGoldMult*=1.25;
+    }
+    // 3. Класс
+    const cls=user.masteryPath||autoClass;
+    if(cls){
+      const branch=CLASS_BRANCH_B[cls];
+      bonuses.push({icon:'⚔️',name:`Класс: ${CLASS_NAMES_B[cls]||cls}`,description:branch?`+10% XP за квесты (${BRANCH_NAMES_B[branch]||branch})`:`+10% XP ко всем`,xpBonus:'+10% XP',source:'Класс персонажа'});
+      totalXpMult*=1.1;
+      totalGoldMult*=1.1;
+    }
+    // 4. Питомец
+    if(user.pet){
+      const petStage=user.streak>=30?'adult':user.streak>=14?'baby':'egg';
+      const pct=petStage==='adult'?5:petStage==='baby'?2:0;
+      if(pct>0){
+        bonuses.push({icon:petStage==='adult'?'🐾':'🥚',name:`Питомец (${petStage==='adult'?'Взрослый':'Детёныш'})`,description:petStage==='adult'?'Взрослый питомец':'Питомец растёт',xpBonus:`+${pct}% XP`,source:'Питомец'});
+        totalXpMult*=(1+pct/100);
+      }
+    }
+    // 5. Архив
+    if(user.archiveXpBonus){
+      bonuses.push({icon:'◈',name:'Архивариус',description:'Получен за решение тайны Архива. Навсегда.',xpBonus:'+10% XP навсегда',source:'Архив'});
+      totalXpMult*=1.1;
+    }
+    // 6. Навыки
+    const XP_EFFECTS=['global_xp_boost','required_xp_boost','fitness_xp','fitness_xp_major','knowledge_xp','knowledge_xp_major','knowledge_master','self_xp','self_xp_major'];
+    let skillXpPct=0,skillGoldPct=0;
+    for(const us of user.userSkills||[]){
+      const{effect,value,name:sName}=us.skill;
+      if(XP_EFFECTS.includes(effect)){skillXpPct+=Math.round(value*100);totalXpMult*=(1+value);}
+      if(effect==='all_required_gold'||effect==='fitness_gold'){skillGoldPct+=value;totalGoldMult*=(1+value/100);}
+    }
+    if(skillXpPct>0||skillGoldPct>0){
+      bonuses.push({icon:'🌿',name:`Навыки (${user.userSkills.length} изучено)`,description:'Суммарный бонус от дерева навыков',xpBonus:skillXpPct>0?`+${skillXpPct}% XP`:null,goldBonus:skillGoldPct>0?`+${skillGoldPct}% золота`:null,source:'Дерево навыков'});
+    }
+    res.json({bonuses,totalMultipliers:{xp:Math.round(totalXpMult*100)/100,gold:Math.round(totalGoldMult*100)/100,xpLabel:`×${totalXpMult.toFixed(2)}`,goldLabel:`×${totalGoldMult.toFixed(2)}`}});
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+
 app.patch("/me",authMiddleware,async(req,res)=>{
   try{
     const{name}=req.body;
@@ -605,9 +675,25 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const pet=await prisma.pet.findUnique({where:{userId:req.userId}}).catch(()=>null);
     const petStage=pet?(cu.streak>=30?'adult':cu.streak>=14?'baby':'egg'):null;
     const petMult=petStage==='adult'?1.05:petStage==='baby'?1.02:1.0;
-    const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult*archiveMult*petMult);
+    // ── Skill bonuses ─────────────────────────────────────────────────────────
+    const userSkills=await prisma.userSkill.findMany({where:{userId:req.userId},include:{skill:true}}).catch(()=>[]);
+    let skillXpMult=1.0,skillGoldMult=1.0;
+    for(const us of userSkills){
+      const{effect,value}=us.skill;
+      if(effect==='global_xp_boost')skillXpMult*=(1+value);
+      else if(effect==='required_xp_boost'&&task.type==='required'&&task.branch==='discipline')skillXpMult*=(1+value);
+      else if((effect==='fitness_xp'||effect==='fitness_xp_major')&&task.branch==='fitness')skillXpMult*=(1+value);
+      else if((effect==='knowledge_xp'||effect==='knowledge_xp_major'||effect==='knowledge_master')&&task.branch==='knowledge')skillXpMult*=(1+value);
+      else if((effect==='self_xp'||effect==='self_xp_major')&&task.branch==='self_development')skillXpMult*=(1+value);
+      if(effect==='all_required_gold'&&task.type==='required')skillGoldMult*=value;
+      if(effect==='fitness_gold'&&task.branch==='fitness')skillGoldMult*=(1+value/100);
+    }
+    const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult*archiveMult*petMult*skillXpMult);
     const{xp,level}=applyXpGain(cu.xp,cu.level,xpGained);
-    const goldGain=Math.floor(task.goldReward*getGoldMultiplier()*mMult.gold*goldM);
+    const goldGain=Math.floor(task.goldReward*getGoldMultiplier()*mMult.gold*goldM*classBonusMult*skillGoldMult);
+    const totalXpMult=Math.round(mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult*archiveMult*petMult*skillXpMult*100)/100;
+    const totalGoldMult=Math.round(mMult.gold*goldM*classBonusMult*skillGoldMult*100)/100;
+    const multipliersBreakdown={total_xp:totalXpMult,total_gold:totalGoldMult,breakdown:{xpBoost:xpM,goldBoost:goldM,classBonus:classBonusMult,petBonus:petMult,archiveBonus:archiveMult,skillXpBonus:Math.round(skillXpMult*100)/100,skillGoldBonus:Math.round(skillGoldMult*100)/100,comboBonus:comboMult,npcBonus:npcBonusMult,masteryBonus:mMult.xp}};
     // ── Random drop (10%) ────────────────────────────────────────────────────
     let dropReward=null;
     if(Math.random()<0.1){
@@ -644,7 +730,7 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
           await prisma.user.update({where:{id:req.userId},data:{xp:cxp,level:clevel,gold:{increment:chest.gold+goldGain},streak:newStreak,streakUpdatedDate:now,lastChestStreak:threshold,lastActiveQuestDate:now,comboCount:newCombo,lastQuestCompletedAt:now,missedDaysStreak:0,...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{})}});
           await prisma.userLeague.upsert({where:{userId:req.userId},create:{userId:req.userId,weeklyXp:Math.round(task.xpReward*xpM)},update:{weeklyXp:{increment:Math.round(task.xpReward*xpM)}}}).catch(()=>{});
           const{newAchievements:na,petCreated:pc}=await handlePostComplete(req.userId,newStreak,clevel);
-          return res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:clevel>cu.level,newLevel:clevel,freezeConsumed,streakJustCompleted,newStreak,chestReward,newAchievements:na,petCreated:pc,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
+          return res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:clevel>cu.level,newLevel:clevel,freezeConsumed,streakJustCompleted,newStreak,chestReward,newAchievements:na,petCreated:pc,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0,multipliers:multipliersBreakdown});
         }
       }
     }
@@ -702,7 +788,7 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
         }
       }catch(archErr){console.error("Archive tracking error:",archErr.message);}
     }
-    res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:finalLevel>cu.level,newLevel:finalLevel,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
+    res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:finalLevel>cu.level,newLevel:finalLevel,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0,multipliers:multipliersBreakdown});
   }catch(e){console.error('QUEST COMPLETE ERROR:',e.message,e.stack);res.status(500).json({message:"Ошибка сервера",error:e.message});}
 });
 

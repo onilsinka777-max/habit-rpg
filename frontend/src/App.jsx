@@ -50,6 +50,7 @@ import LaptevAI from "./components/LaptevAI";
 import CreatorPath from "./components/CreatorPath";
 import HallOfFame from "./components/HallOfFame";
 import Sages from "./components/Sages";
+import ActiveBonuses from "./components/ActiveBonuses";
 import VoiceInput from "./components/VoiceInput";
 import UnlockNotification from "./components/UnlockNotification";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
@@ -639,7 +640,7 @@ export default function App() {
         )}
 
         {/* ── ПРОФИЛЬ ──────────────────────────────────────────────────── */}
-        {["profile","achievements","stats","shop","library","journal","goals","pet","pomodoro","report","laptev","sages","archive"].includes(view) && (
+        {["profile","achievements","stats","shop","library","journal","goals","pet","pomodoro","report","laptev","sages","archive","bonuses"].includes(view) && (
           <>
             <SectionTabs tabs={[
               {key:"profile",      label:"Обзор",      icon:"🪪"},
@@ -653,6 +654,7 @@ export default function App() {
               {key:"pomodoro",     label:"Помодоро",   icon:"⏱️"},
               {key:"laptev",       label:"Создатель",  icon:"👑"},
               {key:"sages",        label:"Мудрецы",    icon:"🏛️"},
+              {key:"bonuses",      label:"Бонусы",     icon:"⚡"},
               ...((user?.level||1) >= 40 ? [{key:"archive", label:"Архив", icon:"◈"}] : []),
             ]} active={view} onChange={setView} />
             {view === "profile"      && <Profile     token={token} showToast={showToast} userId={viewProfileId} currentUserId={user?.id} onBack={viewProfileId ? () => { setViewProfileId(null); setView(viewProfileFrom); } : null} onProfileRefresh={loadProfile} />}
@@ -667,6 +669,7 @@ export default function App() {
             {view === "report"       && <WeeklyReport token={token} showToast={showToast} />}
             {view === "laptev"       && <Laptev       token={token} user={user} showToast={showToast} onNavigate={setView} />}
             {view === "sages"        && <Sages        token={token} showToast={showToast} />}
+            {view === "bonuses"      && <ActiveBonuses token={token} />}
             {view === "archive"      && <Archive      userLevel={user?.level||1} archiveSolved={user?.archiveSolved||false} archiveFitnessDays={user?.archiveFitnessDays||0} />}
           </>
         )}
