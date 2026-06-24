@@ -370,9 +370,13 @@ export default function App() {
       await loadTasks();
       playQuestComplete();
       const d = completeRes.data;
-      const xpLabel = d.comboBonus > 0 ? `✨ +${d.xpGained} XP (+25% комбо)` : `✨ +${d.xpGained} XP`;
+      const mult = d.multipliers?.total_xp;
+      const multStr = (mult && mult > 1.05) ? ` ×${mult}` : '';
+      const comboStr = d.comboBonus > 0 ? ` (+25% комбо)` : '';
+      const xpLabel = `✨ +${d.xpGained} XP${comboStr}${multStr}`;
+      const goldLabel = `💰 +${d.goldGained} золота`;
       if (d.xpGained)   showRewardToast(xpLabel, 'xp');
-      if (d.goldGained) showRewardToast(`💰 +${d.goldGained} золота`, 'gold');
+      if (d.goldGained) showRewardToast(goldLabel, 'gold');
       if (taskObj?.isNpcQuest && taskObj?.npcName) showRewardToast(`⚡ Задание ${taskObj.npcName} выполнено!`, 'level');
       if (d.streakJustCompleted) { setStreakModal({ streak: d.newStreak }); playStreakComplete(); }
       // Тёмная сторона: показываем особые сообщения
