@@ -2350,8 +2350,25 @@ app.post("/laptev/chat",authMiddleware,async(req,res)=>{
     });
     const reply=response.content[0].text;
     await prisma.user.update({where:{id:req.userId},data:{laptevMsgCount:isToday?{increment:1}:1,laptevMsgDate:new Date()}});
+    await prisma.laptevMessage.create({data:{userId:req.userId,role:"user",content:message}});
+    await prisma.laptevMessage.create({data:{userId:req.userId,role:"assistant",content:reply}});
     res.json({reply,messagesLeft:10-(isToday?count+1:1)});
   }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.get("/laptev/history",authMiddleware,async(req,res)=>{
+  try{
+    const messages=await prisma.laptevMessage.findMany({
+      where:{userId:req.userId},
+      orderBy:{createdAt:"asc"},
+      take:50,
+    });
+    const today=startOfToday();
+    const todayCount=await prisma.laptevMessage.count({
+      where:{userId:req.userId,role:"user",createdAt:{gte:today}},
+    });
+    res.json({messages,todayCount,messagesLeft:Math.max(0,10-todayCount)});
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
 });
 
 // ── КАРТА МИРА: ЕЖЕДНЕВНЫЕ КВЕСТЫ ЛОКАЦИИ ────────────────────────────────────

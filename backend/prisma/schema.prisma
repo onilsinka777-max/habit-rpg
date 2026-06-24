@@ -110,6 +110,7 @@ model User {
   seasonQuests             SeasonQuest[]
   creatorPath              CreatorPath?
   hallOfFame               HallOfFame[]
+  laptevMessages           LaptevMessage[]
   createdAt                DateTime         @default(now())
 }
 
@@ -705,4 +706,14 @@ model HallOfFame {
   user        User     @relation(fields: [userId], references: [id])
   completedAt DateTime @default(now())
   type        String   @default("legendary_path")
+}
+
+// ── ИСТОРИЯ ЧАТА С LAPTEV ────────────────────────────────────────────────────
+model LaptevMessage {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  role      String
+  content   String
+  createdAt DateTime @default(now())
 }

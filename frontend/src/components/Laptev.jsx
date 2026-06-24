@@ -119,17 +119,33 @@ function TypingDots() {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function Laptev({ token, user, showToast, onNavigate }) {
   const auth = { headers: { Authorization: `Bearer ${token}` } };
-  const [msgs, setMsgs] = useState([{
-    role:"assistant",
-    content:"Привет. Я Антон. Создал эту систему для себя — она изменила мою жизнь. Теперь она твоя. О чём поговорим?",
-  }]);
+  const [msgs, setMsgs] = useState([]);
   const [input, setInput]     = useState("");
   const [sending, setSending] = useState(false);
   const [msgsLeft, setMsgsLeft] = useState(10);
   const [tab, setTab]         = useState("chat");
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const userMsgCount = msgs.filter(m => m.role === "user").length;
   const showChessBtn = userMsgCount >= 3;
   const bottomRef   = useRef(null);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API}/laptev/history`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.messages?.length > 0) {
+          setMsgs(data.messages.map(m => ({ role: m.role, content: m.content })));
+        } else {
+          setMsgs([{ role:"assistant", content:"Привет. Я Антон. Создал эту систему для себя — она изменила мою жизнь. Теперь она твоя. О чём поговорим?" }]);
+        }
+        setMsgsLeft(data.messagesLeft ?? 10);
+      })
+      .catch(() => {
+        setMsgs([{ role:"assistant", content:"Привет. Я Антон. Создал эту систему для себя — она изменила мою жизнь. Теперь она твоя. О чём поговорим?" }]);
+      })
+      .finally(() => setHistoryLoaded(true));
+  }, [token]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [msgs]);
 
