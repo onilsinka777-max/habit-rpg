@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Avatar from "./Avatar";
+import ArchiveBadge from "./ArchiveBadge";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -55,6 +56,7 @@ export default function Profile({ token, showToast, userId, currentUserId, onBac
                 </span>
               )}
               <span style={{ fontWeight:800, fontSize:20 }}>{profile.name}</span>
+              {profile.archiveSolved && <ArchiveBadge />}
             </div>
             {profile.clan && (
               <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:3 }}>

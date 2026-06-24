@@ -129,6 +129,8 @@ const ACHIEVEMENT_META={
   legend_path_complete:{label:"Легенда",           desc:"Завершить Легендарный путь (50 квестов)",icon:"♾️",  xpReward:10000, goldReward:5000},
   streak_60:        {label:"Два месяца",           desc:"Стрик 60 дней",                          icon:"🔥",  xpReward:750},
   level_40:         {label:"Мастер",               desc:"Достигни 40 уровня",                     icon:"🔮",  xpReward:600},
+  // ── Архив ──────────────────────────────────────────────────────────────────
+  archive_solved:   {label:"Архивариус",             desc:"Ты нашёл архив и разгадал его тайну. Немногие знают что он существует.", icon:"◈", xpReward:1000, goldReward:0, hidden:true},
   // ── Тёмная сторона ─────────────────────────────────────────────────────────
   defeated_darkness:{label:"Победивший тьму",       desc:"Ты заглянул в бездну и вернулся. Теперь система для тебя — не клетка, а оружие.", icon:"⚡", xpReward:1000, goldReward:500, hidden:true},
   shadow_walker:    {label:"Идущий в тени",          desc:"Ты отказался вернуться. LAPTEV всё равно вернул тебя. Падший и восставший.",      icon:"🌑", xpReward:1500, goldReward:750, hidden:true},
@@ -230,6 +232,14 @@ async function handlePostComplete(userId,streak,level,taskType){
   let petCreated=false;
   if(streak>=7){const pet=await prisma.pet.findUnique({where:{userId}});if(!pet){await prisma.pet.create({data:{userId}});petCreated=true;}}
 
+  // ── Level 40: unlock archive ────────────────────────────────────────────────
+  if(level>=40){
+    const uArch=await prisma.user.findUnique({where:{id:userId},select:{archiveUnlocked:true}});
+    if(!uArch?.archiveUnlocked){
+      await prisma.user.update({where:{id:userId},data:{archiveUnlocked:true}});
+    }
+  }
+
   // ── Level 35: dark side night invite ────────────────────────────────────────
   if(level>=35){
     const uds=await prisma.user.findUnique({where:{id:userId},select:{darkSideActive:true,darkSideChoice:true}});
@@ -252,6 +262,20 @@ async function handlePostComplete(userId,streak,level,taskType){
   }
 
   return{newAchievements,petCreated};
+}
+
+// ── Archive: solve helper ────────────────────────────────────────────────────
+async function solveArchive(userId){
+  const user=await prisma.user.findUnique({where:{id:userId}});
+  if(!user||user.archiveSolved)return;
+  await prisma.user.update({where:{id:userId},data:{archiveSolved:true,archiveXpBonus:true,gold:{increment:2500}}});
+  const existing=await prisma.achievement.findFirst({where:{userId,type:"archive_solved"}});
+  if(!existing){
+    await prisma.achievement.create({data:{userId,type:"archive_solved"}}).catch(()=>{});
+    const{xp,level}=applyXpGain(user.xp,user.level,ACHIEVEMENT_META.archive_solved.xpReward||1000);
+    await prisma.user.update({where:{id:userId},data:{xp,level,title:"Архивариус"}});
+  }
+  await createNotification(userId,"archive_solved","◈ Архив раскрыт","LAPTEV: Да, именно так всё и началось. Но не стоит ограничиваться. Продолжай выполнять все квесты. Рад что ты смог догадаться.").catch(()=>{});
 }
 
 app.get("/",async(req,res)=>{const u=await prisma.user.count();res.json({message:"SERVER WORKS",users:u});});
@@ -340,6 +364,10 @@ app.get("/me",authMiddleware,async(req,res)=>{
     darkSideStartedAt:user.darkSideStartedAt||null,
     darkSideChoice:user.darkSideChoice||null,
     antagonistPathActive:user.antagonistPathActive||false,
+    archiveUnlocked:user.archiveUnlocked||false,
+    archiveSolved:user.archiveSolved||false,
+    archiveFitnessDays:user.archiveFitnessDays||0,
+    archiveXpBonus:user.archiveXpBonus||false,
   });
   // Update lastLoginAt
   await prisma.user.update({where:{id:req.userId},data:{lastLoginAt:now}}).catch(()=>{});
@@ -532,7 +560,8 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const userClass=cu.masteryPath||autoClass;
     const classBranch=CLASS_BRANCH[userClass]||null;
     const classBonusMult=(classBranch&&task.branch===classBranch)?1.1:1.0;
-    const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult);
+    const archiveMult=cu.archiveXpBonus?1.1:1.0;
+    const xpGained=Math.round(task.xpReward*mMult.xp*xpM*comboMult*npcBonusMult*classBonusMult*archiveMult);
     const{xp,level}=applyXpGain(cu.xp,cu.level,xpGained);
     const goldGain=Math.floor(task.goldReward*getGoldMultiplier()*mMult.gold*goldM);
     // ── Random drop (10%) ────────────────────────────────────────────────────
@@ -610,6 +639,24 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
           }
         }
       }catch(bossErr){console.error("Boss update error:",bossErr.message);}
+    }
+    // ── Archive: трекинг фитнес-дней ─────────────────────────────────────────
+    if(cu.archiveUnlocked&&!cu.archiveSolved){
+      try{
+        const todayTasks=await prisma.task.findMany({where:{userId:req.userId,completed:true,completedAt:{gte:today}}});
+        const nonFitness=todayTasks.filter(t=>t.branch!=="fitness");
+        const fitnessToday=todayTasks.filter(t=>t.branch==="fitness");
+        if(nonFitness.length>0){
+          await prisma.user.update({where:{id:req.userId},data:{archiveFitnessDays:0,archiveFitnessStart:null}});
+        } else if(fitnessToday.length>0){
+          const isNewDay=!cu.archiveFitnessStart||new Date(cu.archiveFitnessStart)<today;
+          if(isNewDay){
+            const newDays=(cu.archiveFitnessDays||0)+1;
+            await prisma.user.update({where:{id:req.userId},data:{archiveFitnessDays:newDays,archiveFitnessStart:new Date()}});
+            if(newDays>=3)await solveArchive(req.userId);
+          }
+        }
+      }catch(archErr){console.error("Archive tracking error:",archErr.message);}
     }
     res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:finalLevel>cu.level,newLevel:finalLevel,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
   }catch(e){console.error('QUEST COMPLETE ERROR:',e.message,e.stack);res.status(500).json({message:"Ошибка сервера",error:e.message});}
@@ -1612,7 +1659,7 @@ app.get("/clans/war/current",authMiddleware,async(req,res)=>{
 app.get("/profile/:userId",authMiddleware,async(req,res)=>{
   try{
     const targetId=Number(req.params.userId);
-    const user=await prisma.user.findUnique({where:{id:targetId},select:{id:true,name:true,email:true,level:true,xp:true,gold:true,streak:true,clanId:true,clanRole:true,title:true,avatarStyle:true,avatarFrame:true,nicknameEffect:true,masteryPath:true,hasEverFinishedMastery:true,createdAt:true}});
+    const user=await prisma.user.findUnique({where:{id:targetId},select:{id:true,name:true,email:true,level:true,xp:true,gold:true,streak:true,clanId:true,clanRole:true,title:true,avatarStyle:true,avatarFrame:true,nicknameEffect:true,masteryPath:true,hasEverFinishedMastery:true,createdAt:true,archiveSolved:true}});
     if(!user)return res.status(404).json({message:"Пользователь не найден"});
     const achievements=await prisma.achievement.findMany({where:{userId:targetId},orderBy:{unlockedAt:"asc"},take:3});
     const taskCount=await prisma.task.count({where:{userId:targetId,completed:true}});

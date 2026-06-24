@@ -39,6 +39,8 @@ import LoadingScreen from "./components/LoadingScreen";
 import WelcomeNPC from "./components/WelcomeNPC";
 import FutureLetterScreen from "./components/FutureLetterScreen";
 import DarkSideChoice from "./components/DarkSideChoice";
+import Archive from "./components/Archive";
+import ArchiveBadge from "./components/ArchiveBadge";
 import ThemeChoiceScreen from "./components/ThemeChoiceScreen";
 import SectionTabs from "./components/SectionTabs";
 import Chess from "./components/Chess";
@@ -186,6 +188,7 @@ export default function App() {
   const [npcDone,       setNpcDone]       = useState(() => !!localStorage.getItem("welcome_npc_done"));
   const [futureLetterDone, setFutureLetterDone] = useState(() => !!localStorage.getItem("future_letter_done"));
   const [showDarkSideChoice, setShowDarkSideChoice] = useState(false);
+  const [showArchivePopup,  setShowArchivePopup]  = useState(false);
   const [showWelcomeRules, setShowWelcomeRules] = useState(false);
   const [welcomeSlide, setWelcomeSlide]   = useState(0);
   const [token,    setToken]    = useState(localStorage.getItem("token") || "");
@@ -402,6 +405,10 @@ export default function App() {
           40: "Легендарный путь открыт. Я знал что ты дойдёшь.",
           50: "Половина пути. Большинство людей не достигают этого за всю жизнь.",
         };
+        // Archive popup at level 40
+        if (newLevel >= 40 && prevLevel < 40 && !localStorage.getItem("archive_popup_shown")) {
+          setTimeout(() => setShowArchivePopup(true), 1800);
+        }
         if (LAPTEV_MILESTONES[newLevel]) {
           const key = `laptev_milestone_${newLevel}`;
           if (!localStorage.getItem(key)) {
@@ -626,7 +633,7 @@ export default function App() {
         )}
 
         {/* ── ПРОФИЛЬ ──────────────────────────────────────────────────── */}
-        {["profile","achievements","stats","shop","library","journal","goals","pet","pomodoro","report","laptev","sages"].includes(view) && (
+        {["profile","achievements","stats","shop","library","journal","goals","pet","pomodoro","report","laptev","sages","archive"].includes(view) && (
           <>
             <SectionTabs tabs={[
               {key:"profile",      label:"Обзор",      icon:"🪪"},
@@ -640,6 +647,7 @@ export default function App() {
               {key:"pomodoro",     label:"Помодоро",   icon:"⏱️"},
               {key:"laptev",       label:"Создатель",  icon:"👑"},
               {key:"sages",        label:"Мудрецы",    icon:"🏛️"},
+              ...((user?.level||1) >= 40 ? [{key:"archive", label:"Архив", icon:"◈"}] : []),
             ]} active={view} onChange={setView} />
             {view === "profile"      && <Profile     token={token} showToast={showToast} userId={viewProfileId} currentUserId={user?.id} onBack={viewProfileId ? () => { setViewProfileId(null); setView("friends"); } : null} />}
             {view === "achievements" && <Achievements token={token} showToast={showToast} />}
@@ -653,6 +661,7 @@ export default function App() {
             {view === "report"       && <WeeklyReport token={token} showToast={showToast} />}
             {view === "laptev"       && <Laptev       token={token} user={user} showToast={showToast} onNavigate={setView} />}
             {view === "sages"        && <Sages        token={token} showToast={showToast} />}
+            {view === "archive"      && <Archive      userLevel={user?.level||1} archiveSolved={user?.archiveSolved||false} archiveFitnessDays={user?.archiveFitnessDays||0} />}
           </>
         )}
 
@@ -1044,6 +1053,35 @@ export default function App() {
           }}
         />
       )}
+      {showArchivePopup && (
+        <div style={{
+          position:"fixed", inset:0, zIndex:10000,
+          background:"rgba(0,0,0,0.95)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <style>{`
+            @keyframes archiveGlow {
+              0%   { text-shadow: 0 0 8px #7c3aed,0 0 16px #7c3aed; color:#a78bfa; }
+              25%  { text-shadow: 0 0 8px #2563eb,0 0 16px #2563eb; color:#93c5fd; }
+              50%  { text-shadow: 0 0 8px #059669,0 0 16px #059669; color:#6ee7b7; }
+              75%  { text-shadow: 0 0 8px #d97706,0 0 16px #d97706; color:#fcd34d; }
+              100% { text-shadow: 0 0 8px #7c3aed,0 0 16px #7c3aed; color:#a78bfa; }
+            }
+          `}</style>
+          <div style={{ textAlign:"center", maxWidth:320, padding:32 }}>
+            <div style={{ fontSize:48, marginBottom:24, animation:"archiveGlow 4s ease-in-out infinite", display:"inline-block" }}>◈</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.3)", letterSpacing:3, marginBottom:16, textTransform:"uppercase" }}>Обнаружено</div>
+            <div style={{ fontSize:24, fontWeight:900, color:"#e2e8f0", marginBottom:8 }}>АРХИВ</div>
+            <div style={{ fontSize:14, color:"rgba(255,255,255,0.4)", lineHeight:1.8 }}>Что-то ждало тебя здесь всё это время.</div>
+            <button onClick={() => { localStorage.setItem("archive_popup_shown","1"); setShowArchivePopup(false); }} style={{
+              marginTop:32, background:"none", border:"1px solid rgba(255,255,255,0.1)",
+              color:"rgba(255,255,255,0.3)", borderRadius:8, padding:"8px 24px",
+              cursor:"pointer", fontSize:13,
+            }}>Закрыть</button>
+          </div>
+        </div>
+      )}
+
       {showDarkSideChoice && token && (
         <DarkSideChoice
           token={token}

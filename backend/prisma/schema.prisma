@@ -120,6 +120,11 @@ model User {
   darkSideChoice           String?
   antagonistPathActive     Boolean          @default(false)
   antagonistDay            Int              @default(0)
+  archiveUnlocked          Boolean          @default(false)
+  archiveSolved            Boolean          @default(false)
+  archiveFitnessDays       Int              @default(0)
+  archiveFitnessStart      DateTime?
+  archiveXpBonus           Boolean          @default(false)
   createdAt                DateTime         @default(now())
 }
 

@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import axios from "axios";
+import ArchiveBadge from "./ArchiveBadge";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -160,6 +161,7 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, o
             <span className="player-email" style={nameColor ? { color: nameColor } : undefined}>
               <span className="player-badge">{isDark ? "ТЁМНАЯ" : "ИГРОК"}</span>
               <span className={user?.nicknameEffect ? `nick-${user.nicknameEffect}` : ""}>{user?.name}</span>
+              {user?.archiveSolved && <ArchiveBadge />}
             </span>
             <button className="btn btn-ghost btn-sm" onClick={onLogout}>Выйти</button>
           </div>
