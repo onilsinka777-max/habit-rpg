@@ -129,6 +129,10 @@ const ACHIEVEMENT_META={
   legend_path_complete:{label:"Легенда",           desc:"Завершить Легендарный путь (50 квестов)",icon:"♾️",  xpReward:10000, goldReward:5000},
   streak_60:        {label:"Два месяца",           desc:"Стрик 60 дней",                          icon:"🔥",  xpReward:750},
   level_40:         {label:"Мастер",               desc:"Достигни 40 уровня",                     icon:"🔮",  xpReward:600},
+  // ── Тёмная сторона ─────────────────────────────────────────────────────────
+  defeated_darkness:{label:"Победивший тьму",       desc:"Ты заглянул в бездну и вернулся. Теперь система для тебя — не клетка, а оружие.", icon:"⚡", xpReward:1000, goldReward:500, hidden:true},
+  shadow_walker:    {label:"Идущий в тени",          desc:"Ты отказался вернуться. LAPTEV всё равно вернул тебя. Падший и восставший.",      icon:"🌑", xpReward:1500, goldReward:750, hidden:true},
+  path_of_antagonist:{label:"Путь Антагониста",     desc:"Ты прошёл через тьму и вышел другим. Немногие знают что это такое.",             icon:"👁️", xpReward:2000, goldReward:1000, hidden:true},
   // ── Финальное (скрытое) ────────────────────────────────────────────────────
   all_achievements: {label:"Игрок, достигший величия", desc:"Получи все достижения",             icon:"🌌",  xpReward:5000, goldReward:2000, hidden:true},
 };
@@ -225,6 +229,28 @@ async function handlePostComplete(userId,streak,level,taskType){
   }
   let petCreated=false;
   if(streak>=7){const pet=await prisma.pet.findUnique({where:{userId}});if(!pet){await prisma.pet.create({data:{userId}});petCreated=true;}}
+
+  // ── Level 35: dark side night invite ────────────────────────────────────────
+  if(level>=35){
+    const uds=await prisma.user.findUnique({where:{id:userId},select:{darkSideActive:true,darkSideChoice:true}});
+    if(!uds?.darkSideActive&&!uds?.darkSideChoice){
+      const existInvite=await prisma.notification.findFirst({where:{userId,type:"dark_side_invite"}});
+      if(!existInvite){
+        const h=new Date().getHours();
+        if(h>=22||h<6){
+          await createNotification(userId,"dark_side_invite","⚫ Система говорит...","_system_: Ты думаешь что строишь дисциплину. На самом деле ты строишь клетку. Я покажу тебе другой путь. Открой если не боишься.");
+        }
+      }
+    }
+  }
+
+  // ── Antagonist path: unlock after any dark side completion ──────────────────
+  const uAnt=await prisma.user.findUnique({where:{id:userId},select:{darkSideChoice:true,antagonistPathActive:true}});
+  if(uAnt?.darkSideChoice&&!uAnt?.antagonistPathActive){
+    await prisma.user.update({where:{id:userId},data:{antagonistPathActive:true}});
+    await createNotification(userId,"antagonist_path_unlocked","👁️ Путь Антагониста открыт","Ты познал тьму. Теперь используй её как оружие. Специальные квесты доступны раз в неделю.").catch(()=>{});
+  }
+
   return{newAchievements,petCreated};
 }
 
@@ -309,6 +335,11 @@ app.get("/me",authMiddleware,async(req,res)=>{
     missedDaysStreak:user.missedDaysStreak||0,
     tasksToday:await prisma.task.count({where:{userId:req.userId,completed:true,createdAt:{gte:today}}}).catch(()=>0),
     xpToday:0,
+    darkSideActive:user.darkSideActive||false,
+    darkSideDay:user.darkSideDay||0,
+    darkSideStartedAt:user.darkSideStartedAt||null,
+    darkSideChoice:user.darkSideChoice||null,
+    antagonistPathActive:user.antagonistPathActive||false,
   });
   // Update lastLoginAt
   await prisma.user.update({where:{id:req.userId},data:{lastLoginAt:now}}).catch(()=>{});
@@ -457,6 +488,30 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const updatedTask=await prisma.task.update({where:{id:taskId},data:{completed:true,completedAt:new Date()}});
     const cu=await prisma.user.findUnique({where:{id:req.userId}});
     const now=new Date();const today=startOfToday();
+
+    // ── Тёмная сторона: особая механика ─────────────────────────────────────
+    if(cu.darkSideActive&&!cu.darkSideChoice){
+      const darkGold=task.goldReward*5;
+      const darkXpLoss=task.xpReward*3;
+      let newXp=Math.max(0,cu.xp-darkXpLoss);
+      let newLevel=cu.level;
+      while(newLevel>1&&newXp<=0){
+        newLevel--;
+        newXp=Math.max(0,getXpToNextLevel(newLevel)+newXp);
+      }
+      const hoursSince=cu.darkSideStartedAt?(Date.now()-new Date(cu.darkSideStartedAt).getTime())/(1000*60*60):0;
+      const currentDarkDay=Math.floor(hoursSince/24)+1;
+      await prisma.user.update({where:{id:req.userId},data:{xp:newXp,level:newLevel,gold:{increment:darkGold},darkSideDay:currentDarkDay,lastActiveQuestDate:now}});
+      if(hoursSince>=20){
+        const choiceNotif=await prisma.notification.findFirst({where:{userId:req.userId,type:"dark_side_choice"}});
+        if(!choiceNotif){
+          await createNotification(req.userId,"dark_side_choice","⚫ LAPTEV говорит","LAPTEV: Я вижу что происходит. Твой уровень падает. Твой аватар меняется. Ты ещё можешь вернуться. Или остаться в тени навсегда.");
+        }
+      }
+      const darkMsg=currentDarkDay===1?"Золото льётся рекой. Но ты чувствуешь что теряешь что-то важное.":"Тьма усиливается.";
+      return res.json({...updatedTask,darkSide:true,goldGained:darkGold,xpLost:darkXpLoss,newLevel,newXp,leveledUp:false,message:darkMsg,newAchievements:[],petCreated:false});
+    }
+
     const xpBActive=cu.xpBoostExpiresAt&&new Date(cu.xpBoostExpiresAt)>now;
     const gBActive=cu.goldBoostExpiresAt&&new Date(cu.goldBoostExpiresAt)>now;
     const xpM=(xpBActive?1.5:1)*(cu.xpBoostPermanent?1.25:1);
@@ -2745,6 +2800,55 @@ app.get("/future-letter/:id",authMiddleware,async(req,res)=>{
   }catch(e){res.status(500).json({message:"Ошибка сервера"});}
 });
 
+// ── Тёмная сторона — эндпоинты ───────────────────────────────────────────────
+app.post("/dark-side/enter",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId}});
+    if(user.level<35)return res.status(400).json({message:"Недостаточно уровня. Нужен 35+."});
+    if(user.darkSideActive)return res.status(400).json({message:"Тёмная сторона уже активна"});
+    if(user.darkSideChoice)return res.status(400).json({message:"Выбор уже сделан"});
+    await prisma.user.update({where:{id:req.userId},data:{darkSideActive:true,darkSideDay:1,darkSideStartedAt:new Date()}});
+    await prisma.notification.deleteMany({where:{userId:req.userId,type:"dark_side_invite"}});
+    res.json({message:"Добро пожаловать в тень.",warning:"С каждым квестом ты будешь терять себя."});
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.post("/dark-side/choose",authMiddleware,async(req,res)=>{
+  try{
+    const{choice}=req.body;
+    if(!["light","shadow"].includes(choice))return res.status(400).json({message:"Выбери light или shadow"});
+    const user=await prisma.user.findUnique({where:{id:req.userId}});
+    if(!user.darkSideActive)return res.status(400).json({message:"Тёмная сторона не активна"});
+    if(user.darkSideChoice&&user.darkSideChoice!=="shadow")return res.status(400).json({message:"Выбор уже закреплён"});
+
+    if(choice==="light"){
+      await prisma.user.update({where:{id:req.userId},data:{darkSideActive:false,darkSideChoice:"light",xp:{increment:500},antagonistPathActive:true}});
+      const existing=await prisma.achievement.findFirst({where:{userId:req.userId,type:"defeated_darkness"}});
+      if(!existing){
+        await prisma.achievement.create({data:{userId:req.userId,type:"defeated_darkness"}}).catch(()=>{});
+        await prisma.user.update({where:{id:req.userId},data:{gold:{increment:500},xp:{increment:1000}}});
+      }
+      const existing2=await prisma.achievement.findFirst({where:{userId:req.userId,type:"path_of_antagonist"}});
+      if(!existing2){
+        await prisma.achievement.create({data:{userId:req.userId,type:"path_of_antagonist"}}).catch(()=>{});
+        await prisma.user.update({where:{id:req.userId},data:{gold:{increment:1000},xp:{increment:2000}}});
+      }
+      await createNotification(req.userId,"dark_side_resolved","⚡ Возвращение","LAPTEV: Знал что вернёшься. Теперь ты понимаешь зачем нужна система. +500 XP за возвращение. Путь Антагониста открыт.").catch(()=>{});
+      res.json({message:"LAPTEV: Знал что вернёшься. Теперь ты понимаешь зачем нужна система. +500 XP за возвращение.",achievement:"Победивший тьму"});
+    } else {
+      await prisma.user.update({where:{id:req.userId},data:{darkSideChoice:"shadow"}});
+      res.json({message:"_system_: Как знаешь. Но система всегда побеждает.",warning:"Через 3 дня LAPTEV вернёт тебя принудительно."});
+    }
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.get("/dark-side/status",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{darkSideActive:true,darkSideDay:true,darkSideStartedAt:true,darkSideChoice:true,antagonistPathActive:true}});
+    res.json(user);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
 // ── CRON: письма + уведомления воскресенья ────────────────────────────────────
 setInterval(async()=>{
   try{
@@ -2761,6 +2865,35 @@ setInterval(async()=>{
       for(const u of users){
         const existing=await prisma.notification.findFirst({where:{userId:u.id,type:"weekly_report",createdAt:{gte:new Date(now.getFullYear(),now.getMonth(),now.getDate())}}});
         if(!existing)await createNotification(u.id,"weekly_report","📊 Недельный отчёт готов","Открой отчёт — посмотри сколько сделал за эту неделю!");
+      }
+    }
+    // Тёмная сторона: ночные приглашения для уровня 35+
+    const nowH=now.getHours();
+    if(nowH>=22||nowH<6){
+      const candidates=await prisma.user.findMany({where:{level:{gte:35},darkSideChoice:null,darkSideActive:false},select:{id:true}});
+      for(const u of candidates){
+        const existInvite=await prisma.notification.findFirst({where:{userId:u.id,type:"dark_side_invite"}});
+        if(!existInvite)await createNotification(u.id,"dark_side_invite","⚫ Система говорит...","_system_: Ты думаешь что строишь дисциплину. На самом деле ты строишь клетку. Я покажу тебе другой путь. Открой если не боишься.").catch(()=>{});
+      }
+    }
+    // Принудительный возврат: shadow выбор 3 дня назад
+    const shadowUsers=await prisma.user.findMany({where:{darkSideActive:true,darkSideChoice:"shadow"}});
+    for(const u of shadowUsers){
+      if(!u.darkSideStartedAt)continue;
+      const daysSince=Math.floor((now.getTime()-new Date(u.darkSideStartedAt).getTime())/(1000*60*60*24));
+      if(daysSince>=4){
+        await prisma.user.update({where:{id:u.id},data:{darkSideActive:false,darkSideChoice:"forced",antagonistPathActive:true,xp:{increment:200}}});
+        await createNotification(u.id,"dark_side_forced_return","⚡ LAPTEV вернул тебя","Как я и говорил. Система всегда побеждает. +200 XP за возвращение. Путь Антагониста открыт.").catch(()=>{});
+        const exSW=await prisma.achievement.findFirst({where:{userId:u.id,type:"shadow_walker"}});
+        if(!exSW){
+          await prisma.achievement.create({data:{userId:u.id,type:"shadow_walker"}}).catch(()=>{});
+          await prisma.user.update({where:{id:u.id},data:{gold:{increment:750},xp:{increment:1500}}});
+        }
+        const exPA=await prisma.achievement.findFirst({where:{userId:u.id,type:"path_of_antagonist"}});
+        if(!exPA){
+          await prisma.achievement.create({data:{userId:u.id,type:"path_of_antagonist"}}).catch(()=>{});
+          await prisma.user.update({where:{id:u.id},data:{gold:{increment:1000},xp:{increment:2000}}});
+        }
       }
     }
   }catch(e){console.error("CRON ERROR:",e.message);}

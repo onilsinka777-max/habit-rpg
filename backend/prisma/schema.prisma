@@ -114,6 +114,12 @@ model User {
   streakDuelsAsChallenger  StreakDuel[]     @relation("StreakDuelChallenger")
   streakDuelsAsChallenged  StreakDuel[]     @relation("StreakDuelChallenged")
   futureLetters            FutureLetter[]
+  darkSideActive           Boolean          @default(false)
+  darkSideDay              Int              @default(0)
+  darkSideStartedAt        DateTime?
+  darkSideChoice           String?
+  antagonistPathActive     Boolean          @default(false)
+  antagonistDay            Int              @default(0)
   createdAt                DateTime         @default(now())
 }
 

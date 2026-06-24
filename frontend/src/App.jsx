@@ -38,6 +38,7 @@ import LegendPath from "./components/LegendPath";
 import LoadingScreen from "./components/LoadingScreen";
 import WelcomeNPC from "./components/WelcomeNPC";
 import FutureLetterScreen from "./components/FutureLetterScreen";
+import DarkSideChoice from "./components/DarkSideChoice";
 import ThemeChoiceScreen from "./components/ThemeChoiceScreen";
 import SectionTabs from "./components/SectionTabs";
 import Chess from "./components/Chess";
@@ -184,6 +185,7 @@ export default function App() {
   const [themeChosen,   setThemeChosen]   = useState(() => !!localStorage.getItem("theme_chosen"));
   const [npcDone,       setNpcDone]       = useState(() => !!localStorage.getItem("welcome_npc_done"));
   const [futureLetterDone, setFutureLetterDone] = useState(() => !!localStorage.getItem("future_letter_done"));
+  const [showDarkSideChoice, setShowDarkSideChoice] = useState(false);
   const [showWelcomeRules, setShowWelcomeRules] = useState(false);
   const [welcomeSlide, setWelcomeSlide]   = useState(0);
   const [token,    setToken]    = useState(localStorage.getItem("token") || "");
@@ -366,8 +368,22 @@ export default function App() {
       if (d.goldGained) showRewardToast(`💰 +${d.goldGained} золота`, 'gold');
       if (taskObj?.isNpcQuest && taskObj?.npcName) showRewardToast(`⚡ Задание ${taskObj.npcName} выполнено!`, 'level');
       if (d.streakJustCompleted) { setStreakModal({ streak: d.newStreak }); playStreakComplete(); }
+      // Тёмная сторона: показываем особые сообщения
+      if (d.darkSide) {
+        showRewardToast(`💰 +${d.goldGained} золота`, 'gold');
+        if (d.xpLost) showRewardToast(`💔 -${d.xpLost} XP`, 'xp');
+        showToast(d.message, "error");
+      }
       const res = await axios.get(`${API}/me`, authHeaders);
       setUser(res.data);
+      // Проверяем уведомление о выборе тёмной стороны
+      if (res.data.darkSideActive) {
+        try {
+          const notifs = await axios.get(`${API}/notifications`, authHeaders).catch(() => ({ data: [] }));
+          const hasChoice = (notifs.data || []).some(n => n.type === "dark_side_choice" && !n.read);
+          if (hasChoice) setShowDarkSideChoice(true);
+        } catch {}
+      }
       if (res.data.level > prevLevel) {
         playLevelUp();
         const newLevel = res.data.level;
@@ -1025,6 +1041,18 @@ export default function App() {
           onDone={() => {
             localStorage.setItem("future_letter_done", "1");
             setFutureLetterDone(true);
+          }}
+        />
+      )}
+      {showDarkSideChoice && token && (
+        <DarkSideChoice
+          token={token}
+          user={user}
+          onChoose={async (choice) => {
+            setShowDarkSideChoice(false);
+            await loadProfile();
+            if (choice === "light") showToast("⚡ Добро пожаловать обратно! Путь Антагониста открыт.", "success");
+            else showToast("🌑 LAPTEV вернёт тебя через 3 дня.", "error");
           }}
         />
       )}

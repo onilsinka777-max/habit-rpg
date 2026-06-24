@@ -86,6 +86,9 @@ const NEON_STYLE = `
     0%,100% { text-shadow:0 0 5px #7c3aed,0 0 10px #7c3aed; color:#a78bfa; }
     50% { text-shadow:0 0 10px #a78bfa,0 0 20px #7c3aed,0 0 30px #7c3aed; color:#c4b5fd; }
   }
+  @keyframes darkPulse {
+    0%,100%{opacity:0.8} 50%{opacity:1}
+  }
   .player-badge {
     animation: neonPulse 2s ease-in-out infinite;
     font-size:11px; font-weight:700; letter-spacing:1px;
@@ -93,6 +96,7 @@ const NEON_STYLE = `
   }
 `;
 
+// eslint-disable-next-line no-unused-vars
 export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, onGoToProfile, onAvatarChange }) {
   const xpToNext  = user?.xpToNextLevel || (1000 + ((user?.level || 1) - 1) * 100);
   const xpPercent = Math.min(((user?.xp || 0) / xpToNext) * 100, 100);
@@ -101,60 +105,96 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, o
   const showTip = (key) => setTooltip(key);
   const hideTip = () => setTooltip(null);
 
+  const isDark = !!user?.darkSideActive;
+  const darkInt = isDark ? Math.min((user?.darkSideDay || 1) / 3, 1) : 0;
+
+  const cardBg    = isDark
+    ? "linear-gradient(135deg, #1a0000, #0d0000)"
+    : undefined;
+  const nameColor = isDark
+    ? `rgb(${Math.round(200 - darkInt * 100)}, 0, 0)`
+    : undefined;
+  const avatarFilter = isDark
+    ? `saturate(${1 - darkInt * 0.8}) brightness(${1 - darkInt * 0.3}) contrast(${1 + darkInt * 0.3})`
+    : undefined;
+  const avatarBorder = isDark
+    ? `3px solid rgba(139,0,0,${darkInt})`
+    : undefined;
+  const avatarShadow = isDark
+    ? `0 0 ${Math.round(darkInt * 20)}px rgba(139,0,0,${(darkInt * 0.8).toFixed(2)})`
+    : undefined;
+  const xpBarBg = isDark
+    ? "linear-gradient(90deg, #8b0000, #cc0000)"
+    : "linear-gradient(90deg, #7c3aed, #a78bfa)";
+
   return (
-    <div className="player-card">
-      <style>{NEON_STYLE}</style>
-      {tooltip && (
-        <div className="pc-tooltip">
-          {tooltip === "gold"  && "Нажми, чтобы перейти в магазин"}
-          {tooltip === "xp"   && `До следующего уровня: ${Math.max(0, xpToNext - (user?.xp || 0))} XP`}
-          {tooltip === "level" && `${user.level} уровень`}
+    <>
+      {isDark && (
+        <div style={{
+          background: "linear-gradient(90deg, #8b0000, #cc0000)",
+          color: "#fff", padding: "6px", textAlign: "center",
+          fontSize: 12, fontWeight: 700, letterSpacing: 1,
+          animation: "darkPulse 2s ease-in-out infinite",
+        }}>
+          ⚠️ ТЁМНАЯ СТОРОНА АКТИВНА · ДЕНЬ {user.darkSideDay} · УРОВЕНЬ ПАДАЕТ
         </div>
       )}
+      <div className="player-card" style={cardBg ? { background: cardBg } : undefined}>
+        <style>{NEON_STYLE}</style>
+        {tooltip && (
+          <div className="pc-tooltip">
+            {tooltip === "gold"  && "Нажми, чтобы перейти в магазин"}
+            {tooltip === "xp"   && `До следующего уровня: ${Math.max(0, xpToNext - (user?.xp || 0))} XP`}
+            {tooltip === "level" && `${user.level} уровень`}
+          </div>
+        )}
 
-      <div onMouseEnter={() => showTip("level")} onMouseLeave={hideTip}>
-        <AvatarCircle user={user} size={64} onGoToProfile={onGoToProfile} onAvatarChange={onAvatarChange} />
-      </div>
-
-      <div className="player-info">
-        <div className="player-row">
-          <span className="player-email">
-            <span className="player-badge">ИГРОК</span>
-            <span className={user?.nicknameEffect ? `nick-${user.nicknameEffect}` : ""}>{user?.name}</span>
-          </span>
-          <button className="btn btn-ghost btn-sm" onClick={onLogout}>Выйти</button>
+        <div onMouseEnter={() => showTip("level")} onMouseLeave={hideTip}
+          style={{ filter: avatarFilter, borderRadius: "50%",
+            border: avatarBorder, boxShadow: avatarShadow }}>
+          <AvatarCircle user={user} size={64} onGoToProfile={onGoToProfile} onAvatarChange={onAvatarChange} />
         </div>
 
-        <div className="player-stats">
-          <span className="player-stat-btn"
-            onClick={() => onGoToShop && onGoToShop()}
-            onMouseEnter={() => showTip("gold")} onMouseLeave={hideTip}>
-            💰 {user?.gold}
-          </span>
-          <span className="player-stat-btn"
-            onMouseEnter={() => showTip("xp")} onMouseLeave={hideTip}>
-            {user?.xp} / {xpToNext} XP
-          </span>
-          {(user?.streak > 0) && (
-            <span style={{ fontSize:12, fontWeight:700, color:"#fb923c" }}>
-              🔥 {user.streak}
+        <div className="player-info">
+          <div className="player-row">
+            <span className="player-email" style={nameColor ? { color: nameColor } : undefined}>
+              <span className="player-badge">{isDark ? "ТЁМНАЯ" : "ИГРОК"}</span>
+              <span className={user?.nicknameEffect ? `nick-${user.nicknameEffect}` : ""}>{user?.name}</span>
             </span>
-          )}
-        </div>
+            <button className="btn btn-ghost btn-sm" onClick={onLogout}>Выйти</button>
+          </div>
 
-        <div className="xp-bar" onMouseEnter={() => showTip("xp")} onMouseLeave={hideTip}>
-          <div className="xp-fill" style={{
-            width: `${xpPercent}%`,
-            background: "linear-gradient(90deg, #7c3aed, #a78bfa)",
-            boxShadow: "0 0 8px #7c3aed",
-            transition: "width 0.8s cubic-bezier(0.34,1.56,0.64,1)",
-          }}/>
-        </div>
-        <div style={{ fontSize:10, color:"#a78bfa", textAlign:"right", marginTop:2,
-          textShadow:"0 0 8px rgba(124,58,237,0.6)" }}>
-          {user?.level} ур.
+          <div className="player-stats">
+            <span className="player-stat-btn"
+              onClick={() => onGoToShop && onGoToShop()}
+              onMouseEnter={() => showTip("gold")} onMouseLeave={hideTip}>
+              💰 {user?.gold}
+            </span>
+            <span className="player-stat-btn"
+              onMouseEnter={() => showTip("xp")} onMouseLeave={hideTip}>
+              {user?.xp} / {xpToNext} XP
+            </span>
+            {(user?.streak > 0) && (
+              <span style={{ fontSize:12, fontWeight:700, color:"#fb923c" }}>
+                🔥 {user.streak}
+              </span>
+            )}
+          </div>
+
+          <div className="xp-bar" onMouseEnter={() => showTip("xp")} onMouseLeave={hideTip}>
+            <div className="xp-fill" style={{
+              width: `${xpPercent}%`,
+              background: xpBarBg,
+              boxShadow: isDark ? "0 0 8px #8b0000" : "0 0 8px #7c3aed",
+              transition: "width 0.8s cubic-bezier(0.34,1.56,0.64,1)",
+            }}/>
+          </div>
+          <div style={{ fontSize:10, color: isDark ? "#cc0000" : "#a78bfa", textAlign:"right", marginTop:2,
+            textShadow: isDark ? "0 0 8px rgba(139,0,0,0.6)" : "0 0 8px rgba(124,58,237,0.6)" }}>
+            {user?.level} ур.{isDark ? " ↓" : ""}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
