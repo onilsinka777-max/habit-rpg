@@ -22,7 +22,7 @@ export default function DarkSideChoice({ token, user, onChoose }) {
   const [result, setResult]     = useState(null);
 
   const darkStart = user?.darkSideStartedAt ? new Date(user.darkSideStartedAt).getTime() : NOW_AT_LOAD;
-  const deadline  = darkStart + 72 * 3600 * 1000;
+  const deadline  = darkStart + 24 * 3600 * 1000;
   const countdown = useCountdown(deadline);
 
   const choose = async (choice) => {
@@ -113,7 +113,10 @@ export default function DarkSideChoice({ token, user, onChoose }) {
               ОСТАТЬСЯ В ТЕНИ
             </div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, textAlign: "center", maxWidth: 200, marginBottom: 28 }}>
-              Золото. Свобода. Хаос.<br/>Но кем ты станешь?
+              Золото. Свобода. Хаос.<br/>Но кем ты станешь?<br/>
+              <span style={{ fontSize: 11, color: "rgba(255,80,80,0.6)", marginTop: 6, display: "block" }}>
+                Хорошо. Но через 24ч LAPTEV вернёт тебя принудительно.
+              </span>
             </div>
             <button onClick={(e) => { e.stopPropagation(); choose("shadow"); }}
               disabled={!!choosing} style={{

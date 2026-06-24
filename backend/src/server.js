@@ -681,12 +681,15 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
       const hoursSince=cu.darkSideStartedAt?(Date.now()-new Date(cu.darkSideStartedAt).getTime())/(1000*60*60):0;
       const currentDarkDay=Math.floor(hoursSince/24)+1;
       await prisma.user.update({where:{id:req.userId},data:{xp:newXp,level:newLevel,gold:{increment:goldGained},darkSideDay:currentDarkDay,lastActiveQuestDate:now}});
-      if(hoursSince>=20){
+      // Проверяем все ли тёмные квесты выполнены сегодня
+      const allDarkToday=await prisma.task.findMany({where:{userId:req.userId,branch:'dark',isDaily:true,createdAt:{gte:today}}});
+      const allDarkDone=allDarkToday.length>0&&allDarkToday.every(t=>t.completed||t.id===taskId);
+      if(allDarkDone||hoursSince>=20){
         const choiceNotif=await prisma.notification.findFirst({where:{userId:req.userId,type:"dark_side_choice"}});
-        if(!choiceNotif)await createNotification(req.userId,"dark_side_choice","⚫ LAPTEV говорит","LAPTEV: Я вижу что происходит. Твой уровень падает. Твой аватар меняется. Ты ещё можешь вернуться. Или остаться в тени навсегда.");
+        if(!choiceNotif)await createNotification(req.userId,"dark_side_choice","⚫ LAPTEV говорит","LAPTEV: Ты выполнил все квесты тьмы. Я вижу что происходит. Твой уровень падает. Ты ещё можешь вернуться. Или остаться в тени навсегда.");
       }
-      const darkMsg=currentDarkDay===1?"Золото получено. Уровень падает.":`День ${currentDarkDay}. Тьма усиливается.`;
-      return res.json({...updatedTask,darkSide:true,xpGained:task.xpReward,goldGained,newLevel,newXp,leveledUp:false,message:darkMsg,newAchievements:[],petCreated:false});
+      const darkMsg=allDarkDone?"Ты выполнил все квесты. LAPTEV наблюдает за тобой.":currentDarkDay===1?"Золото получено. Уровень падает.":`День ${currentDarkDay}. Тьма усиливается.`;
+      return res.json({...updatedTask,darkSide:true,xpGained:task.xpReward,goldGained,newLevel,newXp,leveledUp:false,message:darkMsg,allDarkCompleted:allDarkDone,newAchievements:[],petCreated:false});
     }
 
     // ── Flow mode: 5+ quests in 30 min → flat +25% XP ───────────────────────
@@ -3207,6 +3210,21 @@ setInterval(async()=>{
       for(const u of candidates){
         const existInvite=await prisma.notification.findFirst({where:{userId:u.id,type:"dark_side_invite"}});
         if(!existInvite)await createNotification(u.id,"dark_side_invite","⚫ Система говорит...","_system_: Ты думаешь что строишь дисциплину. На самом деле ты строишь клетку. Я покажу тебе другой путь. Открой если не боишься.").catch(()=>{});
+      }
+    }
+    // Принудительный возврат: darkSideChoice=null, уведомление > 24ч
+    const pendingUsers=await prisma.user.findMany({
+      where:{darkSideActive:true,darkSideChoice:null},
+      include:{notifications:{where:{type:'dark_side_choice'},orderBy:{createdAt:'desc'},take:1}}
+    });
+    for(const u of pendingUsers){
+      const choiceNotif=u.notifications[0];
+      if(!choiceNotif)continue;
+      const hoursSinceNotif=(now.getTime()-new Date(choiceNotif.createdAt).getTime())/(1000*60*60);
+      if(hoursSinceNotif>=24){
+        await prisma.user.update({where:{id:u.id},data:{darkSideActive:false,darkSideChoice:'forced',antagonistPathActive:true,xp:{increment:200}}});
+        await createNotification(u.id,"dark_side_forced_return","⚡ LAPTEV вернул тебя","Время вышло. Я говорил что все возвращаются. Система ждала тебя. Добро пожаловать обратно. Твой путь продолжается.").catch(()=>{});
+        console.log('Принудительный возврат (no choice):', u.id);
       }
     }
     // Принудительный возврат: shadow выбор 3 дня назад

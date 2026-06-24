@@ -40,6 +40,7 @@ import WelcomeNPC from "./components/WelcomeNPC";
 import FutureLetterScreen from "./components/FutureLetterScreen";
 import DarkSideChoice from "./components/DarkSideChoice";
 import DarkSideInvite from "./components/DarkSideInvite";
+import DarkSideForcedReturn from "./components/DarkSideForcedReturn";
 import Archive from "./components/Archive";
 import ArchiveBadge from "./components/ArchiveBadge";
 import Player2 from "./components/Player2";
@@ -194,6 +195,7 @@ export default function App() {
   const [futureLetterDone, setFutureLetterDone] = useState(() => !!localStorage.getItem("future_letter_done"));
   const [showDarkSideChoice, setShowDarkSideChoice] = useState(false);
   const [showDarkSideInvite, setShowDarkSideInvite] = useState(false);
+  const [showForcedReturn,   setShowForcedReturn]   = useState(false);
   const [showArchivePopup,  setShowArchivePopup]  = useState(false);
   const [showWelcomeRules, setShowWelcomeRules] = useState(false);
   const [welcomeSlide, setWelcomeSlide]   = useState(0);
@@ -281,14 +283,17 @@ export default function App() {
           if (inact.data.inactive) setDarkScreen(inact.data);
         } catch {}
       }
-      // Проверяем уведомление о тёмной стороне
-      if (!res.data.darkSideActive && !res.data.darkSideChoice) {
-        try {
-          const notifs = await axios.get(`${API}/notifications`, authHeaders).catch(() => ({ data: [] }));
-          const invite = (notifs.data || []).find(n => n.type === "dark_side_invite" && !n.read);
+      // Проверяем уведомления тёмной стороны
+      try {
+        const notifs = await axios.get(`${API}/notifications`, authHeaders).catch(() => ({ data: [] }));
+        const nList = notifs.data || [];
+        if (!res.data.darkSideActive && !res.data.darkSideChoice) {
+          const invite = nList.find(n => n.type === "dark_side_invite" && !n.read);
           if (invite) setShowDarkSideInvite(true);
-        } catch {}
-      }
+        }
+        const forced = nList.find(n => n.type === "dark_side_forced_return" && !n.read);
+        if (forced) setShowForcedReturn(true);
+      } catch {}
     } catch (e) { console.error(e); }
   };
 
@@ -469,6 +474,9 @@ export default function App() {
         break;
       case "dark_side_choice":
         setShowDarkSideChoice(true);
+        break;
+      case "dark_side_forced_return":
+        setShowForcedReturn(true);
         break;
       case "new_message":
         setView("friends");
@@ -1255,6 +1263,15 @@ export default function App() {
             }}>Закрыть</button>
           </div>
         </div>
+      )}
+
+      {showForcedReturn && (
+        <DarkSideForcedReturn onClose={async () => {
+          setShowForcedReturn(false);
+          await axios.patch(`${API}/notifications/read-type/dark_side_forced_return`, {}, authHeaders).catch(() => {});
+          await loadProfile();
+          showToast("⚡ Ты вернулся к свету", "success");
+        }} />
       )}
 
       {showDarkSideInvite && (
