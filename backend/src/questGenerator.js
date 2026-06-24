@@ -139,37 +139,47 @@ async function cleanupExpiredDailyQuests(userId) {
       expiresAt: { lt: startOfToday() },
     },
   });
+  // Peace quests live 7 days
+  await prisma.task.deleteMany({
+    where: {
+      userId,
+      branch: "peace",
+      isDaily: true,
+      createdAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+    },
+  });
 }
 
-async function ensurePeaceQuests(userId, user, activeDaily) {
+async function ensurePeaceQuests(userId, user) {
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const weekAgo = new Date(Date.now() - WEEK_MS);
+
+  // If ANY peace quests exist from last 7 days — skip generation
+  const existing = await prisma.task.findMany({
+    where: { userId, branch: "peace", isDaily: true, createdAt: { gte: weekAgo } },
+  });
+  if (existing.length > 0) return;
+
+  const expiresAt = new Date(Date.now() + WEEK_MS);
   const PEACE_REQUIRED    = 2;
   const PEACE_RECOMMENDED = 6;
+
   for (const type of ["required", "recommended"]) {
-    const target   = type === "required" ? PEACE_REQUIRED : PEACE_RECOMMENDED;
-    const existing = activeDaily.filter(t => t.branch === "peace" && t.type === type);
-    const needed   = target - existing.length;
-    if (needed < 0) {
-      const toDelete = existing.filter(t => !t.completed).slice(0, -needed);
-      if (toDelete.length > 0) await prisma.task.deleteMany({ where: { id: { in: toDelete.map(t => t.id) } } });
-      continue;
-    }
-    if (needed === 0) continue;
-    const existingTitles = new Set(existing.map(t => t.title));
-    const allTemplates   = await findTemplatesForLevel("peace", type, user.level);
-    const pool           = shuffle(allTemplates.filter(t => !existingTitles.has(t.title)));
-    for (let i = 0; i < needed && pool.length > 0; i++) {
-      const template = pool.shift();
+    const target    = type === "required" ? PEACE_REQUIRED : PEACE_RECOMMENDED;
+    const templates = shuffle(await findTemplatesForLevel("peace", type, user.level));
+    for (let i = 0; i < target && i < templates.length; i++) {
+      const t = templates[i];
       await prisma.task.create({
         data: {
-          title: template.title,
-          description: template.description,
+          title: t.title,
+          description: t.description,
           branch: "peace",
-          type: template.type,
-          difficulty: template.difficulty,
-          xpReward: template.xpReward,
-          goldReward: template.goldReward,
+          type: t.type,
+          difficulty: t.difficulty,
+          xpReward: t.xpReward,
+          goldReward: t.goldReward,
           isDaily: true,
-          expiresAt: endOfToday(),
+          expiresAt,
           userId,
         },
       });
@@ -254,7 +264,7 @@ async function ensureDailyQuests(userId) {
 
   // Peace branch
   if (user.peaceUnlocked) {
-    await ensurePeaceQuests(userId, user, activeDaily);
+    await ensurePeaceQuests(userId, user);
   }
 }
 
