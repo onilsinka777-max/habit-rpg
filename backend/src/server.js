@@ -2286,36 +2286,36 @@ app.post("/legend-path/claim-daily",authMiddleware,async(req,res)=>{
 
 // ── ПУТЬ СОЗДАТЕЛЯ ────────────────────────────────────────────────────────────
 const CREATOR_QUESTS=[
-  {day:1, title:"Вызов Создателя: День 1", desc:"Проснись в 5:00 и запиши манифест своей жизни (500+ слов)"},
-  {day:2, title:"Железная воля",           desc:"Выполни ВСЕ квесты дня без единого пропуска"},
-  {day:3, title:"Тело воина",              desc:"200 отжиманий за день (можно подходами)"},
-  {day:4, title:"Разум мудреца",           desc:"Прочитай 50 страниц и напиши конспект"},
-  {day:5, title:"Без телефона",            desc:"Первые 3 часа дня без телефона"},
-  {day:6, title:"Холодный старт",          desc:"7 дней холодного душа подряд (на честность)"},
-  {day:7, title:"Неделя Создателя",        desc:"Стрик 7 дней без единого пропуска"},
-  {day:8, title:"Марафон воли",            desc:"Выполни 15 квестов за один день"},
-  {day:9, title:"Голос лидера",            desc:"Запиши видео о своём прогрессе (на честность)"},
-  {day:10,title:"Десятый рубеж",           desc:"10 дней пути. Напиши письмо себе через год"},
-  {day:11,title:"Час тишины",              desc:"Проведи 1 час в полной тишине и медитации без телефона"},
-  {day:12,title:"Физический максимум",     desc:"Побей свой личный рекорд в любом упражнении"},
-  {day:13,title:"Мастер фокуса",           desc:"2 часа глубокой работы без прерываний, телефон в другой комнате"},
-  {day:14,title:"Две недели стали",        desc:"14 дней пути. Ты изменился. Запиши что изменилось"},
-  {day:15,title:"Выход из зоны комфорта",  desc:"Сделай что-то что давно боялся сделать"},
-  {day:16,title:"Наставник",               desc:"Объясни кому-то один навык или знание которым владеешь"},
-  {day:17,title:"Без сахара",              desc:"День без сахара, фастфуда и мусорной еды"},
-  {day:18,title:"Утренний воин",           desc:"5 дней подряд просыпаться до 6:00 (на честность)"},
-  {day:19,title:"Сила разума",             desc:"Выучи наизусть 10 цитат великих людей и запиши свой комментарий к каждой"},
-  {day:20,title:"Три недели впереди",      desc:"Напиши план на следующие 30 дней своей жизни"},
-  {day:21,title:"Три недели",              desc:"Стрик 21 день. Привычка сформирована. Напиши что изменила система"},
-  {day:22,title:"Предел силы",             desc:"300 отжиманий за день. Без исключений."},
-  {day:23,title:"Информационный детокс",   desc:"24 часа без соцсетей, новостей и развлечений"},
-  {day:24,title:"Слово лидера",            desc:"Публично расскажи о своём пути — пост в соцсетях или видео"},
-  {day:25,title:"Четверть к победе",       desc:"25 дней. Большинство сдались бы. Ты нет. Опиши 5 главных изменений"},
-  {day:26,title:"Ультимативный день",      desc:"Выполни все квесты дня + 100 приседаний + 1 глава книги + благодарность"},
-  {day:27,title:"Без компромиссов",        desc:"День абсолютной дисциплины: подъём в 5, холодный душ, все квесты, сон до 23"},
-  {day:28,title:"Четыре недели",           desc:"28 дней. Запиши письмо тому себе с начала пути"},
-  {day:29,title:"Последний рубеж",         desc:"Финальная подготовка. Выполни ВСЕ квесты и запиши план жизни на год"},
-  {day:30,title:"ФИНАЛ — Я ПОБЕДИЛ СИСТЕМУ",desc:"Выполни все обязательные квесты дня + напиши итоговый манифест 1000+ слов. Ты прошёл путь Создателя."},
+  {day:1,  title:"Вызов Создателя: День 1",         desc:"Проснись в 5:00 и запиши манифест своей жизни (500+ слов)",                        xpReward:500,   goldReward:250},
+  {day:2,  title:"Железная воля",                   desc:"Выполни ВСЕ квесты дня без единого пропуска",                                        xpReward:500,   goldReward:250},
+  {day:3,  title:"Тело воина",                      desc:"200 отжиманий за день (можно подходами)",                                             xpReward:500,   goldReward:250},
+  {day:4,  title:"Разум мудреца",                   desc:"Прочитай 50 страниц и напиши конспект",                                               xpReward:500,   goldReward:250},
+  {day:5,  title:"Без телефона",                    desc:"Первые 3 часа дня без телефона",                                                      xpReward:500,   goldReward:250},
+  {day:6,  title:"Холодный старт",                  desc:"7 дней холодного душа подряд (на честность)",                                        xpReward:500,   goldReward:250},
+  {day:7,  title:"Неделя создателя",                desc:"Стрик 7 дней без единого пропуска",                                                   xpReward:500,   goldReward:250},
+  {day:8,  title:"Марафон воли",                    desc:"Выполни 15 квестов за один день",                                                     xpReward:500,   goldReward:250},
+  {day:9,  title:"Голос лидера",                    desc:"Запиши видео о своём прогрессе (на честность)",                                       xpReward:500,   goldReward:250},
+  {day:10, title:"Десятый рубеж",                   desc:"10 дней пути. Напиши письмо себе через год.",                                         xpReward:1000,  goldReward:500},
+  {day:11, title:"Железный режим",                  desc:"Вставай в одно время 5 дней подряд до 6:00",                                          xpReward:500,   goldReward:250},
+  {day:12, title:"Цифровой детокс",                 desc:"Весь день без социальных сетей. Полностью.",                                          xpReward:500,   goldReward:250},
+  {day:13, title:"Физический предел",               desc:"Тренировка до полного отказа мышц",                                                   xpReward:500,   goldReward:250},
+  {day:14, title:"Две недели",                      desc:"Напиши 3 вещи которые изменились за 14 дней",                                         xpReward:500,   goldReward:250},
+  {day:15, title:"Наставник",                       desc:"Помоги кому-то стать лучше сегодня. Опиши в дневнике.",                               xpReward:500,   goldReward:250},
+  {day:16, title:"Без жалоб",                       desc:"Весь день без единой жалобы вслух или в мыслях",                                      xpReward:500,   goldReward:250},
+  {day:17, title:"Час концентрации",                desc:"60 минут глубокой работы без единого отвлечения",                                     xpReward:500,   goldReward:250},
+  {day:18, title:"Благодарность",                   desc:"Напиши 10 вещей за которые благодарен прямо сейчас",                                  xpReward:500,   goldReward:250},
+  {day:19, title:"Предпоследний день третьей недели",desc:"Выполни все квесты всех 4 веток за один день",                                        xpReward:500,   goldReward:250},
+  {day:20, title:"Двадцатый рубеж",                 desc:"20 дней. Запиши своё главное открытие пути.",                                         xpReward:1000,  goldReward:500},
+  {day:21, title:"Три недели",                      desc:"Стрик 21 день. Привычка сформирована. Докажи.",                                       xpReward:500,   goldReward:250},
+  {day:22, title:"Выход из зоны комфорта",          desc:"Сделай что-то чего никогда не делал раньше",                                          xpReward:500,   goldReward:250},
+  {day:23, title:"Лидерство",                       desc:"Возьми на себя ответственность за что-то важное сегодня",                             xpReward:500,   goldReward:250},
+  {day:24, title:"Читай ежедневно",                 desc:"Минимум 30 страниц. Без исключений.",                                                 xpReward:500,   goldReward:250},
+  {day:25, title:"Четверть финала",                 desc:"25 дней. Напиши кем стал за это время.",                                              xpReward:1000,  goldReward:500},
+  {day:26, title:"Без оправданий",                  desc:"Весь день — никаких оправданий. Только действия.",                                    xpReward:500,   goldReward:250},
+  {day:27, title:"Максимальный день",               desc:"Выполни максимально возможное количество квестов за день",                            xpReward:500,   goldReward:250},
+  {day:28, title:"Письмо прошлому себе",            desc:"Напиши письмо себе до начала пути. Что изменилось?",                                  xpReward:500,   goldReward:250},
+  {day:29, title:"Предпоследний день",              desc:"Завтра финал. Подготовься. Напиши план финального дня.",                              xpReward:500,   goldReward:250},
+  {day:30, title:"ФИНАЛ — Я ПОБЕДИЛ СИСТЕМУ",       desc:"Выполни все обязательные квесты дня + напиши итоговый манифест 1000+ слов. Ты прошёл путь создателя.", xpReward:10000, goldReward:5000},
 ];
 
 app.get("/creator-path/status",authMiddleware,async(req,res)=>{
@@ -2327,7 +2327,9 @@ app.get("/creator-path/status",authMiddleware,async(req,res)=>{
     const questData=CREATOR_QUESTS[cp.currentDay]||null;
     const msSinceStart=Date.now()-new Date(cp.startedAt).getTime();
     const daysPassed=Math.floor(msSinceStart/(1000*60*60*24));
-    res.json({started:true,currentDay:cp.currentDay,status:cp.status,startedAt:cp.startedAt,completedAt:cp.completedAt,questData,daysPassed,totalDays:30});
+    const today=startOfToday();
+    const alreadyDoneToday=cp.lastQuestDate&&new Date(cp.lastQuestDate)>=today;
+    res.json({started:true,currentDay:cp.currentDay,status:cp.status,startedAt:cp.startedAt,completedAt:cp.completedAt,questData,daysPassed,totalDays:30,alreadyDoneToday:!!alreadyDoneToday});
   }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
 });
 
@@ -2347,16 +2349,39 @@ app.post("/creator-path/complete-day",authMiddleware,async(req,res)=>{
     const cp=await prisma.creatorPath.findUnique({where:{userId:req.userId}});
     if(!cp)return res.status(404).json({message:"Путь не начат"});
     if(cp.status==="completed")return res.status(400).json({message:"Путь уже завершён"});
+    // ── One quest per day ────────────────────────────────────────────────────
+    const today=startOfToday();
+    if(cp.lastQuestDate&&new Date(cp.lastQuestDate)>=today){
+      return res.status(400).json({message:"Квест уже выполнен сегодня. Возвращайся завтра.",nextAvailable:"завтра"});
+    }
+    // ── Determine quest rewards ──────────────────────────────────────────────
+    const quest=CREATOR_QUESTS[cp.currentDay]||{xpReward:500,goldReward:250};
     const nextDay=cp.currentDay+1;
     const isFinished=nextDay>=30;
-    const updates={currentDay:nextDay};
-    if(isFinished){updates.status="completed";updates.completedAt=new Date();}
-    await prisma.creatorPath.update({where:{userId:req.userId},data:updates});
+    // ── Apply XP ─────────────────────────────────────────────────────────────
+    const cu=await prisma.user.findUnique({where:{id:req.userId}});
+    const{xp,level}=applyXpGain(cu.xp,cu.level,quest.xpReward);
+    // ── Update creatorPath ────────────────────────────────────────────────────
+    const cpData={currentDay:nextDay,lastQuestDate:new Date()};
+    if(isFinished){cpData.status="completed";cpData.completedAt=new Date();}
+    await prisma.creatorPath.update({where:{userId:req.userId},data:cpData});
+    // ── Per-day reward ────────────────────────────────────────────────────────
+    const userUpdates={xp,level,gold:{increment:quest.goldReward}};
     if(isFinished){
-      await prisma.user.update({where:{id:req.userId},data:{gold:{increment:50000},title:"Победитель системы",nicknameEffect:"absolute"}});
+      // Final completion bonus
+      Object.assign(userUpdates,{gold:{increment:quest.goldReward+50000},title:"Победитель системы",nicknameEffect:"absolute",activeTitle:"Победитель системы"});
+    }
+    await prisma.user.update({where:{id:req.userId},data:userUpdates});
+    // ── Hall of Fame on completion ────────────────────────────────────────────
+    if(isFinished){
+      const existing=await prisma.hallOfFame.findFirst({where:{userId:req.userId,type:"creator_path"}}).catch(()=>null);
+      if(!existing){
+        await prisma.hallOfFame.create({data:{userId:req.userId,type:"creator_path",completedAt:new Date()}}).catch(()=>{});
+      }
+      await prisma.notification.create({data:{userId:req.userId,type:"hall_of_fame",message:"⚡ Ты завершил Путь Создателя и попал в Зал Славы!",read:false}}).catch(()=>{});
     }
     const questData=isFinished?null:CREATOR_QUESTS[nextDay];
-    res.json({success:true,nextDay,isFinished,questData,goldReward:isFinished?50000:0});
+    res.json({success:true,nextDay,isFinished,questData,xpGained:quest.xpReward,goldReward:isFinished?quest.goldReward+50000:quest.goldReward,leveledUp:level>cu.level,newLevel:level});
   }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
 });
 

@@ -721,13 +721,14 @@ model SeasonQuest {
 
 // ── ПУТЬ СОЗДАТЕЛЯ ────────────────────────────────────────────────────────────
 model CreatorPath {
-  id          Int       @id @default(autoincrement())
-  userId      Int       @unique
-  user        User      @relation(fields: [userId], references: [id])
-  currentDay  Int       @default(0)
-  startedAt   DateTime  @default(now())
-  completedAt DateTime?
-  status      String    @default("active")
+  id            Int       @id @default(autoincrement())
+  userId        Int       @unique
+  user          User      @relation(fields: [userId], references: [id])
+  currentDay    Int       @default(0)
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  lastQuestDate DateTime?
+  status        String    @default("active")
 }
 
 // ── ЗАЛ СЛАВЫ ────────────────────────────────────────────────────────────────
