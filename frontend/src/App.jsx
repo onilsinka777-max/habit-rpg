@@ -39,6 +39,7 @@ import LoadingScreen from "./components/LoadingScreen";
 import WelcomeNPC from "./components/WelcomeNPC";
 import FutureLetterScreen from "./components/FutureLetterScreen";
 import DarkSideChoice from "./components/DarkSideChoice";
+import DarkSideInvite from "./components/DarkSideInvite";
 import Archive from "./components/Archive";
 import ArchiveBadge from "./components/ArchiveBadge";
 import Player2 from "./components/Player2";
@@ -191,6 +192,7 @@ export default function App() {
   const [npcDone,       setNpcDone]       = useState(() => !!localStorage.getItem("welcome_npc_done"));
   const [futureLetterDone, setFutureLetterDone] = useState(() => !!localStorage.getItem("future_letter_done"));
   const [showDarkSideChoice, setShowDarkSideChoice] = useState(false);
+  const [showDarkSideInvite, setShowDarkSideInvite] = useState(false);
   const [showArchivePopup,  setShowArchivePopup]  = useState(false);
   const [showWelcomeRules, setShowWelcomeRules] = useState(false);
   const [welcomeSlide, setWelcomeSlide]   = useState(0);
@@ -276,6 +278,14 @@ export default function App() {
         try {
           const inact = await axios.get(`${API}/me/inactivity`, authHeaders);
           if (inact.data.inactive) setDarkScreen(inact.data);
+        } catch {}
+      }
+      // Проверяем уведомление о тёмной стороне
+      if (!res.data.darkSideActive && !res.data.darkSideChoice) {
+        try {
+          const notifs = await axios.get(`${API}/notifications`, authHeaders).catch(() => ({ data: [] }));
+          const invite = (notifs.data || []).find(n => n.type === "dark_side_invite" && !n.read);
+          if (invite) setShowDarkSideInvite(true);
         } catch {}
       }
     } catch (e) { console.error(e); }
@@ -433,6 +443,23 @@ export default function App() {
       await axios.delete(`${API}/tasks/${id}`, authHeaders);
       await loadTasks();
     } catch (e) { showToast(e.response?.data?.message || "Не удалось удалить", "error"); }
+  };
+
+  const handleDarkSideAccept = async () => {
+    try {
+      await axios.post(`${API}/dark-side/enter`, {}, authHeaders);
+      await axios.patch(`${API}/notifications/read-type/dark_side_invite`, {}, authHeaders).catch(() => {});
+      setShowDarkSideInvite(false);
+      await loadProfile();
+    } catch (e) {
+      showToast(e.response?.data?.message || "Ошибка", "error");
+      setShowDarkSideInvite(false);
+    }
+  };
+
+  const handleDarkSideIgnore = async () => {
+    setShowDarkSideInvite(false);
+    await axios.patch(`${API}/notifications/read-type/dark_side_invite`, {}, authHeaders).catch(() => {});
   };
 
   const purchaseItem = async (item) => {
@@ -1146,6 +1173,13 @@ export default function App() {
             }}>Закрыть</button>
           </div>
         </div>
+      )}
+
+      {showDarkSideInvite && (
+        <DarkSideInvite
+          onAccept={handleDarkSideAccept}
+          onIgnore={handleDarkSideIgnore}
+        />
       )}
 
       {showDarkSideChoice && token && (

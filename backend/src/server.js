@@ -1414,6 +1414,13 @@ app.patch("/notifications/read-all",authMiddleware,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
+app.patch("/notifications/read-type/:type",authMiddleware,async(req,res)=>{
+  try{
+    await prisma.notification.updateMany({where:{userId:req.userId,type:req.params.type},data:{read:true}});
+    res.json({message:"ok"});
+  }catch(e){res.status(500).json({message:"Ошибка"});}
+});
+
 // ── ACTIVITY FEED ─────────────────────────────────────────────────────────────
 async function addFeedEvent(userId,type,data){
   return prisma.activityFeed.create({data:{userId,type,data:JSON.stringify(data)}});
