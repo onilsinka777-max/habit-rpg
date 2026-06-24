@@ -6,10 +6,14 @@ const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const TYPE_ICONS = {
   gift_received: "🎁", quest_complete: "✅", chain_complete: "⛓️",
   friend_request: "🤝", coop_invite: "🤜", mention: "@",
-  achievement: "🏅", new_message: "💬", default: "🔔",
+  achievement: "🏅", new_message: "💬",
+  dark_side_invite: "⚫", dark_side_choice: "🌑",
+  archive_solved: "🗃️", player2_arrived: "👤",
+  hall_of_fame: "🏆", future_letter: "✉️",
+  default: "🔔",
 };
 
-export default function NotificationBell({ token, onNavigate }) {
+export default function NotificationBell({ token, onNavigate, onNotificationClick }) {
   const [notifs, setNotifs]   = useState([]);
   const [open, setOpen]       = useState(false);
   const auth = { headers: { Authorization: `Bearer ${token}` } };
@@ -35,8 +39,10 @@ export default function NotificationBell({ token, onNavigate }) {
   const markRead = async (notif) => {
     await axios.patch(`${API}/notifications/${notif.id}/read`, {}, auth).catch(() => {});
     setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
-    if (notif.type === "new_message" && onNavigate) {
-      setOpen(false);
+    setOpen(false);
+    if (onNotificationClick) {
+      onNotificationClick(notif);
+    } else if (notif.type === "new_message" && onNavigate) {
       onNavigate("friends");
     }
   };

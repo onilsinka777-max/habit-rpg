@@ -462,6 +462,34 @@ export default function App() {
     await axios.patch(`${API}/notifications/read-type/dark_side_invite`, {}, authHeaders).catch(() => {});
   };
 
+  const handleNotificationClick = (notif) => {
+    switch (notif.type) {
+      case "dark_side_invite":
+        setShowDarkSideInvite(true);
+        break;
+      case "dark_side_choice":
+        setShowDarkSideChoice(true);
+        break;
+      case "new_message":
+        setView("friends");
+        break;
+      case "archive_solved":
+        setView("archive");
+        break;
+      case "player2_arrived":
+        setView("player2");
+        break;
+      case "hall_of_fame":
+        setView("hall-of-fame");
+        break;
+      case "friend_request":
+        setView("friends");
+        break;
+      default:
+        break;
+    }
+  };
+
   const purchaseItem = async (item) => {
     try {
       setShopLoadingId(item.id);
@@ -592,7 +620,7 @@ export default function App() {
               {soundOn ? "🔊" : "🔇"}
             </button>
             <button className="rules-btn" title="Поиск (Ctrl+K)" onClick={() => setSearchOpen(true)} style={{ fontSize:16 }}>🔍</button>
-            {token && <NotificationBell token={token} onNavigate={setView} />}
+            {token && <NotificationBell token={token} onNavigate={setView} onNotificationClick={handleNotificationClick} />}
             <button className="rules-btn" onClick={() => setRulesOpen(true)}>?</button>
           </div>
         </header>
