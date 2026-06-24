@@ -540,6 +540,22 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     if(hour<6)checkEasterEgg(req.userId,"early_bird");
     const todayCount=await prisma.task.count({where:{userId:req.userId,completed:true,completedAt:{gte:startOfToday()}}});
     if(todayCount>=10)checkEasterEgg(req.userId,"perfectionist");
+    // ── WeeklyBoss: засчитать квест клана ─────────────────────────────────────
+    if(cu.clanId){
+      try{
+        await prisma.weeklyBoss.updateMany({where:{clanId:cu.clanId,defeated:false,weekEnd:{gte:new Date()}},data:{currentQuests:{increment:1}}});
+        const boss=await prisma.weeklyBoss.findFirst({where:{clanId:cu.clanId,defeated:false,weekEnd:{gte:new Date()}}});
+        if(boss&&boss.currentQuests>=boss.totalQuests){
+          await prisma.weeklyBoss.update({where:{id:boss.id},data:{defeated:true}});
+          const clanMembers=await prisma.user.findMany({where:{clanId:cu.clanId},select:{id:true}});
+          for(const m of clanMembers){
+            const{xp:bxp,level:blvl}=applyXpGain(0,1,boss.rewardXp);
+            await prisma.user.update({where:{id:m.id},data:{gold:{increment:boss.rewardGold},xp:{increment:boss.rewardXp}}});
+            await createNotification(m.id,"boss_defeated",`⚔️ Босс повержен!`,`Клан победил ${boss.name}! +${boss.rewardGold}💰 +${boss.rewardXp}XP`);
+          }
+        }
+      }catch(bossErr){console.error("Boss update error:",bossErr.message);}
+    }
     res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:finalLevel>cu.level,newLevel:finalLevel,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0});
   }catch(e){console.error('QUEST COMPLETE ERROR:',e.message,e.stack);res.status(500).json({message:"Ошибка сервера",error:e.message});}
 });
@@ -2582,6 +2598,173 @@ io.on("connection",(socket)=>{
     }
   });
 });
+
+// ── ДУЭЛЬ СТРИКОВ ─────────────────────────────────────────────────────────────
+app.post("/streak-duels/challenge/:friendId",authMiddleware,async(req,res)=>{
+  try{
+    const challengedId=Number(req.params.friendId);
+    const stake=Number(req.body.stake)||100;
+    if(stake<50)return res.status(400).json({message:"Минимальная ставка 50 золота"});
+    const[challenger,challenged]=await Promise.all([
+      prisma.user.findUnique({where:{id:req.userId},select:{gold:true,name:true}}),
+      prisma.user.findUnique({where:{id:challengedId},select:{gold:true,name:true}}),
+    ]);
+    if(!challenged)return res.status(404).json({message:"Игрок не найден"});
+    if(challenger.gold<stake)return res.status(400).json({message:`Нужно ${stake} золота. У тебя ${challenger.gold}.`});
+    if(challenged.gold<stake)return res.status(400).json({message:`У ${challenged.name} недостаточно золота`});
+    const existing=await prisma.streakDuel.findFirst({where:{OR:[{challengerId:req.userId,challengedId},{challengerId:challengedId,challengedId:req.userId}],status:{in:["pending","active"]}}});
+    if(existing)return res.status(400).json({message:"Дуэль уже активна"});
+    await prisma.$transaction([
+      prisma.user.update({where:{id:req.userId},data:{gold:{decrement:stake}}}),
+      prisma.user.update({where:{id:challengedId},data:{gold:{decrement:stake}}}),
+    ]);
+    const duel=await prisma.streakDuel.create({data:{challengerId:req.userId,challengedId,stake,status:"pending"}});
+    await createNotification(challengedId,"streak_duel_challenge","⚔️ Вызов на дуэль стриков",`${challenger.name} вызывает тебя на дуэль стриков! Ставка: ${stake} золота.`,duel.id);
+    res.status(201).json(duel);
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.post("/streak-duels/accept/:id",authMiddleware,async(req,res)=>{
+  try{
+    const duel=await prisma.streakDuel.findUnique({where:{id:Number(req.params.id)}});
+    if(!duel||duel.challengedId!==req.userId||duel.status!=="pending")return res.status(400).json({message:"Нельзя принять"});
+    const now=new Date();
+    const updated=await prisma.streakDuel.update({where:{id:duel.id},data:{status:"active",startedAt:now,endsAt:new Date(now.getTime()+30*24*3600*1000)}});
+    await createNotification(duel.challengerId,"streak_duel_accepted","⚔️ Дуэль принята!","Противник принял твой вызов на дуэль стриков!",duel.id);
+    res.json(updated);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.post("/streak-duels/decline/:id",authMiddleware,async(req,res)=>{
+  try{
+    const duel=await prisma.streakDuel.findUnique({where:{id:Number(req.params.id)}});
+    if(!duel||duel.challengedId!==req.userId)return res.status(400).json({message:"Нет доступа"});
+    await prisma.streakDuel.update({where:{id:duel.id},data:{status:"declined"}});
+    await prisma.$transaction([
+      prisma.user.update({where:{id:duel.challengerId},data:{gold:{increment:duel.stake}}}),
+      prisma.user.update({where:{id:duel.challengedId},data:{gold:{increment:duel.stake}}}),
+    ]);
+    res.json({message:"Дуэль отклонена. Золото возвращено."});
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.get("/streak-duels/active",authMiddleware,async(req,res)=>{
+  try{
+    const duels=await prisma.streakDuel.findMany({
+      where:{OR:[{challengerId:req.userId},{challengedId:req.userId}],status:{in:["pending","active"]}},
+      include:{challenger:{select:{id:true,name:true,streak:true,level:true}},challenged:{select:{id:true,name:true,streak:true,level:true}}},
+      orderBy:{createdAt:"desc"},
+    });
+    res.json(duels);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+async function resolveStreakDuelsForUser(userId){
+  const duels=await prisma.streakDuel.findMany({where:{status:"active",OR:[{challengerId:userId},{challengedId:userId}]}});
+  for(const duel of duels){
+    const winnerId=duel.challengerId===userId?duel.challengedId:duel.challengerId;
+    await prisma.streakDuel.update({where:{id:duel.id},data:{status:"finished",winnerId}});
+    await prisma.user.update({where:{id:winnerId},data:{gold:{increment:duel.stake*2}}});
+    await createNotification(winnerId,"duel_won",`⚔️ Победа в дуэли!`,`Ты выиграл дуэль стриков! +${duel.stake*2} золота`,duel.id);
+    await createNotification(userId,"duel_lost","⚔️ Дуэль проиграна","Ты прервал стрик и проиграл дуэль.",duel.id);
+  }
+}
+
+// ── СОВМЕСТНЫЙ СТРИК — расширенный ────────────────────────────────────────────
+app.get("/shared-streak/active",authMiddleware,async(req,res)=>{
+  try{
+    const ss=await prisma.sharedStreak.findMany({
+      where:{OR:[{user1Id:req.userId},{user2Id:req.userId}],status:{in:["pending","active"]}},
+      include:{user1:{select:{id:true,name:true,streak:true,level:true}},user2:{select:{id:true,name:true,streak:true,level:true}}},
+    });
+    res.json(ss);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+// ── БОСС НЕДЕЛИ ───────────────────────────────────────────────────────────────
+function getBossTemplate(memberCount){
+  if(memberCount<=5)return{name:"Теневой страж",description:"Древний хранитель лени охраняет врата прогресса",totalQuests:50,rewardGold:200,rewardXp:500};
+  if(memberCount<=10)return{name:"Повелитель прокрастинации",description:"Он питается отложенными делами и несбыточными планами",totalQuests:120,rewardGold:400,rewardXp:1000};
+  if(memberCount<=20)return{name:"Архидемон слабости",description:"Тысячи лет он побеждал людей. Но не ваш клан.",totalQuests:250,rewardGold:800,rewardXp:2000};
+  if(memberCount<=50)return{name:"Хаос-повелитель",description:"Воплощение хаоса и беспорядка. Победи его — докажи что система работает.",totalQuests:500,rewardGold:1500,rewardXp:4000};
+  return{name:"АБСОЛЮТНАЯ ТЬМА",description:"Финальный враг. Никто ещё не побеждал его. Вы — первые?",totalQuests:1000,rewardGold:3000,rewardXp:8000};
+}
+
+async function ensureWeeklyBoss(clanId){
+  const now=new Date();
+  const dayOfWeek=now.getDay();
+  const weekStart=new Date(now);weekStart.setDate(now.getDate()-dayOfWeek+(dayOfWeek===0?-6:1));weekStart.setHours(0,0,0,0);
+  const weekEnd=new Date(weekStart);weekEnd.setDate(weekStart.getDate()+6);weekEnd.setHours(23,59,59,999);
+  const existing=await prisma.weeklyBoss.findFirst({where:{clanId,weekStart:{gte:weekStart}}});
+  if(existing)return existing;
+  const members=await prisma.user.count({where:{clanId}});
+  const tpl=getBossTemplate(members);
+  return prisma.weeklyBoss.create({data:{clanId,...tpl,weekStart,weekEnd}});
+}
+
+app.get("/clans/weekly-boss",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{clanId:true}});
+    if(!user?.clanId)return res.status(400).json({message:"Ты не в клане"});
+    const boss=await ensureWeeklyBoss(user.clanId);
+    const members=await prisma.user.findMany({where:{clanId:user.clanId},select:{id:true,name:true,level:true},take:20});
+    res.json({boss,members});
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+
+// ── ПИСЬМО В БУДУЩЕЕ ─────────────────────────────────────────────────────────
+app.post("/future-letter",authMiddleware,async(req,res)=>{
+  try{
+    const{content,sendAt}=req.body;
+    if(!content||content.trim().length<50)return res.status(400).json({message:"Письмо должно быть не менее 50 символов"});
+    if(!sendAt)return res.status(400).json({message:"Укажи дату отправки"});
+    const date=new Date(sendAt);
+    if(isNaN(date)||date<=new Date())return res.status(400).json({message:"Дата должна быть в будущем"});
+    const letter=await prisma.futureLetter.create({data:{userId:req.userId,content:content.trim(),sendAt:date}});
+    res.status(201).json({id:letter.id,sendAt:letter.sendAt,message:"Письмо запечатано!"});
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.get("/future-letter",authMiddleware,async(req,res)=>{
+  try{
+    const letters=await prisma.futureLetter.findMany({
+      where:{userId:req.userId},
+      select:{id:true,sendAt:true,sent:true,createdAt:true,content:true},
+      orderBy:{sendAt:"asc"},
+    });
+    res.json(letters.map(l=>({...l,content:l.sent?l.content:null})));
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.get("/future-letter/:id",authMiddleware,async(req,res)=>{
+  try{
+    const letter=await prisma.futureLetter.findUnique({where:{id:Number(req.params.id)}});
+    if(!letter||letter.userId!==req.userId)return res.status(404).json({message:"Письмо не найдено"});
+    if(!letter.sent)return res.status(403).json({message:"Письмо ещё не пришло"});
+    res.json(letter);
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+// ── CRON: письма + уведомления воскресенья ────────────────────────────────────
+setInterval(async()=>{
+  try{
+    const now=new Date();
+    // Проверяем письма в будущее
+    const letters=await prisma.futureLetter.findMany({where:{sent:false,sendAt:{lte:now}}});
+    for(const letter of letters){
+      await createNotification(letter.userId,"future_letter","📮 Письмо из прошлого","У тебя письмо от себя из прошлого! Открой и прочитай.",letter.id);
+      await prisma.futureLetter.update({where:{id:letter.id},data:{sent:true}});
+    }
+    // Воскресенье 20:00 — уведомление о недельном отчёте
+    if(now.getDay()===0&&now.getHours()===20&&now.getMinutes()<60){
+      const users=await prisma.user.findMany({select:{id:true}});
+      for(const u of users){
+        const existing=await prisma.notification.findFirst({where:{userId:u.id,type:"weekly_report",createdAt:{gte:new Date(now.getFullYear(),now.getMonth(),now.getDate())}}});
+        if(!existing)await createNotification(u.id,"weekly_report","📊 Недельный отчёт готов","Открой отчёт — посмотри сколько сделал за эту неделю!");
+      }
+    }
+  }catch(e){console.error("CRON ERROR:",e.message);}
+},60*60*1000);
 
 const PORT=process.env.PORT||3001;
 console.log(`Starting server on PORT=${PORT}, NODE_ENV=${process.env.NODE_ENV}, DB=${process.env.DATABASE_URL||"file:./dev.db"}`);

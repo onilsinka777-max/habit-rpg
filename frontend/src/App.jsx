@@ -37,6 +37,7 @@ import OnePctWidget from "./components/OnePctWidget";
 import LegendPath from "./components/LegendPath";
 import LoadingScreen from "./components/LoadingScreen";
 import WelcomeNPC from "./components/WelcomeNPC";
+import FutureLetterScreen from "./components/FutureLetterScreen";
 import ThemeChoiceScreen from "./components/ThemeChoiceScreen";
 import SectionTabs from "./components/SectionTabs";
 import Chess from "./components/Chess";
@@ -182,6 +183,7 @@ export default function App() {
   const [loadingDone,   setLoadingDone]   = useState(false);
   const [themeChosen,   setThemeChosen]   = useState(() => !!localStorage.getItem("theme_chosen"));
   const [npcDone,       setNpcDone]       = useState(() => !!localStorage.getItem("welcome_npc_done"));
+  const [futureLetterDone, setFutureLetterDone] = useState(() => !!localStorage.getItem("future_letter_done"));
   const [showWelcomeRules, setShowWelcomeRules] = useState(false);
   const [welcomeSlide, setWelcomeSlide]   = useState(0);
   const [token,    setToken]    = useState(localStorage.getItem("token") || "");
@@ -598,7 +600,7 @@ export default function App() {
               {key:"npc",       label:"Наставники",    icon:"🧙"},
               {key:"gratitude", label:"Благодарность", icon:"🌿"},
             ]} active={view} onChange={setView} />
-            {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} onChessInvite={(gid) => { setChessGameId(gid || null); setView("chess"); }} onViewProfile={(id) => { setViewProfileId(id); setView("profile"); }} />}
+            {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} myGold={user?.gold||0} onChessInvite={(gid) => { setChessGameId(gid || null); setView("chess"); }} onViewProfile={(id) => { setViewProfileId(id); setView("profile"); }} />}
             {view === "clan"      && <Clan     token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level||1} />}
             {view === "chess"     && <Chess    token={token} showToast={showToast} gameId={chessGameId} />}
             {view === "feed"      && <Feed     token={token} showToast={showToast} />}
@@ -1016,6 +1018,15 @@ export default function App() {
 
       {!npcDone && !showOnboarding && (
         <WelcomeNPC onDone={() => setNpcDone(true)} />
+      )}
+      {npcDone && !futureLetterDone && !showOnboarding && token && (
+        <FutureLetterScreen
+          token={token}
+          onDone={() => {
+            localStorage.setItem("future_letter_done", "1");
+            setFutureLetterDone(true);
+          }}
+        />
       )}
     </div>
   );

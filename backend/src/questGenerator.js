@@ -100,6 +100,33 @@ async function applyMissedRequiredPenalties(userId) {
     }),
     ...missed.map((t) => prisma.task.update({ where: { id: t.id }, data: { penalized: true } })),
   ]);
+
+  // Завершить дуэли стриков — игрок пропустил день
+  const activeDuels = await prisma.streakDuel.findMany({
+    where: { status: "active", OR: [{ challengerId: userId }, { challengedId: userId }] },
+  });
+  for (const duel of activeDuels) {
+    const winnerId = duel.challengerId === userId ? duel.challengedId : duel.challengerId;
+    await prisma.streakDuel.update({ where: { id: duel.id }, data: { status: "finished", winnerId } });
+    await prisma.user.update({ where: { id: winnerId }, data: { gold: { increment: duel.stake * 2 } } });
+    const winner = await prisma.user.findUnique({ where: { id: winnerId }, select: { name: true } });
+    await prisma.notification.create({ data: { userId: winnerId, type: "duel_won", message: `⚔️ Ты выиграл дуэль стриков! +${duel.stake * 2} золота` } });
+    await prisma.notification.create({ data: { userId, type: "duel_lost", message: `⚔️ Ты проиграл дуэль стриков — прервал стрик. ${winner?.name} получил ${duel.stake * 2} золота.` } });
+  }
+
+  // Обнулить совместные стрики
+  const activeShared = await prisma.sharedStreak.findMany({
+    where: { status: "active", OR: [{ user1Id: userId }, { user2Id: userId }] },
+    include: { user1: { select: { name: true } }, user2: { select: { name: true } } },
+  });
+  for (const ss of activeShared) {
+    const partnerId = ss.user1Id === userId ? ss.user2Id : ss.user1Id;
+    const partnerName = ss.user1Id === userId ? ss.user2?.name : ss.user1?.name;
+    const myName = ss.user1Id === userId ? ss.user1?.name : ss.user2?.name;
+    await prisma.sharedStreak.update({ where: { id: ss.id }, data: { streak: 0 } });
+    await prisma.notification.create({ data: { userId: partnerId, type: "shared_streak_broken", message: `💔 Совместный стрик прерван. ${myName || "Партнёр"} не выполнил квесты.` } });
+    await prisma.notification.create({ data: { userId, type: "shared_streak_broken", message: `💔 Совместный стрик с ${partnerName || "партнёром"} обнулён.` } });
+  }
 }
 
 async function cleanupExpiredDailyQuests(userId) {

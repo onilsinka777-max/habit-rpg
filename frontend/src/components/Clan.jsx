@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import VoiceInput from "./VoiceInput";
 import LockedFeature from "./LockedFeature";
+import WeeklyBoss from "./WeeklyBoss";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -421,6 +422,11 @@ export default function Clan({ token, showToast, askConfirm, currentUserId, myLe
         <button className="btn btn-danger btn-sm" style={{ marginTop: 16 }} disabled={busy} onClick={leaveClan}>
           Покинуть клан
         </button>
+      </section>
+
+      <section className="quest-section">
+        <div className="section-eyebrow"><span>👹</span> Босс недели</div>
+        <WeeklyBoss token={token} showToast={showToast} />
       </section>
 
       <section className="quest-section">
