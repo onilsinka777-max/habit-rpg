@@ -733,7 +733,7 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
           chestReward={...chest,threshold};
           const{xp:cxp,level:clevel}=applyXpGain(xp,level,chest.xp);
           await prisma.user.update({where:{id:req.userId},data:{xp:cxp,level:clevel,gold:{increment:chest.gold+goldGain},streak:newStreak,streakUpdatedDate:now,lastChestStreak:threshold,lastActiveQuestDate:now,comboCount:newCombo,lastQuestCompletedAt:now,missedDaysStreak:0,...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{})}});
-          await prisma.userLeague.upsert({where:{userId:req.userId},create:{userId:req.userId,weeklyXp:Math.round(task.xpReward*xpM)},update:{weeklyXp:{increment:Math.round(task.xpReward*xpM)}}}).catch(()=>{});
+          await prisma.userLeague.upsert({where:{userId:req.userId},create:{userId:req.userId,weeklyXp:xpGained},update:{weeklyXp:{increment:xpGained}}}).catch(()=>{});
           const{newAchievements:na,petCreated:pc}=await handlePostComplete(req.userId,newStreak,clevel);
           return res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:clevel>cu.level,newLevel:clevel,freezeConsumed,streakJustCompleted,newStreak,chestReward,newAchievements:na,petCreated:pc,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0,multipliers:multipliersBreakdown});
         }
@@ -750,7 +750,7 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const{xp:finalXp,level:finalLevel}=dropXp>0?applyXpGain(xp,level,dropXp):{xp,level};
     await prisma.user.update({where:{id:req.userId},data:{xp:finalXp,level:finalLevel,gold:{increment:goldGain+firstQuestBonus+dropGold},lastActiveQuestDate:now,comboCount:newCombo,lastQuestCompletedAt:now,...(streakJustCompleted?{streak:newStreak,streakUpdatedDate:now,missedDaysStreak:0}:{}),...(freezeConsumed?{streakFreezeCount:{decrement:1}}:{}),...(!alreadyGotFirstBonus?{firstQuestBonusDate:now}:{})}});
     // Update league weekly XP
-    await prisma.userLeague.upsert({where:{userId:req.userId},create:{userId:req.userId,weeklyXp:Math.round(task.xpReward*xpM)},update:{weeklyXp:{increment:Math.round(task.xpReward*xpM)}}}).catch(()=>{});
+    await prisma.userLeague.upsert({where:{userId:req.userId},create:{userId:req.userId,weeklyXp:xpGained},update:{weeklyXp:{increment:xpGained}}}).catch(()=>{});
     const finalStreak=streakJustCompleted?newStreak:cu.streak;
     const{newAchievements,petCreated}=await handlePostComplete(req.userId,finalStreak,finalLevel);
     // Check easter eggs
