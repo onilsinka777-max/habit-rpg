@@ -111,10 +111,30 @@ async function main() {
   for (const t of templates) {
     const r = reward(t.difficulty);
     await prisma.questTemplate.create({
-      data: { ...t, xpReward: r.xp, goldReward: r.gold },
+      data: { ...t, xpReward: t.xpReward || r.xp, goldReward: t.goldReward || r.gold },
     });
   }
-  console.log(`Создано шаблонов: ${templates.length}`);
+
+  // ── Ветка ПОКОЙ ──────────────────────────────────────────────────────────────
+  const peaceTemplates = [
+    { title: "Час абсолютного фокуса", description: "60 минут одного дела. Телефон в другой комнате. Никаких переключений. Засеки время.", branch: "peace", type: "required", difficulty: "hard", minLevel: 1, xpReward: 300, goldReward: 150 },
+    { title: "Контроль первой реакции", description: "Когда почувствуешь раздражение или стресс сегодня — остановись на 60 секунд перед любым действием. Запиши в дневник что почувствовал.", branch: "peace", type: "required", difficulty: "hard", minLevel: 1, xpReward: 300, goldReward: 150 },
+    { title: "Утро без шума", description: "Первые 30 минут после пробуждения — полная тишина. Без телефона, музыки, разговоров. Только ты и утро.", branch: "peace", type: "required", difficulty: "hard", minLevel: 1, xpReward: 300, goldReward: 150 },
+    { title: "Медитация воина", description: "15 минут сидеть прямо, закрыть глаза, следить только за дыханием. Когда мысль уходит в сторону — возвращать. Считать сколько раз вернул.", branch: "peace", type: "recommended", difficulty: "hard", minLevel: 1, xpReward: 300, goldReward: 150 },
+    { title: "Цифровое голодание", description: "3 часа без социальных сетей. Полностью. Не проверять, не заходить, не смотреть.", branch: "peace", type: "recommended", difficulty: "hard", minLevel: 1, xpReward: 300, goldReward: 150 },
+    { title: "Осознанная прогулка", description: "30 минут прогулки без телефона и музыки. Замечай детали вокруг — цвета, звуки, запахи. Полное присутствие.", branch: "peace", type: "recommended", difficulty: "hard", minLevel: 1, xpReward: 300, goldReward: 150 },
+    { title: "Письмо без цели", description: "Пиши в дневник 10 минут не останавливаясь. Не думай что писать — просто пиши что приходит. Не перечитывай.", branch: "peace", type: "recommended", difficulty: "hard", minLevel: 1, xpReward: 300, goldReward: 150 },
+    { title: "Один момент полного покоя", description: "Найди сегодня один момент когда ты полностью доволен тем что есть прямо сейчас. Зафиксируй его в дневнике.", branch: "peace", type: "recommended", difficulty: "hard", minLevel: 1, xpReward: 300, goldReward: 150 },
+  ];
+
+  for (const t of peaceTemplates) {
+    const exists = await prisma.questTemplate.findFirst({ where: { title: t.title, branch: "peace" } });
+    if (!exists) {
+      await prisma.questTemplate.create({ data: t });
+    }
+  }
+
+  console.log(`Создано шаблонов: ${templates.length}, покой: ${peaceTemplates.length}`);
 }
 
 main()

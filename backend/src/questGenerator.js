@@ -141,6 +141,42 @@ async function cleanupExpiredDailyQuests(userId) {
   });
 }
 
+async function ensurePeaceQuests(userId, user, activeDaily) {
+  const PEACE_REQUIRED    = 2;
+  const PEACE_RECOMMENDED = 6;
+  for (const type of ["required", "recommended"]) {
+    const target   = type === "required" ? PEACE_REQUIRED : PEACE_RECOMMENDED;
+    const existing = activeDaily.filter(t => t.branch === "peace" && t.type === type);
+    const needed   = target - existing.length;
+    if (needed < 0) {
+      const toDelete = existing.filter(t => !t.completed).slice(0, -needed);
+      if (toDelete.length > 0) await prisma.task.deleteMany({ where: { id: { in: toDelete.map(t => t.id) } } });
+      continue;
+    }
+    if (needed === 0) continue;
+    const existingTitles = new Set(existing.map(t => t.title));
+    const allTemplates   = await findTemplatesForLevel("peace", type, user.level);
+    const pool           = shuffle(allTemplates.filter(t => !existingTitles.has(t.title)));
+    for (let i = 0; i < needed && pool.length > 0; i++) {
+      const template = pool.shift();
+      await prisma.task.create({
+        data: {
+          title: template.title,
+          description: template.description,
+          branch: "peace",
+          type: template.type,
+          difficulty: template.difficulty,
+          xpReward: template.xpReward,
+          goldReward: template.goldReward,
+          isDaily: true,
+          expiresAt: endOfToday(),
+          userId,
+        },
+      });
+    }
+  }
+}
+
 async function ensureDailyQuests(userId) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return;
@@ -214,6 +250,11 @@ async function ensureDailyQuests(userId) {
         });
       }
     }
+  }
+
+  // Peace branch
+  if (user.peaceUnlocked) {
+    await ensurePeaceQuests(userId, user, activeDaily);
   }
 }
 

@@ -135,6 +135,8 @@ const ACHIEVEMENT_META={
   defeated_darkness:{label:"Победивший тьму",       desc:"Ты заглянул в бездну и вернулся. Теперь система для тебя — не клетка, а оружие.", icon:"⚡", xpReward:1000, goldReward:500, hidden:true},
   shadow_walker:    {label:"Идущий в тени",          desc:"Ты отказался вернуться. LAPTEV всё равно вернул тебя. Падший и восставший.",      icon:"🌑", xpReward:1500, goldReward:750, hidden:true},
   path_of_antagonist:{label:"Путь Антагониста",     desc:"Ты прошёл через тьму и вышел другим. Немногие знают что это такое.",             icon:"👁️", xpReward:2000, goldReward:1000, hidden:true},
+  // ── Покой ──────────────────────────────────────────────────────────────────
+  peace_unlocked:   {label:"Пятая ветка",              desc:"Ты нашёл Игрока №2 и открыл ветку Покоя. Немногие знают что она существует.", icon:"🌑", xpReward:1500, goldReward:500, hidden:true},
   // ── Финальное (скрытое) ────────────────────────────────────────────────────
   all_achievements: {label:"Игрок, достигший величия", desc:"Получи все достижения",             icon:"🌌",  xpReward:5000, goldReward:2000, hidden:true},
 };
@@ -231,6 +233,15 @@ async function handlePostComplete(userId,streak,level,taskType){
   }
   let petCreated=false;
   if(streak>=7){const pet=await prisma.pet.findUnique({where:{userId}});if(!pet){await prisma.pet.create({data:{userId}});petCreated=true;}}
+
+  // ── Level 45: unlock Player2 ─────────────────────────────────────────────
+  if(level>=45){
+    const up2=await prisma.user.findUnique({where:{id:userId},select:{player2Unlocked:true}});
+    if(!up2?.player2Unlocked){
+      await prisma.user.update({where:{id:userId},data:{player2Unlocked:true}});
+      await createNotification(userId,"player2_arrived","❓ Я видел тебя раньше.","❓ Я видел тебя раньше. Точнее — видел таких как ты. Скоро поймёшь что имею в виду. — Игрок №2").catch(()=>{});
+    }
+  }
 
   // ── Level 40: unlock archive ────────────────────────────────────────────────
   if(level>=40){
@@ -368,6 +379,10 @@ app.get("/me",authMiddleware,async(req,res)=>{
     archiveSolved:user.archiveSolved||false,
     archiveFitnessDays:user.archiveFitnessDays||0,
     archiveXpBonus:user.archiveXpBonus||false,
+    player2Unlocked:user.player2Unlocked||false,
+    player2QuestDay:user.player2QuestDay||0,
+    player2Completed:user.player2Completed||false,
+    peaceUnlocked:user.peaceUnlocked||false,
   });
   // Update lastLoginAt
   await prisma.user.update({where:{id:req.userId},data:{lastLoginAt:now}}).catch(()=>{});
@@ -2894,6 +2909,92 @@ app.get("/dark-side/status",authMiddleware,async(req,res)=>{
     const user=await prisma.user.findUnique({where:{id:req.userId},select:{darkSideActive:true,darkSideDay:true,darkSideStartedAt:true,darkSideChoice:true,antagonistPathActive:true}});
     res.json(user);
   }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+// ── PLAYER 2 ─────────────────────────────────────────────────────────────────
+
+const PLAYER2_QUESTS=[
+  {number:1,title:"Наблюдение",description:"Весь день наблюдай за людьми вокруг. Не оценивай — просто замечай. Вечером запиши 3 наблюдения в дневник.",afterMsg:"Большинство людей никогда не наблюдают. Они всегда реагируют. Разница огромная."},
+  {number:2,title:"Тишина разума",description:"20 минут полной тишины. Без музыки, без телефона, без мыслей о делах. Просто сидеть и дышать.",afterMsg:"Ты выдержал? Большинство не могут и 5 минут."},
+  {number:3,title:"Чужие глаза",description:"Сделай что-то привычное абсолютно другим способом. Другая дорога. Другой порядок утра. Другая рука.",afterMsg:"Мозг не любит новое. Но именно в новом растёт."},
+  {number:4,title:"Тёмное зеркало",description:"Напиши в дневнике свой главный страх прямо сейчас. Не анализируй — просто назови его одним словом.",afterMsg:"Названный страх теряет половину силы. Это не метафора."},
+  {number:5,title:"Охота на слабость",description:"Открой свою статистику. Найди самую слабую ветку за последний месяц. Посвяти ей весь сегодняшний день.",afterMsg:"Сильные люди не избегают слабостей. Они идут туда намеренно."},
+  {number:6,title:"Без системы",description:"Один день без приложения. Совсем. Система засчитает автоматически на следующий день.",afterMsg:"Система работает даже когда ты не смотришь. Ты сам — и есть система."},
+  {number:7,title:"Разговор",description:"Что изменилось после этих 7 дней? Напиши честно.",afterMsg:""},
+];
+
+app.get("/player2/status",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{player2Unlocked:true,player2QuestDay:true,player2Completed:true,peaceUnlocked:true,gold:true}});
+    if(!user)return res.status(404).json({message:"User not found"});
+    const completedQuests=await prisma.player2Quest.findMany({where:{userId:req.userId},orderBy:{questNumber:"asc"}});
+    res.json({unlocked:user.player2Unlocked,questDay:user.player2QuestDay,completed:user.player2Completed,peaceUnlocked:user.peaceUnlocked,gold:user.gold,quests:PLAYER2_QUESTS,completedQuests});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.post("/player2/start",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{player2Unlocked:true,player2QuestDay:true}});
+    if(!user?.player2Unlocked)return res.status(403).json({message:"Игрок №2 ещё не разблокирован"});
+    if((user.player2QuestDay||0)>0)return res.status(400).json({message:"Уже начато"});
+    await prisma.user.update({where:{id:req.userId},data:{player2QuestDay:1}});
+    res.json({success:true,questDay:1});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.post("/player2/quest/:number/complete",authMiddleware,async(req,res)=>{
+  try{
+    const questNum=parseInt(req.params.number);
+    if(isNaN(questNum)||questNum<1||questNum>7)return res.status(400).json({message:"Неверный номер квеста"});
+    const user=await prisma.user.findUnique({where:{id:req.userId}});
+    if(!user?.player2Unlocked)return res.status(403).json({message:"Не разблокировано"});
+    if(user.player2QuestDay!==questNum)return res.status(400).json({message:"Это не ваш текущий квест"});
+    const already=await prisma.player2Quest.findFirst({where:{userId:req.userId,questNumber:questNum}});
+    if(already)return res.status(400).json({message:"Уже выполнен"});
+    await prisma.player2Quest.create({data:{userId:req.userId,questNumber:questNum,completed:true,completedAt:new Date()}});
+    const newDay=questNum>=7?8:questNum+1;
+    const isCompleted=questNum>=7;
+    const{xp,level}=applyXpGain(user.xp,user.level,60);
+    await prisma.user.update({where:{id:req.userId},data:{xp,level,gold:{increment:30},player2QuestDay:newDay,player2Completed:isCompleted}});
+    const quest=PLAYER2_QUESTS.find(q=>q.number===questNum);
+    res.json({success:true,nextQuestDay:newDay,allCompleted:isCompleted,xpGained:60,goldGained:30,leveledUp:level>user.level,newLevel:level,afterMsg:quest?.afterMsg||""});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.post("/player2/quest7-reply",authMiddleware,async(req,res)=>{
+  try{
+    const{message}=req.body;
+    if(!message||typeof message!=="string")return res.status(400).json({message:"Нет сообщения"});
+    const key=process.env.ANTHROPIC_API_KEY;
+    if(!key)return res.json({reply:"Хорошо. Твои слова важны."});
+    const Anthropic=require("@anthropic-ai/sdk");
+    const client=new Anthropic({apiKey:key});
+    const result=await client.messages.create({
+      model:"claude-sonnet-4-6",max_tokens:120,
+      system:"Ты — загадочный игрок который прошёл систему дважды. Говоришь коротко, мудро, без лишних слов. Отвечаешь на рефлексию игрока после 7 необычных квестов. 1-2 предложения максимум. На русском. Не используй приветствия.",
+      messages:[{role:"user",content:message.slice(0,500)}],
+    });
+    res.json({reply:result.content[0].text});
+  }catch(e){console.error(e);res.json({reply:"Слова сказаны. Остальное — внутри."});}
+});
+
+app.post("/player2/unlock-peace",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId}});
+    if(!user)return res.status(404).json({message:"Not found"});
+    if(!user.player2Completed)return res.status(400).json({message:"Сначала пройди все 7 квестов Игрока №2"});
+    if(user.peaceUnlocked)return res.status(400).json({message:"Ветка уже открыта"});
+    if(user.gold<2000)return res.status(400).json({message:`Нужно 2000 золота. У тебя: ${user.gold}`});
+    await prisma.user.update({where:{id:req.userId},data:{peaceUnlocked:true,gold:{decrement:2000}}});
+    const existing=await prisma.achievement.findFirst({where:{userId:req.userId,type:"peace_unlocked"}});
+    if(!existing){
+      await prisma.achievement.create({data:{userId:req.userId,type:"peace_unlocked"}}).catch(()=>{});
+      const{xp:newXp,level:newLevel}=applyXpGain(user.xp,user.level,ACHIEVEMENT_META.peace_unlocked.xpReward||1500);
+      await prisma.user.update({where:{id:req.userId},data:{xp:newXp,level:newLevel,gold:{increment:500}}});
+    }
+    await createNotification(req.userId,"peace_unlocked","🌑 Пятая ветка открыта","Ты нашёл Покой. Квесты этой ветки — самые сложные в системе. Начни сегодня.").catch(()=>{});
+    res.json({success:true});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
 // ── CRON: письма + уведомления воскресенья ────────────────────────────────────

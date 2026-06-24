@@ -125,7 +125,22 @@ model User {
   archiveFitnessDays       Int              @default(0)
   archiveFitnessStart      DateTime?
   archiveXpBonus           Boolean          @default(false)
+  player2Unlocked          Boolean          @default(false)
+  player2QuestDay          Int              @default(0)
+  player2Completed         Boolean          @default(false)
+  peaceUnlocked            Boolean          @default(false)
+  player2Quests            Player2Quest[]
   createdAt                DateTime         @default(now())
+}
+
+model Player2Quest {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id])
+  questNumber Int
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
 }
 
 model JournalEntry {

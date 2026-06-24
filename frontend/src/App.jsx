@@ -41,6 +41,7 @@ import FutureLetterScreen from "./components/FutureLetterScreen";
 import DarkSideChoice from "./components/DarkSideChoice";
 import Archive from "./components/Archive";
 import ArchiveBadge from "./components/ArchiveBadge";
+import Player2 from "./components/Player2";
 import ThemeChoiceScreen from "./components/ThemeChoiceScreen";
 import SectionTabs from "./components/SectionTabs";
 import Chess from "./components/Chess";
@@ -74,7 +75,8 @@ const BRANCHES = [
   { key:"knowledge",        label:"Знания",       icon:"📘", accent:"#38bdf8", glow:"rgba(56,189,248,0.35)"  },
 ];
 
-const CUSTOM_BRANCH = { key:"custom", label:"Свои", icon:"✏️", accent:"#a78bfa", glow:"rgba(167,139,250,0.35)" };
+const CUSTOM_BRANCH = { key:"custom",  label:"Свои",  icon:"✏️",  accent:"#a78bfa", glow:"rgba(167,139,250,0.35)" };
+const PEACE_BRANCH  = { key:"peace",   label:"Покой", icon:"🌑",  accent:"#4a3570", glow:"rgba(74,53,112,0.45)"  };
 const TAB_BRANCHES  = [...BRANCHES, CUSTOM_BRANCH];
 
 const MASTERY_UNLOCK_LEVEL = 25;
@@ -493,6 +495,7 @@ export default function App() {
   };
 
   const branchTasks    = tasks.filter(t => t.branch === activeBranch && (t.type === "required" || t.type === "recommended"));
+  const peaceTasks     = tasks.filter(t => t.branch === "peace" && (t.type === "required" || t.type === "recommended"));
   const legendaryTasks = tasks.filter(t => t.type === "legendary" && !t.completed && (!t.expiresAt || new Date(t.expiresAt) > new Date()));
   const customTasks    = tasks.filter(t => t.type === "custom" && !t.completed);
   const tasksByType    = {
@@ -613,7 +616,7 @@ export default function App() {
         )}
 
         {/* ── СОЦИАЛКА ─────────────────────────────────────────────────── */}
-        {["friends","clan","feed","npc","gratitude","chess"].includes(view) && (
+        {["friends","clan","feed","npc","gratitude","chess","player2"].includes(view) && (
           <>
             <SectionTabs tabs={[
               {key:"friends",   label:"Друзья",        icon:"🤝"},
@@ -622,6 +625,7 @@ export default function App() {
               {key:"feed",      label:"Лента",         icon:"📡"},
               {key:"npc",       label:"Наставники",    icon:"🧙"},
               {key:"gratitude", label:"Благодарность", icon:"🌿"},
+              ...((user?.player2Unlocked || user?.level >= 45) ? [{key:"player2", label:"Игрок №2", icon:"❓"}] : []),
             ]} active={view} onChange={setView} />
             {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} myGold={user?.gold||0} onChessInvite={(gid) => { setChessGameId(gid || null); setView("chess"); }} onViewProfile={(id) => { setViewProfileId(id); setView("profile"); }} />}
             {view === "clan"      && <Clan     token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level||1} />}
@@ -629,6 +633,7 @@ export default function App() {
             {view === "feed"      && <Feed     token={token} showToast={showToast} />}
             {view === "npc"       && <NpcPage  token={token} showToast={showToast} userLevel={user?.level||1} />}
             {view === "gratitude" && <Gratitude token={token} showToast={showToast} />}
+            {view === "player2"   && <Player2  token={token} showToast={showToast} onPeaceUnlocked={loadProfile} />}
           </>
         )}
 
@@ -752,7 +757,7 @@ export default function App() {
             )}
 
             <nav className="branch-tabs">
-              {TAB_BRANCHES.map(b => (
+              {[...TAB_BRANCHES, ...(user?.peaceUnlocked ? [PEACE_BRANCH] : [])].map(b => (
                 <button key={b.key}
                   className={`branch-tab ${activeBranch === b.key ? "active" : ""}`}
                   style={activeBranch === b.key ? { background: b.accent, boxShadow: `0 8px 20px ${b.glow}` } : undefined}
@@ -763,7 +768,55 @@ export default function App() {
             </nav>
 
             <div className="branch-content" key={activeBranch}>
-              {activeBranch === "custom" ? (
+              {activeBranch === "peace" ? (
+                <section className="quest-section">
+                  <style>{`
+                    @keyframes peacePulse {
+                      0%,100%{box-shadow:0 0 10px rgba(74,53,112,0.3)}
+                      50%{box-shadow:0 0 25px rgba(74,53,112,0.6),0 0 50px rgba(74,53,112,0.2)}
+                    }
+                  `}</style>
+                  <div className="section-eyebrow" style={{ color:"#a78bfa" }}><span>🌑</span> ВЕТКА ПОКОЯ</div>
+                  {peaceTasks.length === 0 ? (
+                    <p className="empty-state">Квесты появятся завтра. Покой требует терпения.</p>
+                  ) : (
+                    <div className="quest-list">
+                      {peaceTasks.map(t => (
+                        <div key={t.id} style={{
+                          background:"linear-gradient(135deg,#050508,#0d0a15)",
+                          border:"1px solid #2d2040",
+                          borderLeft:"4px solid #4a3570",
+                          borderRadius:12,
+                          marginBottom:10,
+                          animation:"peacePulse 4s ease-in-out infinite",
+                          overflow:"hidden",
+                          display:"flex",alignItems:"stretch",
+                        }}>
+                          <div style={{ flex:1, padding:"12px 14px" }}>
+                            <div style={{ fontSize:11, color:"#6b4fa0", fontWeight:700, marginBottom:4 }}>🌑 ПОКОЙ</div>
+                            <div style={{ fontSize:14, fontWeight:600, color:"#c4b5fd", marginBottom:6 }}>{t.title}</div>
+                            {t.description && <div style={{ fontSize:12, color:"rgba(255,255,255,0.45)", marginBottom:8, lineHeight:1.5 }}>{t.description}</div>}
+                            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                              <span style={{ fontSize:11, color:"#7c5abf" }}>+{t.xpReward} XP · +{t.goldReward} 💰 · 🌑 ПОКОЙ</span>
+                              <button
+                                onClick={() => confirmComplete(t)}
+                                disabled={loadingTaskId === t.id || t.completed}
+                                style={{
+                                  background: t.completed ? "rgba(74,53,112,0.3)" : "linear-gradient(135deg,#4a3570,#2d2040)",
+                                  color: t.completed ? "#4a3570" : "#c4b5fd",
+                                  border:"1px solid #4a3570",borderRadius:8,
+                                  padding:"5px 14px",fontSize:12,fontWeight:700,cursor: t.completed ? "default" : "pointer",
+                                }}>
+                                {loadingTaskId === t.id ? "..." : t.completed ? "✓" : "Выполнить"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ) : activeBranch === "custom" ? (
                 <section className="quest-section">
                   <div className="section-eyebrow"><span>✏️</span> Свои квесты</div>
                   <div className="new-quest-form" style={{ flexWrap:"wrap" }}>
