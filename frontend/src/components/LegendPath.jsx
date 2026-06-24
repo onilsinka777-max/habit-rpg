@@ -36,7 +36,7 @@ function StarField() {
     const left = (s % 10000) / 100;
     s = (s * 22695477 + 1)         & 0x7fffffff;
     const top  = (s % 10000) / 100;
-    s = (s * 6364136223846793005n === undefined ? s * 6364 + 1442695040 : s * 6364 + 1) & 0x7fffffff;
+    s = (s * 6364 + 1442695040) & 0x7fffffff;
     const sz   = i % 12 === 0 ? 2 : 1;
     const op   = 0.15 + (i % 7) * 0.07;
     stars.push({ left, top, sz, op });
