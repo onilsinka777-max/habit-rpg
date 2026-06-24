@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node src/server.js",
     "start": "node src/server.js",
+    "postinstall": "prisma generate",
     "prisma": "prisma",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
