@@ -15,6 +15,7 @@ model User {
   name                     String?          @unique
   nameSet                  Boolean          @default(false)
   title                    String           @default("Новичок")
+  activeTitle              String?
   avatarStyle              String           @default("default")
   avatarFrame              String           @default("none")
   nicknameEffect           String           @default("none")

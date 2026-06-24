@@ -10,19 +10,40 @@ const BRANCH_LABELS = {
   self_development: "Саморазвитие", knowledge: "Знания",
 };
 
-export default function Profile({ token, showToast, userId, currentUserId, onBack }) {
+export default function Profile({ token, showToast, userId, currentUserId, onBack, onProfileRefresh }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [titles, setTitles] = useState([]);
+  const [activeTitle, setActiveTitle] = useState("Игрок");
+  const [settingTitle, setSettingTitle] = useState(null);
   const auth = { headers: { Authorization: `Bearer ${token}` } };
   const targetId = userId || currentUserId;
+  const isOwn = !userId || userId === currentUserId;
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!targetId) return;
     axios.get(`${API}/profile/${targetId}`, auth)
-      .then(r => setProfile(r.data))
+      .then(r => { setProfile(r.data); setActiveTitle(r.data.activeTitle || "Игрок"); })
       .catch(() => showToast("Ошибка загрузки профиля", "error"))
       .finally(() => setLoading(false));
+    if (isOwn) {
+      axios.get(`${API}/titles`, auth)
+        .then(r => { setTitles(r.data.titles || []); setActiveTitle(r.data.activeTitle || "Игрок"); })
+        .catch(() => {});
+    }
   }, [targetId, token]);
+
+  const selectTitle = async (title) => {
+    setSettingTitle(title);
+    try {
+      await axios.patch(`${API}/titles/active`, { title }, auth);
+      setActiveTitle(title);
+      showToast(`Титул "${title}" выбран`, "success");
+      onProfileRefresh?.();
+    } catch { showToast("Ошибка", "error"); }
+    finally { setSettingTitle(null); }
+  };
 
   if (loading) return <div className="section-card"><p style={{ textAlign:"center", padding:32, opacity:0.5 }}>Загрузка...</p></div>;
   if (!profile) return <div className="section-card"><p style={{ textAlign:"center", padding:32, opacity:0.5 }}>Профиль не найден</p></div>;
@@ -58,6 +79,13 @@ export default function Profile({ token, showToast, userId, currentUserId, onBac
               <span style={{ fontWeight:800, fontSize:20 }}>{profile.name}</span>
               {profile.archiveSolved && <ArchiveBadge />}
             </div>
+            {(activeTitle || profile.activeTitle) && (
+              <div style={{ marginTop:3 }}>
+                <span style={{ fontSize:11, color:"#a78bfa", fontWeight:600, background:"rgba(167,139,250,0.12)", borderRadius:5, padding:"1px 8px" }}>
+                  {isOwn ? activeTitle : (profile.activeTitle || "Игрок")}
+                </span>
+              </div>
+            )}
             {profile.clan && (
               <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:3 }}>
                 {profile.clan.bannerIcon} {profile.clan.name}
@@ -104,9 +132,49 @@ export default function Profile({ token, showToast, userId, currentUserId, onBac
         </div>
       )}
 
+      {profile.pet && (
+        <div style={{ marginTop:12, padding:"8px 12px", background:"rgba(74,222,128,0.06)", border:"1px solid rgba(74,222,128,0.15)", borderRadius:8, display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:22 }}>{profile.pet.stage === "adult" ? "🐉" : profile.pet.stage === "baby" ? "🐣" : "🥚"}</span>
+          <div>
+            <div style={{ fontSize:13, fontWeight:700 }}>{profile.pet.name}</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>Настроение {profile.pet.mood}%</div>
+          </div>
+        </div>
+      )}
+
       {targetId === currentUserId && profile.hasEverFinishedMastery && (
         <div style={{ marginTop:12, padding:"8px 12px", background:"rgba(245,182,55,0.08)", border:"1px solid rgba(245,182,55,0.2)", borderRadius:8, fontSize:12, color:"#f5b637" }}>
           ⚔️ Мастерство завершено · Ранг сезона: {seasonRank}
+        </div>
+      )}
+
+      {isOwn && titles.length > 0 && (
+        <div style={{ marginTop:16 }}>
+          <div style={{ fontWeight:700, fontSize:13, marginBottom:10, color:"rgba(255,255,255,0.6)" }}>Мои титулы</div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {titles.map(t => {
+              const isActive = t === activeTitle;
+              return (
+                <div key={t} style={{
+                  display:"flex", alignItems:"center", gap:6,
+                  background: isActive ? "rgba(167,139,250,0.18)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${isActive ? "rgba(167,139,250,0.5)" : "rgba(255,255,255,0.1)"}`,
+                  borderRadius:8, padding:"6px 12px",
+                  transition:"all 0.2s",
+                }}>
+                  <span style={{ fontSize:13, fontWeight:isActive?700:500, color: isActive ? "#a78bfa" : "rgba(255,255,255,0.7)" }}>{t}</span>
+                  {!isActive && (
+                    <button
+                      style={{ background:"none", border:"none", color:"#a78bfa", cursor:"pointer", fontSize:11, padding:0, opacity:0.7 }}
+                      disabled={settingTitle === t}
+                      onClick={() => selectTitle(t)}
+                    >{settingTitle === t ? "..." : "Выбрать"}</button>
+                  )}
+                  {isActive && <span style={{ fontSize:10, color:"#a78bfa" }}>✓ активен</span>}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

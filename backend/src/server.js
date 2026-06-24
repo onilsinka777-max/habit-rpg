@@ -45,6 +45,7 @@ const CHEST_MILESTONES = {
 function randomClanTag(n=6){let o="";for(let i=0;i<n;i++)o+=CLAN_TAG_CHARS[Math.floor(Math.random()*CLAN_TAG_CHARS.length)];return o;}
 async function generateUniqueClanTag(){let t,e=true;while(e){t=randomClanTag();e=!!(await prisma.clan.findUnique({where:{tag:t}}));}return t;}
 function getMasteryState(user){const raw=user.masteryChoices?JSON.parse(user.masteryChoices):{};return new Set(raw.completed||[]);}
+function getMasteryTitle(path){return{warrior:"Воин",sage:"Мудрец",leader:"Атлет",balance:"Мыслитель"}[path]||"Мастер";}
 
 const ACHIEVEMENT_META={
   // ── Квесты ─────────────────────────────────────────────────────────────────
@@ -383,6 +384,7 @@ app.get("/me",authMiddleware,async(req,res)=>{
     player2QuestDay:user.player2QuestDay||0,
     player2Completed:user.player2Completed||false,
     peaceUnlocked:user.peaceUnlocked||false,
+    activeTitle:user.activeTitle||null,
   });
   // Update lastLoginAt
   await prisma.user.update({where:{id:req.userId},data:{lastLoginAt:now}}).catch(()=>{});
@@ -436,12 +438,18 @@ app.get("/mastery/status",authMiddleware,async(req,res)=>{
     const isComplete=completedSet.has("legendary");
     const path=MASTERY_PATHS[user.masteryPath];
     const graph=MASTERY_GRAPH[user.masteryPath];
+    const today=startOfToday();
+    const alreadyHasQuestToday=user.lastMasteryQuestDate&&new Date(user.lastMasteryQuestDate)>=today;
+    const finalQuestUnlocked=!isComplete&&completedSet.size>=(path.totalNodes-1);
     res.json({
       locked:false,chosen:true,autoClass,
       hasEverFinishedMastery:user.hasEverFinishedMastery,
       masteryPath:user.masteryPath,
       completedNodes:[...completedSet],availableNodes,
       totalNodes:path.totalNodes,isComplete,
+      alreadyHasQuestToday:!!alreadyHasQuestToday,
+      finalQuestUnlocked,
+      finalQuest:finalQuestUnlocked?{title:"Финальное испытание мастера",description:"Ты прошёл все испытания. Последнее — выполни все обязательные квесты своей ветки за один день без единого пропуска.",difficulty:"legendary",xpReward:2000,goldReward:1000,branch:user.masteryPath,nodeId:"legendary"}:null,
       statusChangesLeft:user.masteryStatusChangesLeft,paths:pathsList,
       path:path?{id:path.id,label:path.label,icon:path.icon,color:path.color,statusLabel:path.statusLabel,bonusDescription:path.bonusDescription,finaleTitle:path.finale?.title,finaleDesc:path.finale?.description}:null,
       nodeContent:Object.fromEntries(Object.entries(graph.nodes).map(([id,n])=>[id,{label:n.label,desc:n.desc,d:n.d,hidden:n.hidden||false}])),
@@ -478,13 +486,30 @@ app.post("/mastery/complete-node",authMiddleware,async(req,res)=>{
     const graph=MASTERY_GRAPH[user.masteryPath];
     const nodeInfo=graph.nodes[nodeId];
     if(!nodeInfo)return res.status(400).json({message:"Узел не найден"});
+    // One mastery node per day
+    const todayM=startOfToday();
+    if(user.lastMasteryQuestDate&&new Date(user.lastMasteryQuestDate)>=todayM){
+      return res.status(429).json({message:"Сегодня ты уже прошёл испытание мастерства. Возвращайся завтра."});
+    }
     const rewards=NODE_DIFFICULTY_REWARDS[nodeInfo.d]||{xp:30,gold:15};
-    const{xp,level}=applyXpGain(user.xp,user.level,rewards.xp);
+    const justFinished=nodeId==="legendary";
+    const baseXp=justFinished?3000:rewards.xp;
+    const baseGold=justFinished?5000:rewards.gold;
+    const{xp,level}=applyXpGain(user.xp,user.level,baseXp);
     completedSet.add(nodeId);
     const newCompleted=[...completedSet];
-    const justFinished=nodeId==="legendary";
-    await prisma.user.update({where:{id:req.userId},data:{xp,level,gold:{increment:rewards.gold},masteryNodeIndex:newCompleted.length,masteryChoices:JSON.stringify({completed:newCompleted}),lastMasteryQuestDate:new Date(),...(justFinished?{hasEverFinishedMastery:true}:{})}});
-    res.json({message:justFinished?"Путь завершён!":"Узел пройден",justFinished,leveledUp:level>user.level,newLevel:level,xpGained:rewards.xp,goldGained:rewards.gold,completedNodes:newCompleted});
+    const masteryTitle=justFinished?getMasteryTitle(user.masteryPath):null;
+    await prisma.user.update({where:{id:req.userId},data:{
+      xp,level,gold:{increment:baseGold},
+      masteryNodeIndex:newCompleted.length,
+      masteryChoices:JSON.stringify({completed:newCompleted}),
+      lastMasteryQuestDate:new Date(),
+      ...(justFinished?{hasEverFinishedMastery:true,activeTitle:masteryTitle}:{}),
+    }});
+    if(justFinished){
+      await createNotification(req.userId,"mastery_complete",`🏆 Путь завершён. Ты — ${masteryTitle}.`,`Я наблюдал твой путь. Долго. Ты заслужил титул "${masteryTitle}". Немногие доходят до конца. Ты дошёл. — LAPTEV`).catch(()=>{});
+    }
+    res.json({message:justFinished?`Путь завершён! Ты теперь — ${masteryTitle}`:"Узел пройден",justFinished,masteryTitle,leveledUp:level>user.level,newLevel:level,xpGained:baseXp,goldGained:baseGold,completedNodes:newCompleted});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -1678,19 +1703,50 @@ app.get("/clans/war/current",authMiddleware,async(req,res)=>{
 app.get("/profile/:userId",authMiddleware,async(req,res)=>{
   try{
     const targetId=Number(req.params.userId);
-    const user=await prisma.user.findUnique({where:{id:targetId},select:{id:true,name:true,email:true,level:true,xp:true,gold:true,streak:true,clanId:true,clanRole:true,title:true,avatarStyle:true,avatarFrame:true,nicknameEffect:true,masteryPath:true,hasEverFinishedMastery:true,createdAt:true,archiveSolved:true}});
+    const user=await prisma.user.findUnique({where:{id:targetId},select:{id:true,name:true,email:true,level:true,xp:true,streak:true,clanId:true,clanRole:true,title:true,activeTitle:true,avatarStyle:true,avatarFrame:true,nicknameEffect:true,masteryPath:true,hasEverFinishedMastery:true,createdAt:true,archiveSolved:true,darkSideChoice:true,peaceUnlocked:true}});
     if(!user)return res.status(404).json({message:"Пользователь не найден"});
-    const achievements=await prisma.achievement.findMany({where:{userId:targetId},orderBy:{unlockedAt:"asc"},take:3});
-    const taskCount=await prisma.task.count({where:{userId:targetId,completed:true}});
-    const clan=user.clanId?await prisma.clan.findUnique({where:{id:user.clanId},select:{name:true,bannerIcon:true,bannerColor:true}}):null;
-    const season=await prisma.season.findFirst({where:{active:true}});
+    const [achievements,taskCount,clan,pet,season]=await Promise.all([
+      prisma.achievement.findMany({where:{userId:targetId},orderBy:{unlockedAt:"asc"}}),
+      prisma.task.count({where:{userId:targetId,completed:true}}),
+      user.clanId?prisma.clan.findUnique({where:{id:user.clanId},select:{name:true,bannerIcon:true,bannerColor:true}}):null,
+      prisma.pet.findUnique({where:{userId:targetId},select:{name:true,stage:true,mood:true}}).catch(()=>null),
+      prisma.season.findFirst({where:{active:true}}),
+    ]);
     const seasonProgress=season?await prisma.seasonProgress.findUnique({where:{userId_seasonId:{userId:targetId,seasonId:season.id}}}):null;
     res.json({
       ...user,name:user.name||user.email.split("@")[0],
-      clan,achievements:achievements.map(a=>({...a,...ACHIEVEMENT_META[a.type]})),
+      clan,pet,
+      achievements:achievements.map(a=>({...a,...ACHIEVEMENT_META[a.type]})),
       taskCount,seasonXp:seasonProgress?.xp||0,
     });
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+// ── TITLES ────────────────────────────────────────────────────────────────────
+app.get("/titles",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId}});
+    const achievements=await prisma.achievement.findMany({where:{userId:req.userId}});
+    const titles=["Игрок"];
+    if(user.archiveSolved)titles.push("Архивариус");
+    if(user.darkSideChoice==="light")titles.push("Победивший тьму");
+    if(user.darkSideChoice==="shadow")titles.push("Идущий в тени");
+    if(user.peaceUnlocked)titles.push("Пятая ветка");
+    if(user.hasEverFinishedMastery&&user.masteryPath)titles.push(getMasteryTitle(user.masteryPath));
+    const achTypes=new Set(achievements.map(a=>a.type));
+    if(achTypes.has("legend")||achTypes.size>=4)titles.push("Легенда");
+    if(achTypes.has("legendary_quest"))titles.push("Победитель системы");
+    res.json({titles,activeTitle:user.activeTitle||"Игрок"});
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.patch("/titles/active",authMiddleware,async(req,res)=>{
+  try{
+    const{title}=req.body;
+    if(!title)return res.status(400).json({message:"Укажи титул"});
+    await prisma.user.update({where:{id:req.userId},data:{activeTitle:title}});
+    res.json({message:"Титул обновлён",activeTitle:title});
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
 });
 
 // ── ONBOARDING ────────────────────────────────────────────────────────────────

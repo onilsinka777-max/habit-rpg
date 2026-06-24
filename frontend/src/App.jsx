@@ -211,6 +211,7 @@ export default function App() {
 
   const [view,         setView]         = useState("quests");
   const [viewProfileId, setViewProfileId] = useState(null);
+  const [viewProfileFrom, setViewProfileFrom] = useState("friends");
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [chessGameId, setChessGameId] = useState(null);
   const [laptevMilestone, setLaptevMilestone] = useState(null);
@@ -627,8 +628,8 @@ export default function App() {
               {key:"gratitude", label:"Благодарность", icon:"🌿"},
               ...((user?.player2Unlocked || user?.level >= 45) ? [{key:"player2", label:"Игрок №2", icon:"❓"}] : []),
             ]} active={view} onChange={setView} />
-            {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} myGold={user?.gold||0} onChessInvite={(gid) => { setChessGameId(gid || null); setView("chess"); }} onViewProfile={(id) => { setViewProfileId(id); setView("profile"); }} />}
-            {view === "clan"      && <Clan     token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level||1} />}
+            {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} myGold={user?.gold||0} onChessInvite={(gid) => { setChessGameId(gid || null); setView("chess"); }} onViewProfile={(id) => { setViewProfileId(id); setViewProfileFrom("friends"); setView("profile"); }} />}
+            {view === "clan"      && <Clan     token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level||1} onViewProfile={(id) => { setViewProfileId(id); setViewProfileFrom("clan"); setView("profile"); }} />}
             {view === "chess"     && <Chess    token={token} showToast={showToast} gameId={chessGameId} />}
             {view === "feed"      && <Feed     token={token} showToast={showToast} />}
             {view === "npc"       && <NpcPage  token={token} showToast={showToast} userLevel={user?.level||1} />}
@@ -654,7 +655,7 @@ export default function App() {
               {key:"sages",        label:"Мудрецы",    icon:"🏛️"},
               ...((user?.level||1) >= 40 ? [{key:"archive", label:"Архив", icon:"◈"}] : []),
             ]} active={view} onChange={setView} />
-            {view === "profile"      && <Profile     token={token} showToast={showToast} userId={viewProfileId} currentUserId={user?.id} onBack={viewProfileId ? () => { setViewProfileId(null); setView("friends"); } : null} />}
+            {view === "profile"      && <Profile     token={token} showToast={showToast} userId={viewProfileId} currentUserId={user?.id} onBack={viewProfileId ? () => { setViewProfileId(null); setView(viewProfileFrom); } : null} onProfileRefresh={loadProfile} />}
             {view === "achievements" && <Achievements token={token} showToast={showToast} />}
             {view === "stats"        && <Stats        token={token} />}
             {view === "shop"         && <Shop items={shopItems} gold={user?.gold||0} loadingId={shopLoadingId} onPurchase={purchaseItem} streakFreezeCount={user?.streakFreezeCount||0} token={token} showToast={showToast} onProfileRefresh={loadProfile} userLevel={user?.level||1} />}

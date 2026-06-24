@@ -30,7 +30,7 @@ function formatLastActive(isOnline, lastActiveAt) {
   return `был(а) ${days} дн назад`;
 }
 
-export default function Clan({ token, showToast, askConfirm, currentUserId, myLevel }) {
+export default function Clan({ token, showToast, askConfirm, currentUserId, myLevel, onViewProfile }) {
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
 
   const [clanInfo, setClanInfo] = useState(null);
@@ -385,7 +385,11 @@ export default function Clan({ token, showToast, askConfirm, currentUserId, myLe
 
                 <div className="clan-row-main">
                   <span className={`activity-dot ${m.isOnline ? "online" : ""}`} title={formatLastActive(m.isOnline, m.lastActiveAt)} />
-                  <span className="clan-name">{m.name}</span>
+                  <span
+                    className="clan-name"
+                    style={{ cursor: onViewProfile ? "pointer" : "default", textDecoration: onViewProfile ? "underline" : "none", textDecorationColor: "rgba(141,140,248,0.4)" }}
+                    onClick={() => onViewProfile && onViewProfile(m.id)}
+                  >{m.name}</span>
                   {role.label !== "Участник" && (
                     <span className="role-badge">{role.icon} {role.label}</span>
                   )}

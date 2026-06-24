@@ -163,6 +163,9 @@ export default function PlayerCard({ user, onLogout, onOpenScroll, onGoToShop, o
               <span className={user?.nicknameEffect ? `nick-${user.nicknameEffect}` : ""}>{user?.name}</span>
               {user?.archiveSolved && <ArchiveBadge />}
             </span>
+            {user?.activeTitle && (
+              <span style={{ color:"#a78bfa", fontSize:10, fontWeight:600, marginTop:1, display:"block" }}>{user.activeTitle}</span>
+            )}
             <button className="btn btn-ghost btn-sm" onClick={onLogout}>Выйти</button>
           </div>
 
