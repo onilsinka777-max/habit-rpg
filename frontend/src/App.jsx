@@ -58,6 +58,7 @@ import UnlockNotification from "./components/UnlockNotification";
 import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEnabled } from "./sounds";
 import StarField from "./components/StarField";
 import RewardToastContainer, { showRewardToast } from "./components/ToastNotification";
+import SubscriptionWall from "./components/SubscriptionWall";
 import ToastContainer from "./components/Toast";
 import "./App.css";
 
@@ -1263,6 +1264,16 @@ export default function App() {
             }}>Закрыть</button>
           </div>
         </div>
+      )}
+
+      {user && user.level >= 11 && !user.isPro && (
+        <SubscriptionWall
+          token={token}
+          onActivated={async () => {
+            await loadProfile();
+            showToast("⚡ PRO активирован! Добро пожаловать.", "success");
+          }}
+        />
       )}
 
       {showForcedReturn && (

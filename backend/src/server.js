@@ -422,6 +422,8 @@ app.get("/me",authMiddleware,async(req,res)=>{
     player2Completed:user.player2Completed||false,
     peaceUnlocked:user.peaceUnlocked||false,
     activeTitle:user.activeTitle||null,
+    isPro:!!(user.isPro&&(!user.proExpiresAt||new Date(user.proExpiresAt)>now)),
+    proExpiresAt:user.proExpiresAt||null,
   });
   // Update lastLoginAt
   await prisma.user.update({where:{id:req.userId},data:{lastLoginAt:now}}).catch(()=>{});
@@ -3183,6 +3185,56 @@ app.post("/player2/unlock-peace",authMiddleware,async(req,res)=>{
     await createNotification(req.userId,"peace_unlocked","🌑 Пятая ветка открыта","Ты нашёл Покой. Квесты этой ветки — самые сложные в системе. Начни сегодня.").catch(()=>{});
     res.json({success:true});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+// ── SUBSCRIPTION ──────────────────────────────────────────────────────────────
+app.post("/subscription/activate",authMiddleware,async(req,res)=>{
+  try{
+    const{code}=req.body;
+    if(!code)return res.status(400).json({message:"Введи код"});
+    const invite=await prisma.inviteCode.findUnique({where:{code:code.trim().toUpperCase()}});
+    if(!invite)return res.status(400).json({message:"Неверный код"});
+    if(invite.usedBy)return res.status(400).json({message:"Код уже использован"});
+    const plan=invite.plan||"monthly";
+    const now=new Date();
+    const proExpiresAt=plan==="yearly"
+      ?new Date(now.getTime()+365*24*60*60*1000)
+      :new Date(now.getTime()+30*24*60*60*1000);
+    await prisma.$transaction([
+      prisma.user.update({where:{id:req.userId},data:{isPro:true,proExpiresAt}}),
+      prisma.inviteCode.update({where:{code:code.trim().toUpperCase()},data:{usedBy:req.userId,usedAt:now}}),
+    ]);
+    res.json({success:true,plan,proExpiresAt});
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка сервера"});}
+});
+
+app.get("/subscription/status",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{isPro:true,proExpiresAt:true}});
+    const now=new Date();
+    const active=!!(user.isPro&&(!user.proExpiresAt||new Date(user.proExpiresAt)>now));
+    res.json({isPro:active,proExpiresAt:user.proExpiresAt||null});
+  }catch(e){res.status(500).json({message:"Ошибка"});}
+});
+
+app.post("/admin/generate-keys",async(req,res)=>{
+  try{
+    const{secret,count=10,plan="monthly"}=req.body;
+    if(secret!=="laptev2024")return res.status(403).json({message:"Доступ запрещён"});
+    const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const codes=[];
+    for(let i=0;i<Math.min(count,50);i++){
+      let code="LVL-";
+      for(let j=0;j<4;j++)code+=chars[Math.floor(Math.random()*chars.length)];
+      code+="-";
+      for(let j=0;j<4;j++)code+=chars[Math.floor(Math.random()*chars.length)];
+      codes.push(code);
+    }
+    const created=await prisma.$transaction(
+      codes.map(c=>prisma.inviteCode.upsert({where:{code:c},create:{code:c,plan},update:{}}))
+    );
+    res.json({codes:created.map(c=>c.code),count:created.length,plan});
+  }catch(e){console.error(e);res.status(500).json({message:"Ошибка"});}
 });
 
 // ── CRON: письма + уведомления воскресенья ────────────────────────────────────

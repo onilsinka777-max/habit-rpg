@@ -115,6 +115,8 @@ model User {
   streakDuelsAsChallenger  StreakDuel[]     @relation("StreakDuelChallenger")
   streakDuelsAsChallenged  StreakDuel[]     @relation("StreakDuelChallenged")
   futureLetters            FutureLetter[]
+  isPro                    Boolean          @default(false)
+  proExpiresAt             DateTime?
   darkSideActive           Boolean          @default(false)
   darkSideDay              Int              @default(0)
   darkSideStartedAt        DateTime?
@@ -790,5 +792,14 @@ model FutureLetter {
   content   String
   sendAt    DateTime
   sent      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model InviteCode {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  plan      String   @default("monthly")
+  usedBy    Int?
+  usedAt    DateTime?
   createdAt DateTime @default(now())
 }
