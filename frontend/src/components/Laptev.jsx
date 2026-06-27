@@ -126,8 +126,15 @@ export default function Laptev({ token, user, showToast, onNavigate }) {
   const [tab, setTab]         = useState("chat");
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const userMsgCount = msgs.filter(m => m.role === "user").length;
-  const showChessBtn = userMsgCount >= 3;
+  const showChessBtn = userMsgCount >= 3 && tab !== "knowledge";
   const bottomRef   = useRef(null);
+
+  // ── Knowledge Chat state ──────────────────────────────────────────────────
+  const [kMsgs, setKMsgs]       = useState([]);
+  const [kInput, setKInput]     = useState("");
+  const [kSending, setKSending] = useState(false);
+  const [kMsgsLeft, setKMsgsLeft] = useState(10);
+  const kBottomRef = useRef(null);
 
   useEffect(() => {
     if (!token) return;
@@ -147,7 +154,26 @@ export default function Laptev({ token, user, showToast, onNavigate }) {
       .finally(() => setHistoryLoaded(true));
   }, [token]);
 
+  useEffect(() => {
+    if (!token || tab !== "knowledge") return;
+    if (kMsgs.length > 0) return;
+    fetch(`${API}/knowledge/history`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.messages?.length > 0) {
+          setKMsgs(data.messages.map(m => ({ role: m.role, content: m.content })));
+        } else {
+          setKMsgs([{ role:"assistant", content:"Привет. Здесь я вижу всю твою историю — цели, задачи, журнал. Спроси о чём угодно." }]);
+        }
+        if (data.messagesLeft != null) setKMsgsLeft(data.messagesLeft);
+      })
+      .catch(() => {
+        setKMsgs([{ role:"assistant", content:"Привет. Здесь я вижу всю твою историю — цели, задачи, журнал. Спроси о чём угодно." }]);
+      });
+  }, [token, tab]);
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [msgs]);
+  useEffect(() => { kBottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [kMsgs]);
 
   const send = async () => {
     const text = input.trim();
@@ -166,6 +192,25 @@ export default function Laptev({ token, user, showToast, onNavigate }) {
       setMsgs(prev => [...prev, { role:"assistant", content:msg }]);
       if (e.response?.data?.messagesLeft === 0) setMsgsLeft(0);
     } finally { setSending(false); }
+  };
+
+  const sendKnowledge = async () => {
+    const text = kInput.trim();
+    if (!text || kSending || kMsgsLeft <= 0) return;
+    const newMsgs = [...kMsgs, { role:"user", content:text }];
+    setKMsgs(newMsgs);
+    setKInput("");
+    setKSending(true);
+    try {
+      const history = newMsgs.slice(-9).slice(0,-1).map(m => ({ role:m.role, content:m.content }));
+      const res = await axios.post(`${API}/knowledge/chat`, { message:text, history }, auth);
+      setKMsgs(prev => [...prev, { role:"assistant", content:res.data.reply }]);
+      setKMsgsLeft(res.data.messagesLeft ?? kMsgsLeft - 1);
+    } catch(e) {
+      const msg = e.response?.data?.message || "Ошибка связи";
+      setKMsgs(prev => [...prev, { role:"assistant", content:msg }]);
+      if (e.response?.status === 429) setKMsgsLeft(0);
+    } finally { setKSending(false); }
   };
 
   return (
@@ -278,8 +323,21 @@ export default function Laptev({ token, user, showToast, onNavigate }) {
         {/* ── Divider ── */}
         <div style={{ height:1, background:"linear-gradient(90deg,transparent,rgba(124,58,237,0.4),transparent)", marginBottom:20 }}/>
 
+        {/* ── Tab switcher ── */}
+        <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+          {[["chat","💬 Чат"],["knowledge","🧠 База знаний"]].map(([key,label]) => (
+            <button key={key} onClick={() => setTab(key === tab ? tab : key)} data-active={tab === key} style={{
+              flex:1, padding:"9px 0", borderRadius:12, fontSize:13, fontWeight:700,
+              border:"1px solid rgba(124,58,237,0.3)", cursor:"pointer",
+              background: tab === key ? "linear-gradient(135deg,#7c3aed,#4c1d95)" : "rgba(124,58,237,0.07)",
+              color: tab === key ? "#fff" : "#c4b5fd",
+              transition:"all 0.15s",
+            }}>{label}</button>
+          ))}
+        </div>
+
         {/* ── Chat ── */}
-        <div style={{
+        {tab === "chat" && <div style={{
           background:"linear-gradient(135deg,rgba(10,8,24,0.97),rgba(20,10,50,0.95))",
           border:"1px solid rgba(124,58,237,0.3)", borderRadius:20,
           padding:16, marginBottom:16,
@@ -364,7 +422,85 @@ export default function Laptev({ token, user, showToast, onNavigate }) {
                 transition:"all 0.15s",
               }}>→</button>
           </div>
-        </div>
+        </div>}
+
+        {/* ── Knowledge Chat ── */}
+        {tab === "knowledge" && <div style={{
+          background:"linear-gradient(135deg,rgba(10,8,24,0.97),rgba(20,10,50,0.95))",
+          border:"1px solid rgba(124,58,237,0.3)", borderRadius:20,
+          padding:16, marginBottom:16,
+          boxShadow:"0 4px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(124,58,237,0.1)",
+        }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14,
+            paddingBottom:12, borderBottom:"1px solid rgba(124,58,237,0.12)" }}>
+            <SmallAvatar />
+            <div>
+              <div style={{ fontWeight:800, fontSize:13, color:"#c4b5fd" }}>LAPTEV · База знаний</div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>Видит твои цели, задачи, журнал</div>
+            </div>
+            {kMsgsLeft <= 0 ? (
+              <span style={{ marginLeft:"auto", fontSize:10, color:"rgba(239,68,68,0.7)", fontWeight:600 }}>Лимит исчерпан</span>
+            ) : (
+              <span style={{ marginLeft:"auto", fontSize:10, color:"rgba(255,255,255,0.25)" }}>{kMsgsLeft}/10 сообщений</span>
+            )}
+          </div>
+
+          <div style={{ maxHeight:"45vh", overflowY:"auto", display:"flex", flexDirection:"column", gap:10, marginBottom:12,
+            scrollbarWidth:"thin", scrollbarColor:"rgba(124,58,237,0.3) transparent" }}>
+            {kMsgs.map((m, i) => (
+              <div key={i} data-role={m.role} style={{
+                display:"flex", alignItems:"flex-end", gap:8,
+                justifyContent: m.role === "user" ? "flex-end" : "flex-start",
+                animation:"lapFadeIn 0.25s ease",
+              }}>
+                {m.role === "assistant" && <SmallAvatar />}
+                <div style={{
+                  maxWidth:"78%",
+                  background: m.role === "user" ? "linear-gradient(135deg,#7c3aed,#4c1d95)" : "#1a0a2e",
+                  borderLeft: m.role === "assistant" ? "3px solid #34d399" : "none",
+                  borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                  padding:"10px 14px", fontSize:14, lineHeight:1.55, color:"#e2e8f0",
+                  boxShadow: m.role === "user" ? "0 0 14px rgba(124,58,237,0.3)" : "0 2px 12px rgba(0,0,0,0.4)",
+                }}>{m.content}</div>
+              </div>
+            ))}
+            {kSending && (
+              <div style={{ display:"flex", alignItems:"flex-end", gap:8, animation:"lapFadeIn 0.25s ease" }}>
+                <SmallAvatar />
+                <div style={{ background:"#1a0a2e", borderLeft:"3px solid #34d399",
+                  borderRadius:"18px 18px 18px 4px", padding:"10px 16px" }}>
+                  <TypingDots />
+                </div>
+              </div>
+            )}
+            <div ref={kBottomRef}/>
+          </div>
+
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            <input value={kInput} onChange={e => setKInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendKnowledge()}
+              placeholder={kMsgsLeft > 0 ? "Спроси о своих целях, задачах, прогрессе..." : "На сегодня достаточно"}
+              disabled={kSending || kMsgsLeft <= 0}
+              maxLength={500}
+              style={{
+                flex:1, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(52,211,153,0.25)",
+                borderRadius:24, padding:"10px 16px", color:"#e2e8f0", fontSize:14, outline:"none",
+                transition:"border-color 0.15s",
+              }}
+              onFocus={e => e.target.style.borderColor = "rgba(52,211,153,0.6)"}
+              onBlur={e => e.target.style.borderColor = "rgba(52,211,153,0.25)"}
+            />
+            <button onClick={sendKnowledge} disabled={kSending || !kInput.trim() || kMsgsLeft <= 0}
+              style={{
+                background: kSending || !kInput.trim() || kMsgsLeft <= 0
+                  ? "rgba(52,211,153,0.15)"
+                  : "linear-gradient(135deg,#059669,#065f46)",
+                border:"none", borderRadius:"50%", width:42, height:42,
+                color:"#fff", cursor: kSending || kMsgsLeft <= 0 ? "default" : "pointer",
+                fontWeight:700, fontSize:18, flexShrink:0, transition:"all 0.15s",
+              }}>→</button>
+          </div>
+        </div>}
 
         {/* ── Chess button (after 3 messages) ── */}
         {showChessBtn && (

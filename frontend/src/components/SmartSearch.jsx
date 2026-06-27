@@ -10,6 +10,9 @@ export default function SmartSearch({ token, onNavigate, onClose }) {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [sel, setSel]         = useState(0);
+  const [aiMode, setAiMode]   = useState(false);
+  const [aiAnswer, setAiAnswer]   = useState(null);
+  const [suggestedView, setSuggestedView] = useState(null);
   const inputRef  = useRef(null);
   const timerRef  = useRef(null);
   const auth = { headers: { Authorization: `Bearer ${token}` } };
@@ -21,15 +24,20 @@ export default function SmartSearch({ token, onNavigate, onClose }) {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  const search = (q) => {
+  const search = (q, useAi = aiMode) => {
     clearTimeout(timerRef.current);
-    if (!q || q.length < 2) { setResults(null); return; }
+    if (!q || q.length < 2) { setResults(null); setAiAnswer(null); setSuggestedView(null); return; }
     timerRef.current = setTimeout(async () => {
       setLoading(true);
+      setAiAnswer(null);
+      setSuggestedView(null);
       try {
-        const res = await axios.get(`${API}/search?q=${encodeURIComponent(q)}`, auth);
+        const aiParam = useAi ? "&ai=true" : "";
+        const res = await axios.get(`${API}/search?q=${encodeURIComponent(q)}${aiParam}`, auth);
         setResults(res.data);
         setSel(0);
+        if (res.data.ai_answer) setAiAnswer(res.data.ai_answer);
+        if (res.data.suggested_view) setSuggestedView(res.data.suggested_view);
       } catch {}
       finally { setLoading(false); }
     }, 250);
@@ -75,15 +83,51 @@ export default function SmartSearch({ token, onNavigate, onClose }) {
             style={{ flex:1, background:"none", border:"none", outline:"none", color:"#f1f5f9", fontSize:16 }}
           />
           {loading && <span style={{ fontSize:14, color:"rgba(255,255,255,0.3)" }}>⏳</span>}
+          {query.length >= 2 && (
+            <button
+              data-active={aiMode}
+              onClick={() => { const next = !aiMode; setAiMode(next); search(query, next); }}
+              style={{
+                background: aiMode ? "linear-gradient(135deg,#7c3aed,#4c1d95)" : "rgba(124,58,237,0.1)",
+                border: "1px solid rgba(124,58,237,0.4)", borderRadius:8,
+                padding:"3px 9px", cursor:"pointer", color: aiMode ? "#fff" : "#c4b5fd",
+                fontSize:11, fontWeight:700, whiteSpace:"nowrap", flexShrink:0,
+              }}
+            >✨ AI</button>
+          )}
           <kbd style={{ fontSize:11, background:"rgba(255,255,255,0.07)", borderRadius:5, padding:"2px 7px", color:"rgba(255,255,255,0.3)" }}>ESC</kbd>
         </div>
 
         {/* Results */}
         {results && (
           <div style={{ background:"#141925", border:"1px solid rgba(255,255,255,0.08)", borderRadius:14, marginTop:6, overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}>
-            {allItems.length === 0 ? (
+            {/* AI answer card */}
+            {aiAnswer && (
+              <div data-testid="ai-answer" style={{
+                borderBottom:"1px solid rgba(124,58,237,0.15)",
+                padding:"12px 16px",
+                background:"rgba(124,58,237,0.06)",
+              }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"rgba(124,58,237,0.7)", letterSpacing:1, marginBottom:6 }}>✨ AI-ОТВЕТ</div>
+                <div style={{ fontSize:13, color:"rgba(255,255,255,0.8)", lineHeight:1.5, marginBottom:suggestedView?8:0 }}>
+                  {aiAnswer}
+                </div>
+                {suggestedView && (
+                  <button
+                    data-testid="suggested-view"
+                    onClick={() => { onNavigate?.(suggestedView); onClose(); }}
+                    style={{
+                      background:"rgba(124,58,237,0.15)", border:"1px solid rgba(124,58,237,0.3)",
+                      borderRadius:8, padding:"5px 12px", cursor:"pointer",
+                      color:"#c4b5fd", fontSize:12, fontWeight:600,
+                    }}
+                  >Перейти →</button>
+                )}
+              </div>
+            )}
+            {allItems.length === 0 && !aiAnswer ? (
               <div style={{ padding:"20px 16px", textAlign:"center", color:"rgba(255,255,255,0.35)", fontSize:14 }}>Ничего не найдено</div>
-            ) : allItems.map((item, i) => (
+            ) : allItems.length === 0 ? null : allItems.map((item, i) => (
               <div key={`${item.type}-${item.id||item.key}`}
                 onClick={() => handleClick(item)}
                 style={{

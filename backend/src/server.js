@@ -11,6 +11,8 @@ const { ensureDailyQuests } = require("./questGenerator");
 const { computeAutoClass, CLASS_LABELS, CLASS_TITLES } = require("./mastery");
 const { ensureWeeklyLegendaryQuest } = require("./legendaryWeekly");
 const { getCoachAdvice } = require("./aiCoach");
+const { getKnowledgeChatReply, getAiSearchAnswer } = require("./knowledgeChat");
+const { validateAndSanitizeInput, validateHistory, enforceRateLimit, safeError, KNOWLEDGE_DAILY_LIMIT } = require("./knowledgeSecurity");
 const { NPCS, getNpc, getAvailableNpcs } = require("./npc");
 const {
   BRANCHES, DIFFICULTIES, DIFFICULTY_REWARDS,
@@ -2335,7 +2337,20 @@ app.get("/search",authMiddleware,async(req,res)=>{
     const matchedAchievements=achievementKeys.slice(0,3).map(k=>({key:k,...ACHIEVEMENT_META[k],unlocked:userAchievements.some(a=>a.type===k)}));
     const SECTION_MAP=[{key:"tasks",label:"Квесты",icon:"⚔️"},{key:"shop",label:"Магазин",icon:"🛒"},{key:"library",label:"Библиотека",icon:"📚"},{key:"stats",label:"Статистика",icon:"📊"},{key:"mastery",label:"Мастерство",icon:"🗺️"},{key:"friends",label:"Друзья",icon:"👥"},{key:"clans",label:"Кланы",icon:"🏰"},{key:"chains",label:"Цепочки",icon:"⛓️"},{key:"worldmap",label:"Карта мира",icon:"🗺️"},{key:"marathons",label:"Марафоны",icon:"🏃"},{key:"skills",label:"Навыки",icon:"⚡"},{key:"npc",label:"NPC",icon:"👤"},{key:"focus",label:"Фокус",icon:"🎯"}];
     const matchedSections=SECTION_MAP.filter(s=>s.label.toLowerCase().includes(q)).slice(0,4);
-    res.json({tasks,friends:matchedFriends,achievements:matchedAchievements,sections:matchedSections});
+    const baseResult={tasks,friends:matchedFriends,achievements:matchedAchievements,sections:matchedSections};
+    if(req.query.ai!=="true"||!process.env.ANTHROPIC_API_KEY){
+      return res.json({...baseResult,ai_answer:null,suggested_view:null});
+    }
+    try{
+      const aiResult=await Promise.race([
+        getAiSearchAnswer(req.userId,q),
+        new Promise((_,reject)=>setTimeout(()=>reject(new Error("timeout")),7000)),
+      ]);
+      res.json({...baseResult,...aiResult});
+    }catch(aiErr){
+      console.warn("[search] AI enhancement failed:",aiErr.message);
+      res.json({...baseResult,ai_answer:null,suggested_view:null});
+    }
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -2692,6 +2707,41 @@ app.get("/laptev/history",authMiddleware,async(req,res)=>{
       where:{userId:req.userId,role:"user",createdAt:{gte:today}},
     });
     res.json({messages,todayCount,messagesLeft:Math.max(0,5-todayCount)});
+  }catch(e){res.status(500).json({message:"Ошибка сервера"});}
+});
+
+// ── KNOWLEDGE CHAT ────────────────────────────────────────────────────────────
+app.post("/knowledge/chat",authMiddleware,async(req,res)=>{
+  try{
+    if(!process.env.ANTHROPIC_API_KEY)return safeError(res,503,"AI недоступен — настройте ANTHROPIC_API_KEY");
+    const rateCheck=await enforceRateLimit(req.userId,prisma);
+    if(!rateCheck.allowed)return res.status(429).json({message:rateCheck.error,messagesLeft:0});
+    const inputCheck=validateAndSanitizeInput(req.body.message);
+    if(!inputCheck.ok)return res.status(400).json({message:inputCheck.error});
+    const safeMsg=inputCheck.message;
+    const safeHist=validateHistory(req.body.history,req.userId);
+    const reply=await getKnowledgeChatReply(req.userId,safeHist,safeMsg);
+    await prisma.laptevMessage.createMany({data:[
+      {userId:req.userId,role:"user",content:safeMsg,mode:"knowledge"},
+      {userId:req.userId,role:"assistant",content:reply,mode:"knowledge"},
+    ]});
+    res.json({reply,messagesLeft:rateCheck.messagesLeft});
+  }catch(e){
+    if(e?.status===429)return safeError(res,503,"AI временно недоступен, попробуй позже",e);
+    if(e?.status>=400&&e?.status<500)return safeError(res,502,"Ошибка при обращении к AI",e);
+    return safeError(res,500,"Ошибка сервера",e);
+  }
+});
+
+app.get("/knowledge/history",authMiddleware,async(req,res)=>{
+  try{
+    const messages=await prisma.laptevMessage.findMany({
+      where:{userId:req.userId,mode:"knowledge"},
+      orderBy:{createdAt:"asc"},
+      take:50,
+      select:{role:true,content:true,createdAt:true},
+    });
+    res.json({messages,messagesLeft:null});
   }catch(e){res.status(500).json({message:"Ошибка сервера"});}
 });
 

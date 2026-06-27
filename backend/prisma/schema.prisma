@@ -133,6 +133,8 @@ model User {
   player2Completed         Boolean          @default(false)
   peaceUnlocked            Boolean          @default(false)
   player2Quests            Player2Quest[]
+  knowledgeMsgCount        Int              @default(0)
+  knowledgeMsgDate         DateTime?
   createdAt                DateTime         @default(now())
 }
 
@@ -749,6 +751,7 @@ model LaptevMessage {
   user      User     @relation(fields: [userId], references: [id])
   role      String
   content   String
+  mode      String   @default("standard")
   createdAt DateTime @default(now())
 }
 
