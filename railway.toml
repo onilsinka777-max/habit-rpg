@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install && npx prisma generate"
+buildCommand = "npm install && npx prisma generate && npx prisma db push --accept-data-loss && node prisma/seed.js && node prisma/seedShop.js && node prisma/seedLegendary.js && node prisma/seedMegaUpdate.js && node prisma/seedWave2.js && node prisma/seedBoosters.js && node prisma/seedChainUpdate.js"
 
 [deploy]
 startCommand = "node src/server.js"
