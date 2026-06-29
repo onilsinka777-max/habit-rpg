@@ -661,12 +661,16 @@ export default function App() {
         )}
 
 
+        {/* ── РЕЙДЫ (standalone) ───────────────────────────────────────── */}
+        {view === "raid" && (
+          <Raid token={token} showToast={showToast} userLevel={user?.level||1} masteryPath={user?.masteryPath||null} />
+        )}
+
         {/* ── МИР ──────────────────────────────────────────────────────── */}
-        {["worldmap","mastery","skills","league","chains","marathons","season","legend-path","creator-path","hall-of-fame","raid"].includes(view) && (
+        {["worldmap","mastery","skills","league","chains","marathons","season","legend-path","creator-path","hall-of-fame"].includes(view) && (
           <>
             <SectionTabs tabs={[
               {key:"worldmap",     label:"Карта",      icon:"🗺️"},
-              {key:"raid",         label:"Рейд",       icon:"⚔️"},
               {key:"chains",       label:"Цепочки",    icon:"⛓️"},
               {key:"marathons",    label:"Марафоны",   icon:"🏃"},
               {key:"mastery",      label:"Мастерство", icon:"🌟"},
@@ -678,7 +682,6 @@ export default function App() {
               {key:"hall-of-fame", label:"Зал Славы",  icon:"🏆"},
             ]} active={view} onChange={setView} />
             {view === "worldmap"     && <WorldMap    token={token} userLevel={user?.level||1} showToast={showToast} />}
-            {view === "raid"         && <Raid        token={token} showToast={showToast} userLevel={user?.level||1} masteryPath={user?.masteryPath||null} />}
             {view === "chains"       && <QuestChains token={token} showToast={showToast} askConfirm={askConfirm} userLevel={user?.level||1} />}
             {view === "marathons"    && <Marathons   token={token} showToast={showToast} userLevel={user?.level||1} />}
             {view === "mastery"      && <Mastery     token={token} showToast={showToast} askConfirm={askConfirm} myLevel={user?.level||1} onFinished={loadProfile} />}

@@ -1754,6 +1754,37 @@ app.get("/players/discover",authMiddleware,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
+// ── PLAYERS ONLINE ───────────────────────────────────────────────────────────
+app.get("/players/online",authMiddleware,async(req,res)=>{
+  try{
+    const now=new Date();
+    const fiveMinAgo=new Date(now.getTime()-ONLINE_THRESHOLD_MS);
+    const q=(req.query.q||"").trim().toLowerCase();
+    const friendships=await prisma.friendship.findMany({where:{OR:[{userId:req.userId},{friendId:req.userId}]},select:{userId:true,friendId:true}});
+    const friendIds=new Set(friendships.map(f=>f.userId===req.userId?f.friendId:f.userId));
+    const users=await prisma.user.findMany({
+      where:{id:{not:req.userId},...(q?{OR:[{name:{contains:q}},{email:{contains:q}}]}:{})},
+      select:{id:true,name:true,email:true,level:true,masteryPath:true,lastActiveAt:true,avatar:true},
+      orderBy:[{lastActiveAt:"desc"}],take:60,
+    });
+    const result=users.map(u=>({
+      id:u.id,
+      name:u.name||u.email.split("@")[0],
+      level:u.level,
+      masteryPath:u.masteryPath,
+      lastActiveAt:u.lastActiveAt,
+      avatar:u.avatar,
+      isOnline:!!(u.lastActiveAt&&new Date(u.lastActiveAt)>fiveMinAgo),
+      isFriend:friendIds.has(u.id),
+    })).sort((a,b)=>{
+      if(a.isOnline!==b.isOnline)return a.isOnline?-1:1;
+      if(a.isFriend!==b.isFriend)return a.isFriend?-1:1;
+      return(new Date(b.lastActiveAt||0))-(new Date(a.lastActiveAt||0));
+    });
+    res.json(result);
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
 // ── JOURNAL ──────────────────────────────────────────────────────────────────
 app.get("/journal",authMiddleware,async(req,res)=>{
   try{const entries=await prisma.journalEntry.findMany({where:{userId:req.userId},orderBy:{createdAt:"desc"}});res.json(entries);}

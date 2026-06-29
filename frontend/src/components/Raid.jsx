@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
+import RaidInviteModal from "./RaidInvite";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -346,10 +347,8 @@ function IllusionScreen({ raid, onEnter, onRetreat }) {
 }
 
 // ── Active Raid Screen ───────────────────────────────────────────────────────
-function ActiveRaidScreen({ raid: initialRaid, token, showToast, onRaidEnd }) {
+function ActiveRaidScreen({ raid: initialRaid, token, showToast, onRaidEnd, onInvite }) {
   const [raid, setRaid] = useState(initialRaid);
-  const [friends, setFriends] = useState([]);
-  const [showFriends, setShowFriends] = useState(false);
   const [hitAnim, setHitAnim] = useState(false);
   const [phaseFlash, setPhaseFlash] = useState(null);
   const [catastrophicFlash, setCatastrophicFlash] = useState(false);
@@ -404,18 +403,6 @@ function ActiveRaidScreen({ raid: initialRaid, token, showToast, onRaidEnd }) {
     });
     return () => socketRef.current?.disconnect();
   }, [raid?.id]);
-
-  const loadFriends = async () => {
-    try { const r = await axios.get(`${API}/friends`, authH); setFriends(r.data); } catch {}
-  };
-
-  const invite = async (fid) => {
-    try {
-      await axios.post(`${API}/raid/invite/${fid}`, {}, authH);
-      showToast("Приглашение отправлено!", "success");
-      setShowFriends(false);
-    } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
-  };
 
   const abandon = async () => {
     if (!window.confirm("Покинуть рейд? Штраф: 50% от наказания за поражение.")) return;
@@ -617,27 +604,13 @@ function ActiveRaidScreen({ raid: initialRaid, token, showToast, onRaidEnd }) {
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            <button onClick={() => { setShowFriends(!showFriends); if (!showFriends) loadFriends(); }} style={{
+            <button onClick={onInvite} style={{
               width: "100%", background: "rgba(124,58,237,0.15)", border: "1px solid rgba(124,58,237,0.35)",
-              borderRadius: 14, padding: "12px", color: "#c4b5fd", fontSize: 14, fontWeight: 700, cursor: "pointer",
+              borderRadius: 14, padding: "13px", color: "#c4b5fd", fontSize: 14, fontWeight: 700, cursor: "pointer",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:8,
             }}>
-              {showFriends ? "Скрыть" : "👥 Позвать друга в рейд"}
+              👥 Позвать игроков в рейд
             </button>
-            {showFriends && (
-              <div style={{ marginTop: 8, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(124,58,237,0.15)", borderRadius: 14, overflow: "hidden" }}>
-                {friends.length === 0 ? (
-                  <div style={{ padding: 14, textAlign: "center", color: "rgba(255,255,255,0.35)", fontSize: 13 }}>Нет друзей</div>
-                ) : friends.map(f => (
-                  <div key={f.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{f.name}</div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Ур. {f.level}</div>
-                    </div>
-                    <button onClick={() => invite(f.id)} style={{ background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 10, padding: "6px 12px", color: "#fca5a5", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Позвать</button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -1221,7 +1194,8 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
   const [gold, setGold] = useState(0);
   const [equipment, setEquipment] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
-  const [tab, setTab] = useState("raid"); // raid | portal | survival | leviathan | history
+  const [tab, setTab] = useState("dungeon"); // dungeon | survival | portal
+  const [showInvite, setShowInvite] = useState(false);
   const [showDeathTutorial, setShowDeathTutorial] = useState(false);
   const authH = { headers: { Authorization: `Bearer ${token}` } };
 
@@ -1295,23 +1269,21 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
   return (
     <div style={{ minHeight: "100vh", background: BG, color: "#fff", fontFamily: "monospace" }}>
       {showDeathTutorial && <DeathTutorialScreen onBack={() => { setShowDeathTutorial(false); init(); }} />}
+      {showInvite && <RaidInviteModal token={token} showToast={showToast} raidId={activeRaid?.id} onClose={() => setShowInvite(false)} />}
 
-      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.4)", position: "sticky", top: 0, zIndex: 10, overflowX: "auto" }}>
-        {[["raid","⚔️ Рейд"],["portal","⚫ Портал"],["survival","🌊 Выживание"],["leviathan","🐋 Левиафан"],["history","📜 История"]].map(([id, label]) => (
+      {/* 3-tab header */}
+      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.5)", position: "sticky", top: 0, zIndex: 10 }}>
+        {[["dungeon","🏰 Подземелье"],["survival","🌊 Выживание"],["portal","⚫ Портал"]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} style={{
-            flex: "0 0 auto", background: "none", border: "none",
+            flex: 1, background: "none", border: "none",
             borderBottom: tab === id ? `2px solid ${RED}` : "2px solid transparent",
-            padding: "12px 10px", color: tab === id ? "#fff" : "rgba(255,255,255,0.4)",
-            fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+            padding: "13px 4px", color: tab === id ? "#fff" : "rgba(255,255,255,0.38)",
+            fontSize: 12, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3,
           }}>{label}</button>
         ))}
       </div>
 
-      {tab === "history" ? (
-        <HistoryScreen token={token} />
-      ) : tab === "leviathan" ? (
-        <WeeklyBossScreen token={token} />
-      ) : tab === "portal" ? (
+      {tab === "portal" ? (
         <DarkPortalScreen token={token} showToast={showToast} />
       ) : tab === "survival" ? (
         <SurvivalScreen token={token} showToast={showToast} />
@@ -1343,7 +1315,7 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
       ) : screen === "illusion" && activeRaid ? (
         <IllusionScreen raid={activeRaid} onEnter={handleEnterIllusion} onRetreat={handleRetreat} />
       ) : screen === "active" && activeRaid ? (
-        <ActiveRaidScreen raid={activeRaid} token={token} showToast={showToast} onRaidEnd={handleRaidEnd} />
+        <ActiveRaidScreen raid={activeRaid} token={token} showToast={showToast} onRaidEnd={handleRaidEnd} onInvite={() => setShowInvite(true)} />
       ) : screen === "result" ? (
         <ResultScreen raid={resultRaid} status={resultStatus} raidResult={raidResult} onBack={handleResultBack} />
       ) : null}
