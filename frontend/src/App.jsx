@@ -59,6 +59,8 @@ import { playQuestComplete, playLevelUp, playStreakComplete, setSound, isSoundEn
 import StarField from "./components/StarField";
 import RewardToastContainer, { showRewardToast } from "./components/ToastNotification";
 import SubscriptionWall from "./components/SubscriptionWall";
+import Raid from "./components/Raid";
+import Discover from "./components/Discover";
 import ToastContainer from "./components/Toast";
 import "./App.css";
 
@@ -660,10 +662,11 @@ export default function App() {
 
 
         {/* ── МИР ──────────────────────────────────────────────────────── */}
-        {["worldmap","mastery","skills","league","chains","marathons","season","legend-path","creator-path","hall-of-fame"].includes(view) && (
+        {["worldmap","mastery","skills","league","chains","marathons","season","legend-path","creator-path","hall-of-fame","raid"].includes(view) && (
           <>
             <SectionTabs tabs={[
               {key:"worldmap",     label:"Карта",      icon:"🗺️"},
+              {key:"raid",         label:"Рейд",       icon:"⚔️"},
               {key:"chains",       label:"Цепочки",    icon:"⛓️"},
               {key:"marathons",    label:"Марафоны",   icon:"🏃"},
               {key:"mastery",      label:"Мастерство", icon:"🌟"},
@@ -675,6 +678,7 @@ export default function App() {
               {key:"hall-of-fame", label:"Зал Славы",  icon:"🏆"},
             ]} active={view} onChange={setView} />
             {view === "worldmap"     && <WorldMap    token={token} userLevel={user?.level||1} showToast={showToast} />}
+            {view === "raid"         && <Raid        token={token} showToast={showToast} userLevel={user?.level||1} />}
             {view === "chains"       && <QuestChains token={token} showToast={showToast} askConfirm={askConfirm} userLevel={user?.level||1} />}
             {view === "marathons"    && <Marathons   token={token} showToast={showToast} userLevel={user?.level||1} />}
             {view === "mastery"      && <Mastery     token={token} showToast={showToast} askConfirm={askConfirm} myLevel={user?.level||1} onFinished={loadProfile} />}
@@ -688,12 +692,13 @@ export default function App() {
         )}
 
         {/* ── СОЦИАЛКА ─────────────────────────────────────────────────── */}
-        {["friends","clan","feed","npc","gratitude","chess","player2"].includes(view) && (
+        {["friends","clan","feed","npc","gratitude","chess","player2","discover"].includes(view) && (
           <>
             <SectionTabs tabs={[
               {key:"friends",   label:"Друзья",        icon:"🤝"},
               {key:"clan",      label:"Клан",          icon:"⚔️"},
               {key:"chess",     label:"Шахматы",       icon:"♟️"},
+              {key:"discover",  label:"Открытие",      icon:"🌐"},
               {key:"feed",      label:"Лента",         icon:"📡"},
               {key:"npc",       label:"Наставники",    icon:"🧙"},
               {key:"gratitude", label:"Благодарность", icon:"🌿"},
@@ -702,6 +707,7 @@ export default function App() {
             {view === "friends"   && <Friends  token={token} showToast={showToast} askConfirm={askConfirm} myStreak={user?.streak||0} myGold={user?.gold||0} onChessInvite={(gid) => { setChessGameId(gid || null); setView("chess"); }} onViewProfile={(id) => { setViewProfileId(id); setViewProfileFrom("friends"); setView("profile"); }} />}
             {view === "clan"      && <Clan     token={token} showToast={showToast} askConfirm={askConfirm} currentUserId={user?.id} myLevel={user?.level||1} onViewProfile={(id) => { setViewProfileId(id); setViewProfileFrom("clan"); setView("profile"); }} />}
             {view === "chess"     && <Chess    token={token} showToast={showToast} gameId={chessGameId} />}
+            {view === "discover"  && <Discover token={token} showToast={showToast} />}
             {view === "feed"      && <Feed     token={token} showToast={showToast} />}
             {view === "npc"       && <NpcPage  token={token} showToast={showToast} userLevel={user?.level||1} />}
             {view === "gratitude" && <Gratitude token={token} showToast={showToast} />}

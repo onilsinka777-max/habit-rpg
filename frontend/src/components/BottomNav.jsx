@@ -5,8 +5,8 @@ const ACCENT = "#7c3aed";
 
 const VIEW_TO_TAB = {
   quests:"quests", chains:"quests", marathons:"quests", season:"quests", "legend-path":"quests",
-  worldmap:"world", mastery:"world", skills:"world", league:"world", report:"world",
-  friends:"social", clan:"social", feed:"social", npc:"social", gratitude:"social", chess:"social",
+  worldmap:"world", mastery:"world", skills:"world", league:"world", report:"world", raid:"world",
+  friends:"social", clan:"social", feed:"social", npc:"social", gratitude:"social", chess:"social", discover:"social",
   profile:"profile", achievements:"profile", stats:"profile", shop:"profile",
   library:"profile", journal:"profile", goals:"profile", pet:"profile", pomodoro:"profile", laptev:"profile", sages:"profile",
 };
@@ -25,6 +25,7 @@ const SHEET_ITEMS = [
   { group:"Квесты",   key:"season",       icon:"🌸", label:"Сезон"         },
   { group:"Квесты",   key:"legend-path",  icon:"👑", label:"Легенда"       },
   { group:"Мир",      key:"worldmap",     icon:"🗺️", label:"Карта"         },
+  { group:"Мир",      key:"raid",         icon:"⚔️", label:"Рейд"          },
   { group:"Мир",      key:"mastery",      icon:"🧬", label:"Мастерство"    },
   { group:"Мир",      key:"skills",       icon:"✨", label:"Навыки"        },
   { group:"Мир",      key:"league",       icon:"🏆", label:"Лига"          },
@@ -32,6 +33,7 @@ const SHEET_ITEMS = [
   { group:"Социалка", key:"friends",      icon:"🤝", label:"Друзья"        },
   { group:"Социалка", key:"clan",         icon:"⚔️", label:"Клан"          },
   { group:"Социалка", key:"chess",        icon:"♟️", label:"Шахматы"       },
+  { group:"Социалка", key:"discover",     icon:"🌐", label:"Открытие"      },
   { group:"Социалка", key:"feed",         icon:"📡", label:"Лента"         },
   { group:"Социалка", key:"npc",          icon:"🧙", label:"Наставники"    },
   { group:"Социалка", key:"gratitude",    icon:"🌿", label:"Благодарность" },

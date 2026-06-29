@@ -44,6 +44,16 @@ const CHEST_MILESTONES = {
   28: { name:"Легендарный сундук", icon:"🏆", gold:500, xp:200 },
 };
 
+const RAID_BOSSES = [
+  { name:"Гоблин-вождь",  icon:"👺", hp:100,  difficulty:"easy",      rewardXp:50,   rewardGold:100  },
+  { name:"Скелет-воин",   icon:"💀", hp:150,  difficulty:"medium",    rewardXp:75,   rewardGold:150  },
+  { name:"Тёмный рыцарь", icon:"⚔️", hp:200,  difficulty:"hard",      rewardXp:100,  rewardGold:200  },
+  { name:"Некромант",      icon:"🧙", hp:400,  difficulty:"medium",    rewardXp:200,  rewardGold:300  },
+  { name:"Дракон",         icon:"🐉", hp:500,  difficulty:"hard",      rewardXp:250,  rewardGold:400  },
+  { name:"Древнее зло",    icon:"👁️", hp:1000, difficulty:"epic",      rewardXp:500,  rewardGold:800  },
+  { name:"Тёмный бог",     icon:"☠️", hp:2000, difficulty:"legendary", rewardXp:1000, rewardGold:1500 },
+];
+
 function randomClanTag(n=6){let o="";for(let i=0;i<n;i++)o+=CLAN_TAG_CHARS[Math.floor(Math.random()*CLAN_TAG_CHARS.length)];return o;}
 async function generateUniqueClanTag(){let t,e=true;while(e){t=randomClanTag();e=!!(await prisma.clan.findUnique({where:{tag:t}}));}return t;}
 function getMasteryState(user){const raw=user.masteryChoices?JSON.parse(user.masteryChoices):{};return new Set(raw.completed||[]);}
@@ -802,7 +812,32 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
         }
       }catch(archErr){console.error("Archive tracking error:",archErr.message);}
     }
-    res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:finalLevel>cu.level,newLevel:finalLevel,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0,multipliers:multipliersBreakdown});
+    // ── Raid damage ──────────────────────────────────────────────────────────
+    let raidDamage=0;
+    try{
+      const activeRaid=await prisma.dungeonRaid.findFirst({where:{status:"active",endsAt:{gte:new Date()}},include:{participants:true}});
+      if(activeRaid){
+        const raidPart=activeRaid.participants.find(p=>p.userId===req.userId);
+        if(raidPart){
+          const bonusMult=1+(activeRaid.participants.length-1)*0.2;
+          raidDamage=Math.round(10*bonusMult);
+          await prisma.raidParticipant.update({where:{raidId_userId:{raidId:activeRaid.id,userId:req.userId}},data:{damage:{increment:raidDamage}}});
+          const newHp=Math.max(0,activeRaid.currentHp-raidDamage);
+          await prisma.dungeonRaid.update({where:{id:activeRaid.id},data:{currentHp:newHp,...(newHp===0?{status:"completed"}:{})}});
+          io.emit("raid:hp_update",{raidId:activeRaid.id,currentHp:newHp,damage:raidDamage,userId:req.userId});
+          if(newHp===0){
+            for(const p of activeRaid.participants){
+              await prisma.user.update({where:{id:p.userId},data:{gold:{increment:activeRaid.rewardGold},xp:{increment:activeRaid.rewardXp}}});
+              await createNotification(p.userId,"raid_victory",`${activeRaid.bossIcon} Босс побеждён!`,`Ты победил ${activeRaid.bossName}! +${activeRaid.rewardXp} XP +${activeRaid.rewardGold} золота`).catch(()=>{});
+              const existAch=await prisma.achievement.findFirst({where:{userId:p.userId,type:"raid_winner"}});
+              if(!existAch)await prisma.achievement.create({data:{userId:p.userId,type:"raid_winner"}}).catch(()=>{});
+            }
+            io.emit("raid:boss_defeated",{raidId:activeRaid.id,bossName:activeRaid.bossName,bossIcon:activeRaid.bossIcon});
+          }
+        }
+      }
+    }catch(raidErr){console.error("Raid damage error:",raidErr.message);}
+    res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:finalLevel>cu.level,newLevel:finalLevel,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0,multipliers:multipliersBreakdown,raidDamage:raidDamage||undefined});
   }catch(e){console.error('QUEST COMPLETE ERROR:',e.message,e.stack);res.status(500).json({message:"Ошибка сервера",error:e.message});}
 });
 
@@ -883,6 +918,85 @@ app.get("/shop/library",authMiddleware,async(req,res)=>{
   try{
     const p=await prisma.purchase.findMany({where:{userId:req.userId},include:{item:true},orderBy:{purchasedAt:"desc"}});
     res.json(p.map(x=>({...x.item,purchasedAt:x.purchasedAt})));
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+// ── DUNGEON RAIDS ─────────────────────────────────────────────────────────────
+app.get("/raid/today",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true}});
+    let raid=await prisma.dungeonRaid.findFirst({
+      where:{status:"active",endsAt:{gte:new Date()}},
+      include:{participants:{include:{user:{select:{id:true,name:true,level:true,avatar:true}}},orderBy:{damage:"desc"}}},
+    });
+    if(!raid){
+      // pick boss based on user level
+      const lvl=user.level||1;
+      let pool;
+      if(lvl<=10)pool=RAID_BOSSES.slice(0,3);
+      else if(lvl<=20)pool=RAID_BOSSES.slice(3,5);
+      else pool=RAID_BOSSES.slice(5);
+      const boss=pool[Math.floor(Math.random()*pool.length)];
+      const todayStart=startOfToday();
+      const todayEnd=endOfToday();
+      raid=await prisma.dungeonRaid.create({
+        data:{bossName:boss.name,bossIcon:boss.icon,bossHp:boss.hp,currentHp:boss.hp,difficulty:boss.difficulty,rewardXp:boss.rewardXp,rewardGold:boss.rewardGold,startsAt:todayStart,endsAt:todayEnd,status:"active"},
+        include:{participants:{include:{user:{select:{id:true,name:true,level:true,avatar:true}}},orderBy:{damage:"desc"}}},
+      });
+    }
+    const participant=raid.participants.find(p=>p.userId===req.userId);
+    res.json({...raid,joined:!!participant,myDamage:participant?.damage||0});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.post("/raid/join",authMiddleware,async(req,res)=>{
+  try{
+    const raid=await prisma.dungeonRaid.findFirst({where:{status:"active",endsAt:{gte:new Date()}}});
+    if(!raid)return res.status(404).json({message:"Рейд не найден"});
+    const existing=await prisma.raidParticipant.findUnique({where:{raidId_userId:{raidId:raid.id,userId:req.userId}}});
+    if(existing)return res.status(400).json({message:"Ты уже в рейде"});
+    const participant=await prisma.raidParticipant.create({data:{raidId:raid.id,userId:req.userId}});
+    io.emit("raid:participant_joined",{raidId:raid.id,userId:req.userId});
+    res.json({message:"Вступил в рейд!",participant});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.post("/raid/invite/:friendId",authMiddleware,async(req,res)=>{
+  try{
+    const friendId=Number(req.params.friendId);
+    const raid=await prisma.dungeonRaid.findFirst({where:{status:"active",endsAt:{gte:new Date()}}});
+    if(!raid)return res.status(404).json({message:"Рейд не найден"});
+    const inviter=await prisma.user.findUnique({where:{id:req.userId},select:{name:true}});
+    await createNotification(friendId,"raid_invite","⚔️ Приглашение в рейд!",`${inviter.name||"Игрок"} зовёт тебя в рейд против ${raid.bossName} ${raid.bossIcon}! Зайди в Рейды.`,raid.id);
+    res.json({message:"Приглашение отправлено!"});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.get("/raid/participants",authMiddleware,async(req,res)=>{
+  try{
+    const raid=await prisma.dungeonRaid.findFirst({
+      where:{status:{in:["active","completed"]},endsAt:{gte:startOfToday()}},
+      include:{participants:{include:{user:{select:{id:true,name:true,level:true,avatar:true}}},orderBy:{damage:"desc"}}},
+    });
+    if(!raid)return res.json([]);
+    res.json(raid.participants);
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+// ── PLAYERS DISCOVER ──────────────────────────────────────────────────────────
+app.get("/players/discover",authMiddleware,async(req,res)=>{
+  try{
+    const page=parseInt(req.query.page)||1;
+    const limit=Math.min(parseInt(req.query.limit)||20,50);
+    const skip=(page-1)*limit;
+    const friendships=await prisma.friendship.findMany({where:{OR:[{userId:req.userId},{friendId:req.userId}]},select:{userId:true,friendId:true}});
+    const friendIds=friendships.map(f=>f.userId===req.userId?f.friendId:f.userId);
+    const excludeIds=[req.userId,...friendIds];
+    const [players,total]=await Promise.all([
+      prisma.user.findMany({where:{id:{notIn:excludeIds}},select:{id:true,name:true,level:true,streak:true,title:true,avatarFrame:true,avatar:true,hiddenClass:true},orderBy:{level:"desc"},skip,take:limit}),
+      prisma.user.count({where:{id:{notIn:excludeIds}}}),
+    ]);
+    res.json({players,total,page,hasMore:skip+limit<total});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
@@ -1087,6 +1201,31 @@ app.post("/friends/request",authMiddleware,async(req,res)=>{
       return res.status(201).json({message:"Заявка принята — вы теперь друзья!"});
     }
     await prisma.friendRequest.create({data:{fromUserId:req.userId,toUserId:target.id}});
+    res.status(201).json({message:"Заявка отправлена"});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+// Send friend request by user ID (used by Discover page)
+app.post("/friends/request-by-id",authMiddleware,async(req,res)=>{
+  try{
+    const{userId:targetId}=req.body;
+    if(!targetId)return res.status(400).json({message:"userId обязателен"});
+    const tid=Number(targetId);
+    if(tid===req.userId)return res.status(400).json({message:"Нельзя добавить себя"});
+    const alreadyFriends=await prisma.friendship.findUnique({where:{userId_friendId:{userId:req.userId,friendId:tid}}});
+    if(alreadyFriends)return res.status(400).json({message:"Уже в друзьях"});
+    const existing=await prisma.friendRequest.findUnique({where:{fromUserId_toUserId:{fromUserId:req.userId,toUserId:tid}}});
+    if(existing)return res.status(400).json({message:"Заявка уже отправлена"});
+    const reverse=await prisma.friendRequest.findUnique({where:{fromUserId_toUserId:{fromUserId:tid,toUserId:req.userId}}});
+    if(reverse){
+      await prisma.$transaction([
+        prisma.friendship.create({data:{userId:req.userId,friendId:tid}}),
+        prisma.friendship.create({data:{userId:tid,friendId:req.userId}}),
+        prisma.friendRequest.delete({where:{fromUserId_toUserId:{fromUserId:tid,toUserId:req.userId}}}),
+      ]);
+      return res.status(201).json({message:"Заявка принята — вы теперь друзья!"});
+    }
+    await prisma.friendRequest.create({data:{fromUserId:req.userId,toUserId:tid}});
     res.status(201).json({message:"Заявка отправлена"});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });

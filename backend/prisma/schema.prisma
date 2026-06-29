@@ -115,6 +115,7 @@ model User {
   streakDuelsAsChallenger  StreakDuel[]     @relation("StreakDuelChallenger")
   streakDuelsAsChallenged  StreakDuel[]     @relation("StreakDuelChallenged")
   futureLetters            FutureLetter[]
+  raidParticipations       RaidParticipant[]
   isPro                    Boolean          @default(false)
   proExpiresAt             DateTime?
   darkSideActive           Boolean          @default(false)
@@ -796,6 +797,35 @@ model FutureLetter {
   sendAt    DateTime
   sent      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+// ── РЕЙДЫ В ПОДЗЕМЕЛЬЕ ───────────────────────────────────────────────────────
+model DungeonRaid {
+  id           Int               @id @default(autoincrement())
+  bossName     String
+  bossIcon     String
+  bossHp       Int
+  currentHp    Int
+  difficulty   String            @default("medium")
+  rewardXp     Int               @default(100)
+  rewardGold   Int               @default(200)
+  startsAt     DateTime
+  endsAt       DateTime
+  status       String            @default("active")
+  participants RaidParticipant[]
+  createdAt    DateTime          @default(now())
+}
+
+model RaidParticipant {
+  id       Int         @id @default(autoincrement())
+  raidId   Int
+  raid     DungeonRaid @relation(fields: [raidId], references: [id])
+  userId   Int
+  user     User        @relation(fields: [userId], references: [id])
+  damage   Int         @default(0)
+  joinedAt DateTime    @default(now())
+
+  @@unique([raidId, userId])
 }
 
 model InviteCode {

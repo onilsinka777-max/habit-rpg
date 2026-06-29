@@ -3,9 +3,9 @@ const prisma = new PrismaClient();
 
 const items = [
   // ── БУСТЫ ────────────────────────────────────────────────────────────────────
-  { title:"Буст XP 24ч",            description:"×1.5 опыта на 24 часа",           category:"boost",    price:600,  effect:"xp_boost_24h"         },
-  { title:"Буст Золота 24ч",        description:"×1.5 золота на 24 часа",           category:"boost",    price:600,  effect:"gold_boost_24h"       },
-  { title:"Заморозка стрика",        description:"Защищает серию при пропуске 1 дня",category:"boost",    price:600,  effect:"streak_freeze"        },
+  { title:"Буст XP 24ч",            description:"×1.5 опыта на 24 часа",           category:"boost",    price:300,  effect:"xp_boost_24h"         },
+  { title:"Буст Золота 24ч",        description:"×1.5 золота на 24 часа",           category:"boost",    price:300,  effect:"gold_boost_24h"       },
+  { title:"Заморозка стрика",        description:"Защищает серию при пропуске 1 дня",category:"boost",    price:150,  effect:"streak_freeze"        },
   { title:"Постоянный буст XP",      description:"×1.25 опыта навсегда",            category:"boost",    price:2400, effect:"xp_boost_permanent"   },
   { title:"Постоянный буст Золота",  description:"×1.25 золота навсегда",           category:"boost",    price:2400, effect:"gold_boost_permanent"  },
 
@@ -27,6 +27,13 @@ const items = [
   // ── СЕЗОННЫЕ (Рассвет) ────────────────────────────────────────────────────────
   { title:"Рамка Рассвета",          description:"Золото-оранжевая рамка аватара — эксклюзив сезона", category:"seasonal", price:2000, effect:"frame_dawn" },
   { title:"Эффект Рассвета",         description:"Оранжевый glow ника — эксклюзив сезона",            category:"seasonal", price:1500, effect:"nick_dawn"  },
+
+  // ── РЕЙДОВЫЕ ТОВАРЫ ──────────────────────────────────────────────────────────
+  { title:"Свиток воскрешения",      description:"Восстанавливает стрик если пропустил 1 день",                category:"boost",    price:500,  effect:"streak_revival"       },
+  { title:"Двойной XP",              description:"×2 опыта за следующий квест",                               category:"boost",    price:200,  effect:"xp_double_next"       },
+  { title:"Карта подземелья",        description:"Открывает секретный рейд с удвоенной наградой",             category:"boost",    price:1000, effect:"dungeon_map"          },
+  { title:"Рамка Рейдер",            description:"Эксклюзивная рамка для победителей рейдов",                 category:"cosmetic", price:800,  effect:"frame_raider"         },
+  { title:"Титул: Истребитель боссов",description:"Носи этот титул с гордостью",                             category:"cosmetic", price:600,  effect:"title_boss_slayer"    },
 
   // ── КОНТЕНТ PDF ───────────────────────────────────────────────────────────────
   { title:"Чеклист питания",                description:"PDF: нутрициология и питание",              category:"content", price:10000, effect:"pdf_nutrition",    contentUrl:"/pdfs/01_питание.pdf"          },
