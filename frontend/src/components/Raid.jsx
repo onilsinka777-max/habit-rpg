@@ -351,6 +351,8 @@ function ActiveRaidScreen({ raid: initialRaid, token, showToast, onRaidEnd }) {
   const [friends, setFriends] = useState([]);
   const [showFriends, setShowFriends] = useState(false);
   const [hitAnim, setHitAnim] = useState(false);
+  const [phaseFlash, setPhaseFlash] = useState(null);
+  const [catastrophicFlash, setCatastrophicFlash] = useState(false);
   const socketRef = useRef(null);
   const countdown = useCountdown(raid?.endsAt);
   const authH = { headers: { Authorization: `Bearer ${token}` } };
@@ -376,6 +378,24 @@ function ActiveRaidScreen({ raid: initialRaid, token, showToast, onRaidEnd }) {
       setTimeout(() => onRaidEnd({ status: "victory" }), 2000);
     });
     socketRef.current.on("raid:participant_joined", () => reload());
+    socketRef.current.on("raid:phase_change", ({ raidId, icon, text }) => {
+      if (raidId !== raid?.id) return;
+      setPhaseFlash({ icon, text });
+      setTimeout(() => setPhaseFlash(null), 3000);
+      setRaid(prev => prev ? { ...prev, phaseTriggered: true, bossPhase: 2 } : prev);
+    });
+    socketRef.current.on("raid:event", ({ raidId, event, icon, text, isCatastrophic }) => {
+      if (raidId !== raid?.id) return;
+      if (isCatastrophic) {
+        setCatastrophicFlash(true);
+        setTimeout(() => setCatastrophicFlash(false), 1500);
+      }
+      setRaid(prev => {
+        if (!prev) return prev;
+        const evts = [{ ...event, eventText: `${icon} ${text}` }, ...(prev.events || [])].slice(0, 5);
+        return { ...prev, events: evts };
+      });
+    });
     return () => socketRef.current?.disconnect();
   }, [raid?.id]);
 
@@ -405,18 +425,65 @@ function ActiveRaidScreen({ raid: initialRaid, token, showToast, onRaidEnd }) {
   const hpPct = Math.max(0, (raid.currentHp / raid.bossHp) * 100);
   const trapEvent = typeof raid.trapEvent === "string" ? JSON.parse(raid.trapEvent) : raid.trapEvent;
   const participants = raid.raidParticipants || [];
+  const recentEvents = (raid.events || []).slice(0, 3);
+  const hasDeathCurse = raid.hasDeathCurse || false;
 
   return (
-    <div style={{ padding: "16px 16px 120px" }}>
+    <div style={{
+      padding: "16px 16px 120px",
+      border: hasDeathCurse ? "2px solid rgba(239,68,68,0.7)" : "none",
+      borderRadius: hasDeathCurse ? 0 : 0,
+      boxShadow: hasDeathCurse ? "inset 0 0 40px rgba(239,68,68,0.15)" : "none",
+    }}>
       <style>{`
         @keyframes bossPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
         @keyframes bossHit { 0%{transform:scale(1.15) rotate(-5deg);filter:brightness(2)} 100%{transform:scale(1) rotate(0)} }
         @keyframes stageGlow { 0%,100%{opacity:0.6} 50%{opacity:1} }
+        @keyframes phaseFlashIn { 0%{opacity:0;transform:scale(0.7)} 30%{opacity:1;transform:scale(1.1)} 70%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(0.95)} }
+        @keyframes catFlash { 0%,100%{background:transparent} 50%{background:rgba(239,68,68,0.35)} }
       `}</style>
 
+      {/* Catastrophic event flash */}
+      {catastrophicFlash && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 999, pointerEvents: "none", animation: "catFlash 1.5s ease" }} />
+      )}
+
+      {/* Phase change overlay */}
+      {phaseFlash && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 998, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", pointerEvents: "none",
+          background: "rgba(0,0,0,0.7)",
+          animation: "phaseFlashIn 3s ease forwards",
+        }}>
+          <div style={{ fontSize: 64, marginBottom: 12 }}>{phaseFlash.icon}</div>
+          <div style={{ fontSize: 18, fontWeight: 900, color: "#ef4444", letterSpacing: 2, textTransform: "uppercase", textAlign: "center", padding: "0 24px" }}>
+            ФАЗА 2 АКТИВИРОВАНА
+          </div>
+          <div style={{ fontSize: 13, color: "rgba(255,200,100,0.9)", marginTop: 10, textAlign: "center", padding: "0 32px", lineHeight: 1.5 }}>
+            {phaseFlash.text}
+          </div>
+        </div>
+      )}
+
+      {/* Death curse warning */}
+      {hasDeathCurse && (
+        <div style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.5)", borderRadius: 12, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 20 }}>☠️</span>
+          <div style={{ fontSize: 13, color: "#fca5a5", fontWeight: 700 }}>Проклятие смерти! Если не победишь — потеряешь уровень!</div>
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ background: `${boss.color}22`, border: `1px solid ${boss.color}66`, borderRadius: 10, padding: "4px 12px", fontSize: 13, fontWeight: 800, color: boss.color, letterSpacing: 1 }}>
-          {raid.difficulty} — {boss.name}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ background: `${boss.color}22`, border: `1px solid ${boss.color}66`, borderRadius: 10, padding: "4px 12px", fontSize: 13, fontWeight: 800, color: boss.color, letterSpacing: 1 }}>
+            {raid.difficulty} — {boss.name}
+          </div>
+          {raid.raidNumber > 0 && (
+            <div style={{ background: "rgba(124,58,237,0.18)", border: "1px solid rgba(124,58,237,0.4)", borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 700, color: "#c4b5fd" }}>
+              Рейд #{raid.raidNumber} сегодня
+            </div>
+          )}
         </div>
         <div style={{ fontSize: 12, color: "rgba(255,100,50,0.8)", fontWeight: 700 }}>⏱️ {countdown}</div>
       </div>
@@ -491,13 +558,38 @@ function ActiveRaidScreen({ raid: initialRaid, token, showToast, onRaidEnd }) {
 
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
-              <span style={{ color: "rgba(255,255,255,0.45)", fontWeight: 700 }}>HP БОССА</span>
+              <span style={{ color: "rgba(255,255,255,0.45)", fontWeight: 700 }}>
+                HP БОССА {raid.phaseTriggered && <span style={{ color: "#ef4444", marginLeft: 6 }}>⚡ ФАЗА 2</span>}
+              </span>
               <span style={{ color: RED, fontWeight: 800 }}>{Math.max(0, raid.currentHp)} / {raid.bossHp}</span>
             </div>
-            <div style={{ height: 16, background: "rgba(0,0,0,0.5)", borderRadius: 8, overflow: "hidden", border: "1px solid rgba(239,68,68,0.2)" }}>
-              <div style={{ height: "100%", width: `${hpPct}%`, background: hpPct > 50 ? "linear-gradient(90deg,#dc2626,#ef4444)" : hpPct > 20 ? "linear-gradient(90deg,#b45309,#f97316)" : "linear-gradient(90deg,#7f1d1d,#dc2626)", borderRadius: 8, transition: "width 0.5s ease" }} />
+            <div style={{ height: 16, background: "rgba(0,0,0,0.5)", borderRadius: 8, overflow: "hidden", border: `1px solid ${raid.phaseTriggered ? "rgba(239,68,68,0.5)" : "rgba(239,68,68,0.2)"}` }}>
+              <div style={{ height: "100%", width: `${hpPct}%`, background: hpPct > 50 ? "linear-gradient(90deg,#dc2626,#ef4444)" : hpPct > 20 ? "linear-gradient(90deg,#b45309,#f97316)" : "linear-gradient(90deg,#7f1d1d,#dc2626)", borderRadius: 8, transition: "width 0.5s ease", boxShadow: raid.phaseTriggered ? "0 0 12px rgba(239,68,68,0.6)" : "none" }} />
             </div>
           </div>
+
+          {/* Events feed */}
+          {recentEvents.length > 0 && (
+            <div style={{ marginBottom: 14, background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden" }}>
+              <div style={{ padding: "7px 12px", fontSize: 10, fontWeight: 800, color: "rgba(255,165,0,0.6)", letterSpacing: 1.4, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                Недавние события
+              </div>
+              {recentEvents.map((e, i) => (
+                <div key={e.id || i} style={{
+                  padding: "8px 12px", fontSize: 12, color: e.eventType === "catastrophic" ? "#fca5a5" : e.eventType === "positive" ? "#86efac" : "rgba(255,255,255,0.55)",
+                  borderBottom: i < recentEvents.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                  lineHeight: 1.4,
+                }}>
+                  {e.eventText}
+                  {e.triggeredAt && (
+                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginLeft: 8 }}>
+                      {new Date(e.triggeredAt).toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(239,68,68,0.15)", borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
             <div style={{ padding: "10px 14px", fontSize: 10, fontWeight: 800, color: "rgba(239,68,68,0.6)", letterSpacing: 1.5, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
@@ -558,21 +650,36 @@ function ActiveRaidScreen({ raid: initialRaid, token, showToast, onRaidEnd }) {
 function ResultScreen({ raid, status, raidResult, onBack }) {
   const won = status === "victory";
   const achs = raidResult?.newAchievements || [];
+  const levelLost = raidResult?.levelLost;
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 24px 120px", textAlign: "center" }}>
-      <style>{`@keyframes resultPop { 0%{transform:scale(0.5);opacity:0} 80%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }`}</style>
+      <style>{`
+        @keyframes resultPop { 0%{transform:scale(0.5);opacity:0} 80%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+        @keyframes levelLossPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+      `}</style>
       <div style={{ fontSize: 80, animation: "resultPop 0.6s cubic-bezier(0.34,1.56,0.64,1)", marginBottom: 20 }}>
-        {won ? "🏆" : "💀"}
+        {won ? "🏆" : levelLost ? "💔" : "💀"}
       </div>
       <div style={{ fontSize: 24, fontWeight: 900, color: won ? "#22c55e" : RED, marginBottom: 12 }}>
         {won ? "ПОБЕДА!" : status === "abandoned" ? "ПОБЕГ" : "ПОРАЖЕНИЕ"}
       </div>
+      {levelLost && (
+        <div style={{
+          background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.5)",
+          borderRadius: 14, padding: "14px 20px", marginBottom: 16,
+          animation: "levelLossPulse 1s ease infinite",
+        }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: RED, marginBottom: 4 }}>💔 Уровень потерян!</div>
+          {raidResult.newLevel && <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)" }}>Твой уровень: {raidResult.newLevel}</div>}
+          {raidResult.xpLost && <div style={{ fontSize: 12, color: "rgba(239,68,68,0.7)", marginTop: 4 }}>-{raidResult.xpLost} XP</div>}
+        </div>
+      )}
       {won && raidResult && (
         <div style={{ fontSize: 16, color: "rgba(255,255,255,0.6)", marginBottom: 16 }}>
           +{raidResult.rewardXp || raid?.rewardXp || "?"} XP &nbsp;·&nbsp; +{raidResult.rewardGold || raid?.rewardGold || "?"} 💰
         </div>
       )}
-      {!won && raid && (raid.penaltyGold > 0 || raid.penaltyXp > 0) && (
+      {!won && !levelLost && raid && (raid.penaltyGold > 0 || raid.penaltyXp > 0) && (
         <div style={{ fontSize: 14, color: "rgba(239,68,68,0.7)", marginBottom: 16 }}>
           {raid.penaltyGold > 0 && <span>-{raid.penaltyGold} 💰 </span>}
           {raid.penaltyXp > 0 && <span>-{raid.penaltyXp} XP</span>}
@@ -819,7 +926,12 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
   const handleRaidEnd = (endedRaid) => {
     setResultRaid(endedRaid);
     setResultStatus(endedRaid.status);
-    setRaidResult(endedRaid.raidResult || null);
+    setRaidResult({
+      ...(endedRaid.raidResult || {}),
+      levelLost: endedRaid.levelLost,
+      newLevel: endedRaid.newLevel,
+      xpLost: endedRaid.xpLost,
+    });
     setScreen("result");
   };
 

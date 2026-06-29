@@ -118,8 +118,12 @@ model User {
   raidParticipations       RaidParticipant[]
   dungeonRaids             DungeonRaid[]
   weeklyRaidDamages        WeeklyRaidDamage[]
+  raidEvents               RaidEvent[]
   fatiguedUntil            DateTime?
   activeRaidId             Int?
+  dailyRaidCount           Int               @default(0)
+  dailyRaidDate            DateTime?
+  raidStreak               Int               @default(0)
   isPro                    Boolean          @default(false)
   proExpiresAt             DateTime?
   darkSideActive           Boolean          @default(false)
@@ -824,8 +828,13 @@ model DungeonRaid {
   rewardGold       Int
   penaltyXp        Int               @default(0)
   penaltyGold      Int               @default(0)
-  raidParticipants RaidParticipant[]
-  createdAt        DateTime          @default(now())
+  raidParticipants   RaidParticipant[]
+  events             RaidEvent[]
+  bossPhase          Int               @default(1)
+  phaseTriggered     Boolean           @default(false)
+  activeEventEffects String            @default("[]")
+  lastRegenAt        DateTime?
+  createdAt          DateTime          @default(now())
 }
 
 model RaidParticipant {
@@ -838,6 +847,19 @@ model RaidParticipant {
   joinedAt DateTime    @default(now())
 
   @@unique([raidId, userId])
+}
+
+model RaidEvent {
+  id          Int         @id @default(autoincrement())
+  raidId      Int
+  raid        DungeonRaid @relation(fields: [raidId], references: [id])
+  userId      Int
+  user        User        @relation(fields: [userId], references: [id])
+  eventType   String
+  eventId     String
+  eventText   String
+  triggeredAt DateTime    @default(now())
+  resolved    Boolean     @default(false)
 }
 
 model WeeklyRaidBoss {
