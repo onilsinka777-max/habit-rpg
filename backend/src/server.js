@@ -44,14 +44,21 @@ const CHEST_MILESTONES = {
   28: { name:"Легендарный сундук", icon:"🏆", gold:500, xp:200 },
 };
 
-const RAID_BOSSES = [
-  { name:"Гоблин-вождь",  icon:"👺", hp:100,  difficulty:"easy",      rewardXp:50,   rewardGold:100  },
-  { name:"Скелет-воин",   icon:"💀", hp:150,  difficulty:"medium",    rewardXp:75,   rewardGold:150  },
-  { name:"Тёмный рыцарь", icon:"⚔️", hp:200,  difficulty:"hard",      rewardXp:100,  rewardGold:200  },
-  { name:"Некромант",      icon:"🧙", hp:400,  difficulty:"medium",    rewardXp:200,  rewardGold:300  },
-  { name:"Дракон",         icon:"🐉", hp:500,  difficulty:"hard",      rewardXp:250,  rewardGold:400  },
-  { name:"Древнее зло",    icon:"👁️", hp:1000, difficulty:"epic",      rewardXp:500,  rewardGold:800  },
-  { name:"Тёмный бог",     icon:"☠️", hp:2000, difficulty:"legendary", rewardXp:1000, rewardGold:1500 },
+const DUNGEON_BOSSES = {
+  E:    { name:"Гоблин-вождь",  icon:"👺", hp:50,   rewardXp:50,   rewardGold:30,   penaltyGold:0,   penaltyXp:0,   fatigueMin:0   },
+  D:    { name:"Скелет-воин",   icon:"💀", hp:100,  rewardXp:100,  rewardGold:60,   penaltyGold:50,  penaltyXp:0,   fatigueMin:0   },
+  C:    { name:"Тёмный рыцарь", icon:"⚔️", hp:200,  rewardXp:200,  rewardGold:120,  penaltyGold:50,  penaltyXp:0,   fatigueMin:0   },
+  B:    { name:"Дракон",        icon:"🐉", hp:400,  rewardXp:400,  rewardGold:250,  penaltyGold:100, penaltyXp:0,   fatigueMin:30  },
+  A:    { name:"Некромант",     icon:"🧙", hp:700,  rewardXp:700,  rewardGold:450,  penaltyGold:200, penaltyXp:50,  fatigueMin:30  },
+  S:    { name:"Древнее зло",   icon:"👁️", hp:1200, rewardXp:1200, rewardGold:800,  penaltyGold:400, penaltyXp:150, fatigueMin:30  },
+  "S+": { name:"Тёмный бог",   icon:"☠️", hp:2500, rewardXp:2500, rewardGold:1500, penaltyGold:800, penaltyXp:300, fatigueMin:120 },
+};
+const DUNGEON_RANKS = ["E","D","C","B","A","S","S+"];
+const TRAP_EVENTS = [
+  { id:"gold",   icon:"🪙", text:"Найдено золото!",                                                 effect:"gold+50"      },
+  { id:"torch",  icon:"🕯️", text:"Потерян факел — урон снижен на 20%",                              effect:"damage-20%"   },
+  { id:"ally",   icon:"🧙", text:"Союзник присоединился! +5% урона за участника",                   effect:"ally+1"       },
+  { id:"poison", icon:"☠️", text:"Ядовитый газ — выполни следующий квест за 1 час или получишь усталость", effect:"poison_timer" },
 ];
 
 function randomClanTag(n=6){let o="";for(let i=0;i<n;i++)o+=CLAN_TAG_CHARS[Math.floor(Math.random()*CLAN_TAG_CHARS.length)];return o;}
@@ -436,6 +443,8 @@ app.get("/me",authMiddleware,async(req,res)=>{
     activeTitle:user.activeTitle||null,
     isPro:!!(user.isPro&&(!user.proExpiresAt||new Date(user.proExpiresAt)>now)),
     proExpiresAt:user.proExpiresAt||null,
+    fatiguedUntil:user.fatiguedUntil||null,
+    activeRaidId:user.activeRaidId||null,
   });
   // Update lastLoginAt
   await prisma.user.update({where:{id:req.userId},data:{lastLoginAt:now}}).catch(()=>{});
@@ -812,32 +821,73 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
         }
       }catch(archErr){console.error("Archive tracking error:",archErr.message);}
     }
-    // ── Raid damage ──────────────────────────────────────────────────────────
-    let raidDamage=0;
+    // ── Raid damage (new per-user system) ────────────────────────────────────
+    let raidDamage=0,raidResult=null;
     try{
-      const activeRaid=await prisma.dungeonRaid.findFirst({where:{status:"active",endsAt:{gte:new Date()}},include:{participants:true}});
-      if(activeRaid){
-        const raidPart=activeRaid.participants.find(p=>p.userId===req.userId);
-        if(raidPart){
-          const bonusMult=1+(activeRaid.participants.length-1)*0.2;
-          raidDamage=Math.round(10*bonusMult);
-          await prisma.raidParticipant.update({where:{raidId_userId:{raidId:activeRaid.id,userId:req.userId}},data:{damage:{increment:raidDamage}}});
-          const newHp=Math.max(0,activeRaid.currentHp-raidDamage);
-          await prisma.dungeonRaid.update({where:{id:activeRaid.id},data:{currentHp:newHp,...(newHp===0?{status:"completed"}:{})}});
-          io.emit("raid:hp_update",{raidId:activeRaid.id,currentHp:newHp,damage:raidDamage,userId:req.userId});
-          if(newHp===0){
-            for(const p of activeRaid.participants){
-              await prisma.user.update({where:{id:p.userId},data:{gold:{increment:activeRaid.rewardGold},xp:{increment:activeRaid.rewardXp}}});
-              await createNotification(p.userId,"raid_victory",`${activeRaid.bossIcon} Босс побеждён!`,`Ты победил ${activeRaid.bossName}! +${activeRaid.rewardXp} XP +${activeRaid.rewardGold} золота`).catch(()=>{});
-              const existAch=await prisma.achievement.findFirst({where:{userId:p.userId,type:"raid_winner"}});
-              if(!existAch)await prisma.achievement.create({data:{userId:p.userId,type:"raid_winner"}}).catch(()=>{});
+      const raidUser=await prisma.user.findUnique({where:{id:req.userId},select:{activeRaidId:true}});
+      if(raidUser?.activeRaidId){
+        const activeRaid=await prisma.dungeonRaid.findUnique({where:{id:raidUser.activeRaidId},include:{raidParticipants:true}});
+        if(activeRaid&&activeRaid.status==="active"){
+          if(new Date()>new Date(activeRaid.endsAt)){
+            // Time expired → defeat for creator
+            const boss=DUNGEON_BOSSES[activeRaid.difficulty]||DUNGEON_BOSSES.E;
+            await prisma.dungeonRaid.update({where:{id:activeRaid.id},data:{status:"defeat"}});
+            const penGold=Math.min(boss.penaltyGold,cu.gold||0);
+            await prisma.user.update({where:{id:activeRaid.userId},data:{gold:{decrement:penGold},xp:{decrement:boss.penaltyXp},activeRaidId:null,...(boss.fatigueMin>0?{fatiguedUntil:new Date(Date.now()+boss.fatigueMin*60000)}:{})}});
+            for(const p of activeRaid.raidParticipants.filter(p=>p.userId!==activeRaid.userId)){
+              await prisma.user.update({where:{id:p.userId},data:{activeRaidId:null}});
             }
-            io.emit("raid:boss_defeated",{raidId:activeRaid.id,bossName:activeRaid.bossName,bossIcon:activeRaid.bossIcon});
+            raidResult={status:"defeat"};
+          } else {
+            const part=activeRaid.raidParticipants.find(p=>p.userId===req.userId);
+            if(part){
+              if(activeRaid.stage===1){
+                const totalDone=activeRaid.raidParticipants.reduce((s,p)=>s+p.damage,0);
+                await prisma.raidParticipant.update({where:{raidId_userId:{raidId:activeRaid.id,userId:req.userId}},data:{damage:{increment:1}}});
+                if(totalDone+1>=2){
+                  const trap=TRAP_EVENTS[Math.floor(Math.random()*TRAP_EVENTS.length)];
+                  await prisma.dungeonRaid.update({where:{id:activeRaid.id},data:{stage:2,trapEvent:JSON.stringify(trap)}});
+                  if(trap.effect==="gold+50")await prisma.user.update({where:{id:activeRaid.userId},data:{gold:{increment:50}}});
+                  raidResult={stage:2,trapEvent:trap};
+                } else {raidResult={stage:1,progress:totalDone+1};}
+              } else if(activeRaid.stage===2){
+                const trap=activeRaid.trapEvent?JSON.parse(activeRaid.trapEvent):null;
+                if(trap?.effect==="poison_timer"){
+                  const boss2=DUNGEON_BOSSES[activeRaid.difficulty]||DUNGEON_BOSSES.E;
+                  await prisma.user.update({where:{id:activeRaid.userId},data:{...(boss2.fatigueMin>0?{fatiguedUntil:new Date(Date.now()+boss2.fatigueMin*60000)}:{})}});
+                }
+                await prisma.dungeonRaid.update({where:{id:activeRaid.id},data:{stage:3,currentHp:activeRaid.bossHp}});
+                raidResult={stage:3};
+              } else if(activeRaid.stage===3){
+                const trap=activeRaid.trapEvent?JSON.parse(activeRaid.trapEvent):null;
+                const baseD=updatedTask.difficulty==="hard"?20:10;
+                const partBonus=1+(activeRaid.raidParticipants.length-1)*0.05;
+                const torchMult=trap?.effect==="damage-20%"?0.8:1;
+                raidDamage=Math.round(baseD*partBonus*torchMult);
+                await prisma.raidParticipant.update({where:{raidId_userId:{raidId:activeRaid.id,userId:req.userId}},data:{damage:{increment:raidDamage}}});
+                const newHp=Math.max(0,activeRaid.currentHp-raidDamage);
+                if(newHp<=0){
+                  await prisma.dungeonRaid.update({where:{id:activeRaid.id},data:{status:"victory",currentHp:0}});
+                  for(const p of activeRaid.raidParticipants){
+                    await prisma.user.update({where:{id:p.userId},data:{gold:{increment:activeRaid.rewardGold},xp:{increment:activeRaid.rewardXp},activeRaidId:null}});
+                    await createNotification(p.userId,"raid_victory",`${activeRaid.bossIcon} Победа в рейде!`,`Вы победили ${activeRaid.bossName}! +${activeRaid.rewardXp} XP +${activeRaid.rewardGold} 💰`).catch(()=>{});
+                    const existAch=await prisma.achievement.findFirst({where:{userId:p.userId,type:"raid_winner"}});
+                    if(!existAch)await prisma.achievement.create({data:{userId:p.userId,type:"raid_winner"}}).catch(()=>{});
+                  }
+                  io.emit("raid:boss_defeated",{raidId:activeRaid.id,bossName:activeRaid.bossName,bossIcon:activeRaid.bossIcon});
+                  raidResult={status:"victory",damage:raidDamage};
+                } else {
+                  await prisma.dungeonRaid.update({where:{id:activeRaid.id},data:{currentHp:newHp}});
+                  io.emit("raid:hp_update",{raidId:activeRaid.id,currentHp:newHp,damage:raidDamage,userId:req.userId});
+                  raidResult={status:"active",damage:raidDamage,currentHp:newHp};
+                }
+              }
+            }
           }
         }
       }
     }catch(raidErr){console.error("Raid damage error:",raidErr.message);}
-    res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:finalLevel>cu.level,newLevel:finalLevel,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0,multipliers:multipliersBreakdown,raidDamage:raidDamage||undefined});
+    res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:finalLevel>cu.level,newLevel:finalLevel,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0,multipliers:multipliersBreakdown,...(raidResult?{raidResult}:{}),...(raidDamage?{raidDamage}:{})});
   }catch(e){console.error('QUEST COMPLETE ERROR:',e.message,e.stack);res.status(500).json({message:"Ошибка сервера",error:e.message});}
 });
 
@@ -922,64 +972,159 @@ app.get("/shop/library",authMiddleware,async(req,res)=>{
 });
 
 // ── DUNGEON RAIDS ─────────────────────────────────────────────────────────────
-app.get("/raid/today",authMiddleware,async(req,res)=>{
+async function applyRaidVictory(raid){
+  for(const p of raid.raidParticipants){
+    await prisma.user.update({where:{id:p.userId},data:{gold:{increment:raid.rewardGold},xp:{increment:raid.rewardXp},activeRaidId:null}});
+    await createNotification(p.userId,"raid_victory",`${raid.bossIcon} Победа в рейде!`,`Вы победили ${raid.bossName}! +${raid.rewardXp} XP +${raid.rewardGold} 💰`).catch(()=>{});
+    const existAch=await prisma.achievement.findFirst({where:{userId:p.userId,type:"raid_winner"}});
+    if(!existAch)await prisma.achievement.create({data:{userId:p.userId,type:"raid_winner"}}).catch(()=>{});
+  }
+  io.emit("raid:boss_defeated",{raidId:raid.id,bossName:raid.bossName,bossIcon:raid.bossIcon});
+}
+
+async function applyRaidDefeat(raid){
+  const boss=DUNGEON_BOSSES[raid.difficulty]||DUNGEON_BOSSES.E;
+  const creator=await prisma.user.findUnique({where:{id:raid.userId},select:{gold:true}});
+  const penGold=Math.min(boss.penaltyGold,creator?.gold||0);
+  const updates={activeRaidId:null,gold:{decrement:penGold},xp:{decrement:boss.penaltyXp}};
+  if(boss.fatigueMin>0)updates.fatiguedUntil=new Date(Date.now()+boss.fatigueMin*60000);
+  await prisma.user.update({where:{id:raid.userId},data:updates});
+  for(const p of raid.raidParticipants.filter(p=>p.userId!==raid.userId)){
+    await prisma.user.update({where:{id:p.userId},data:{activeRaidId:null}});
+  }
+  await createNotification(raid.userId,"raid_defeat",`💀 Поражение в рейде`,`${raid.bossName} не побеждён. -${penGold} 💰${boss.penaltyXp?` -${boss.penaltyXp} XP`:""}${boss.fatigueMin>0?` Усталость ${boss.fatigueMin} мин.`:""}`).catch(()=>{});
+}
+
+app.post("/raid/start",authMiddleware,async(req,res)=>{
   try{
-    const user=await prisma.user.findUnique({where:{id:req.userId},select:{level:true}});
-    let raid=await prisma.dungeonRaid.findFirst({
-      where:{status:"active",endsAt:{gte:new Date()}},
-      include:{participants:{include:{user:{select:{id:true,name:true,level:true,avatar:true}}},orderBy:{damage:"desc"}}},
-    });
-    if(!raid){
-      // pick boss based on user level
-      const lvl=user.level||1;
-      let pool;
-      if(lvl<=10)pool=RAID_BOSSES.slice(0,3);
-      else if(lvl<=20)pool=RAID_BOSSES.slice(3,5);
-      else pool=RAID_BOSSES.slice(5);
-      const boss=pool[Math.floor(Math.random()*pool.length)];
-      const todayStart=startOfToday();
-      const todayEnd=endOfToday();
-      raid=await prisma.dungeonRaid.create({
-        data:{bossName:boss.name,bossIcon:boss.icon,bossHp:boss.hp,currentHp:boss.hp,difficulty:boss.difficulty,rewardXp:boss.rewardXp,rewardGold:boss.rewardGold,startsAt:todayStart,endsAt:todayEnd,status:"active"},
-        include:{participants:{include:{user:{select:{id:true,name:true,level:true,avatar:true}}},orderBy:{damage:"desc"}}},
-      });
+    const{difficulty}=req.body;
+    if(!DUNGEON_BOSSES[difficulty])return res.status(400).json({message:"Неверная сложность"});
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{activeRaidId:true,fatiguedUntil:true,gold:true}});
+    if(user.activeRaidId)return res.status(400).json({message:"Сначала заверши текущий рейд"});
+    if(user.fatiguedUntil&&new Date(user.fatiguedUntil)>new Date()){
+      const minsLeft=Math.ceil((new Date(user.fatiguedUntil)-new Date())/60000);
+      return res.status(400).json({message:`Ты устал. Осталось ${minsLeft} мин.`,fatiguedUntil:user.fatiguedUntil});
     }
-    const participant=raid.participants.find(p=>p.userId===req.userId);
-    res.json({...raid,joined:!!participant,myDamage:participant?.damage||0});
+    // 20% illusion dungeon chance
+    const isIllusion=Math.random()<0.2;
+    let actualDiff=difficulty;
+    if(isIllusion){
+      const idx=DUNGEON_RANKS.indexOf(difficulty);
+      actualDiff=DUNGEON_RANKS[Math.min(idx+1,DUNGEON_RANKS.length-1)];
+    }
+    const boss=DUNGEON_BOSSES[actualDiff];
+    const endsAt=new Date(Date.now()+24*60*60*1000);
+    const raid=await prisma.dungeonRaid.create({
+      data:{userId:req.userId,difficulty:actualDiff,bossName:boss.name,bossIcon:boss.icon,bossHp:boss.hp,currentHp:boss.hp,stage:1,isIllusion,status:"active",participants:JSON.stringify([req.userId]),endsAt,rewardXp:boss.rewardXp,rewardGold:boss.rewardGold,penaltyXp:boss.penaltyXp,penaltyGold:boss.penaltyGold},
+    });
+    await prisma.raidParticipant.create({data:{raidId:raid.id,userId:req.userId}});
+    await prisma.user.update({where:{id:req.userId},data:{activeRaidId:raid.id}});
+    res.json({...raid,isIllusion,chosenDifficulty:difficulty,actualDifficulty:actualDiff});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
-app.post("/raid/join",authMiddleware,async(req,res)=>{
+app.get("/raid/active",authMiddleware,async(req,res)=>{
   try{
-    const raid=await prisma.dungeonRaid.findFirst({where:{status:"active",endsAt:{gte:new Date()}}});
-    if(!raid)return res.status(404).json({message:"Рейд не найден"});
-    const existing=await prisma.raidParticipant.findUnique({where:{raidId_userId:{raidId:raid.id,userId:req.userId}}});
-    if(existing)return res.status(400).json({message:"Ты уже в рейде"});
-    const participant=await prisma.raidParticipant.create({data:{raidId:raid.id,userId:req.userId}});
-    io.emit("raid:participant_joined",{raidId:raid.id,userId:req.userId});
-    res.json({message:"Вступил в рейд!",participant});
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{activeRaidId:true}});
+    if(!user?.activeRaidId)return res.json(null);
+    const raid=await prisma.dungeonRaid.findUnique({
+      where:{id:user.activeRaidId},
+      include:{raidParticipants:{include:{user:{select:{id:true,name:true,level:true,avatar:true}}},orderBy:{damage:"desc"}}},
+    });
+    if(!raid)return res.json(null);
+    // Check time expired
+    if(raid.status==="active"&&new Date()>new Date(raid.endsAt)){
+      await prisma.dungeonRaid.update({where:{id:raid.id},data:{status:"defeat"}});
+      await applyRaidDefeat({...raid,raidParticipants:raid.raidParticipants});
+      return res.json({...raid,status:"defeat"});
+    }
+    const myDamage=raid.raidParticipants.find(p=>p.userId===req.userId)?.damage||0;
+    const trapEvent=raid.trapEvent?JSON.parse(raid.trapEvent):null;
+    res.json({...raid,myDamage,trapEvent});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
 app.post("/raid/invite/:friendId",authMiddleware,async(req,res)=>{
   try{
     const friendId=Number(req.params.friendId);
-    const raid=await prisma.dungeonRaid.findFirst({where:{status:"active",endsAt:{gte:new Date()}}});
-    if(!raid)return res.status(404).json({message:"Рейд не найден"});
-    const inviter=await prisma.user.findUnique({where:{id:req.userId},select:{name:true}});
-    await createNotification(friendId,"raid_invite","⚔️ Приглашение в рейд!",`${inviter.name||"Игрок"} зовёт тебя в рейд против ${raid.bossName} ${raid.bossIcon}! Зайди в Рейды.`,raid.id);
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{activeRaidId:true,name:true}});
+    if(!user.activeRaidId)return res.status(400).json({message:"У тебя нет активного рейда"});
+    const raid=await prisma.dungeonRaid.findUnique({where:{id:user.activeRaidId}});
+    if(!raid||raid.status!=="active")return res.status(400).json({message:"Рейд не активен"});
+    await createNotification(friendId,"raid_invite","⚔️ Приглашение в рейд!",`${user.name||"Игрок"} зовёт тебя в рейд против ${raid.bossName} ${raid.bossIcon}!`,raid.id);
     res.json({message:"Приглашение отправлено!"});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
-app.get("/raid/participants",authMiddleware,async(req,res)=>{
+app.post("/raid/join/:raidId",authMiddleware,async(req,res)=>{
   try{
-    const raid=await prisma.dungeonRaid.findFirst({
-      where:{status:{in:["active","completed"]},endsAt:{gte:startOfToday()}},
-      include:{participants:{include:{user:{select:{id:true,name:true,level:true,avatar:true}}},orderBy:{damage:"desc"}}},
+    const raidId=Number(req.params.raidId);
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{activeRaidId:true}});
+    if(user.activeRaidId)return res.status(400).json({message:"Сначала заверши текущий рейд"});
+    const raid=await prisma.dungeonRaid.findUnique({where:{id:raidId},include:{raidParticipants:true}});
+    if(!raid||raid.status!=="active")return res.status(404).json({message:"Рейд не найден или уже завершён"});
+    if(new Date()>new Date(raid.endsAt))return res.status(400).json({message:"Время рейда истекло"});
+    const already=raid.raidParticipants.find(p=>p.userId===req.userId);
+    if(already)return res.status(400).json({message:"Ты уже в этом рейде"});
+    await prisma.raidParticipant.create({data:{raidId,userId:req.userId}});
+    const parts=JSON.parse(raid.participants||"[]");
+    if(!parts.includes(req.userId)){
+      await prisma.dungeonRaid.update({where:{id:raidId},data:{participants:JSON.stringify([...parts,req.userId])}});
+    }
+    await prisma.user.update({where:{id:req.userId},data:{activeRaidId:raidId}});
+    io.emit("raid:participant_joined",{raidId,userId:req.userId});
+    res.json({message:"Вступил в рейд!"});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.post("/raid/abandon",authMiddleware,async(req,res)=>{
+  try{
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{activeRaidId:true,gold:true}});
+    if(!user.activeRaidId)return res.status(400).json({message:"Нет активного рейда"});
+    const raid=await prisma.dungeonRaid.findUnique({where:{id:user.activeRaidId},include:{raidParticipants:true}});
+    if(!raid)return res.status(404).json({message:"Рейд не найден"});
+    // Illusion early retreat: flat 50 gold
+    const isIllusionRetreat=raid.isIllusion&&raid.stage===1&&raid.raidParticipants.reduce((s,p)=>s+p.damage,0)<2;
+    let penGold=0,penXp=0;
+    if(isIllusionRetreat){
+      penGold=Math.min(50,user.gold||0);
+    } else {
+      const boss=DUNGEON_BOSSES[raid.difficulty]||DUNGEON_BOSSES.E;
+      penGold=Math.min(Math.round(boss.penaltyGold*0.5),user.gold||0);
+      penXp=Math.round(boss.penaltyXp*0.5);
+    }
+    await prisma.dungeonRaid.update({where:{id:raid.id},data:{status:"abandoned"}});
+    await prisma.user.update({where:{id:req.userId},data:{activeRaidId:null,gold:{decrement:penGold},xp:{decrement:penXp}}});
+    // Remove guest participants
+    for(const p of raid.raidParticipants.filter(p=>p.userId!==req.userId)){
+      await prisma.user.update({where:{id:p.userId},data:{activeRaidId:null}});
+    }
+    res.json({message:"Рейд покинут",penaltyGold:penGold,penaltyXp:penXp});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.post("/raid/cure-fatigue",authMiddleware,async(req,res)=>{
+  try{
+    const{minutes}=req.body;
+    const CURE_COSTS={30:100,60:180,120:300};
+    const cost=CURE_COSTS[Number(minutes)];
+    if(!cost)return res.status(400).json({message:"minutes должен быть 30, 60 или 120"});
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{gold:true,fatiguedUntil:true}});
+    if(!user.fatiguedUntil||new Date(user.fatiguedUntil)<new Date())return res.status(400).json({message:"Ты не устал"});
+    if((user.gold||0)<cost)return res.status(400).json({message:`Нужно ${cost} золота`});
+    await prisma.user.update({where:{id:req.userId},data:{fatiguedUntil:null,gold:{decrement:cost}}});
+    res.json({message:"Усталость снята!",cost});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.get("/raid/history",authMiddleware,async(req,res)=>{
+  try{
+    const raids=await prisma.dungeonRaid.findMany({
+      where:{OR:[{userId:req.userId},{raidParticipants:{some:{userId:req.userId}}}],status:{not:"active"}},
+      include:{raidParticipants:{include:{user:{select:{id:true,name:true,level:true}}}}},
+      orderBy:{createdAt:"desc"},take:20,
     });
-    if(!raid)return res.json([]);
-    res.json(raid.participants);
+    res.json(raids.map(r=>({...r,myDamage:r.raidParticipants.find(p=>p.userId===req.userId)?.damage||0,trapEvent:r.trapEvent?JSON.parse(r.trapEvent):null})));
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 

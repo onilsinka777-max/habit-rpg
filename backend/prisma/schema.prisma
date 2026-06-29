@@ -116,6 +116,9 @@ model User {
   streakDuelsAsChallenged  StreakDuel[]     @relation("StreakDuelChallenged")
   futureLetters            FutureLetter[]
   raidParticipations       RaidParticipant[]
+  dungeonRaids             DungeonRaid[]
+  fatiguedUntil            DateTime?
+  activeRaidId             Int?
   isPro                    Boolean          @default(false)
   proExpiresAt             DateTime?
   darkSideActive           Boolean          @default(false)
@@ -801,19 +804,27 @@ model FutureLetter {
 
 // ── РЕЙДЫ В ПОДЗЕМЕЛЬЕ ───────────────────────────────────────────────────────
 model DungeonRaid {
-  id           Int               @id @default(autoincrement())
-  bossName     String
-  bossIcon     String
-  bossHp       Int
-  currentHp    Int
-  difficulty   String            @default("medium")
-  rewardXp     Int               @default(100)
-  rewardGold   Int               @default(200)
-  startsAt     DateTime
-  endsAt       DateTime
-  status       String            @default("active")
-  participants RaidParticipant[]
-  createdAt    DateTime          @default(now())
+  id               Int               @id @default(autoincrement())
+  userId           Int
+  user             User              @relation(fields: [userId], references: [id])
+  difficulty       String
+  bossName         String
+  bossIcon         String
+  bossHp           Int
+  currentHp        Int
+  stage            Int               @default(1)
+  trapEvent        String?
+  isIllusion       Boolean           @default(false)
+  status           String            @default("active")
+  participants     String            @default("[]")
+  startedAt        DateTime          @default(now())
+  endsAt           DateTime
+  rewardXp         Int
+  rewardGold       Int
+  penaltyXp        Int               @default(0)
+  penaltyGold      Int               @default(0)
+  raidParticipants RaidParticipant[]
+  createdAt        DateTime          @default(now())
 }
 
 model RaidParticipant {
