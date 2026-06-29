@@ -86,6 +86,75 @@ const BOSS_PHASES={
   "S+":{trigger:0.5,icon:"🌑",text:"Апокалипсис начался! Каждые 30 минут HP восстанавливается на 5%", effect:"regen+5%"},
 };
 
+const DUNGEON_BOSS_POOLS={
+  B:[
+    {name:"Дракон Мортис 🐉",  hp:400, rewardXp:400, rewardGold:250, penaltyGold:100, penaltyXp:0,   fatigueMin:30,  icon:"🐉", phase2:"Огненное дыхание — урон -30%",          phase2effect:"damage*0.7"},
+    {name:"Ледяной великан 🧊", hp:450, rewardXp:420, rewardGold:260, penaltyGold:100, penaltyXp:0,   fatigueMin:30,  icon:"🧊", phase2:"Заморозка — участник пропускает ход",    phase2effect:"skip_turn"},
+    {name:"Морской змей 🌊",    hp:380, rewardXp:380, rewardGold:240, penaltyGold:100, penaltyXp:0,   fatigueMin:30,  icon:"🌊", phase2:"Волна — каждые 30 мин -5% HP команды",   phase2effect:"team_drain"},
+    {name:"Повелитель летучих мышей 🦇",hp:350,rewardXp:360,rewardGold:230,penaltyGold:100,penaltyXp:0,fatigueMin:30,icon:"🦇",phase2:"Миньоны — нужен доп квест",              phase2effect:"extra_quest"},
+  ],
+  A:[
+    {name:"Некромант Зарас 🧙", hp:700, rewardXp:700, rewardGold:450, penaltyGold:200, penaltyXp:50,  fatigueMin:30,  icon:"🧙", phase2:"Воскрешение — 1 раз восстанет",          phase2effect:"revive_once"},
+    {name:"Призрачный король 👻",hp:650, rewardXp:680, rewardGold:440, penaltyGold:200, penaltyXp:50,  fatigueMin:30,  icon:"👻", phase2:"Невидимость — урон не считается 1ч",     phase2effect:"invincible_1h"},
+    {name:"Демон хаоса 🔥",     hp:720, rewardXp:720, rewardGold:460, penaltyGold:200, penaltyXp:50,  fatigueMin:30,  icon:"🔥", phase2:"Хаос — случайно меняет правила",         phase2effect:"random_chaos"},
+    {name:"Паучья матка 🕷️",    hp:680, rewardXp:690, rewardGold:445, penaltyGold:200, penaltyXp:50,  fatigueMin:30,  icon:"🕷️", phase2:"Яд — теряешь золото каждые 30 мин",    phase2effect:"gold_drain"},
+  ],
+};
+
+const SURVIVAL_WAVES=[
+  {wave:1,  enemy:"Гоблин 👺",           questsNeeded:1,timeMinutes:60  },
+  {wave:3,  enemy:"Скелет 💀",           questsNeeded:2,timeMinutes:90  },
+  {wave:5,  enemy:"Тёмный рыцарь ⚔️",   questsNeeded:2,timeMinutes:90  },
+  {wave:8,  enemy:"Дракон 🐉",           questsNeeded:3,timeMinutes:120 },
+  {wave:10, enemy:"Некромант 🧙",        questsNeeded:3,timeMinutes:120 },
+  {wave:15, enemy:"Древнее зло 👁️",     questsNeeded:4,timeMinutes:150 },
+  {wave:20, enemy:"Тёмный бог ☠️",      questsNeeded:5,timeMinutes:180 },
+];
+
+function getSurvivalWaveInfo(wave){
+  let cfg=SURVIVAL_WAVES[0];
+  for(const w of SURVIVAL_WAVES){if(wave>=w.wave)cfg=w;}
+  const extraRounds=Math.max(0,Math.floor((wave-20)/5));
+  const questsNeeded=wave>20?Math.ceil(cfg.questsNeeded*(1+extraRounds*0.5)):cfg.questsNeeded;
+  return{...cfg,questsNeeded,waveName:cfg.enemy};
+}
+
+const CURSED_ARTIFACTS={
+  sword_of_darkness:{name:"Меч Тьмы ⚔️",        bonus:"+100% урона в рейдах",             curse:"-20% XP с квестов",              effect:"raid_damage*2,quest_xp*0.8"},
+  greed_ring:       {name:"Кольцо жадности 💍",  bonus:"+50% золота везде",                curse:"Провал рейда стоит x2",           effect:"gold*1.5,raid_penalty*2"},
+  martyr_shield:    {name:"Щит мученика 🛡️",     bonus:"Защита от потери уровня всегда",   curse:"-30% золота с квестов",           effect:"level_protection,quest_gold*0.7"},
+  ancient_eye:      {name:"Глаз Древнего 👁️",    bonus:"Видишь комнаты рогалика наперёд", curse:"20% шанс случайного штрафа каждый день",effect:"roguelike_preview,daily_curse_chance+20"},
+  necro_bone:       {name:"Кость некроманта 💀",  bonus:"Воскрешение 1 раз при поражении", curse:"Стрик обнуляется при провале",    effect:"raid_revive,streak_reset_on_defeat"},
+};
+
+const DARK_PORTAL_BOSSES=[
+  {name:"Тёмный Левиафан ☠️",  icon:"☠️"},
+  {name:"Бездонная Бездна 🌑", icon:"🌑"},
+  {name:"Владыка Тьмы ⚫",     icon:"⚫"},
+];
+
+function getPortalWeekStart(){const now=new Date();const d=now.getDay();const diff=d===0?-6:1-d;const s=new Date(now);s.setDate(now.getDate()+diff);s.setHours(0,0,0,0);return s;}
+
+async function getOrCreateDarkPortal(){
+  const now=new Date();
+  const weekStart=getPortalWeekStart();
+  const weekEnd=new Date(weekStart.getTime()+7*24*60*60*1000);
+  let portal=await prisma.darkPortal.findFirst({where:{opensAt:{gte:weekStart},opensAt:{lt:weekEnd}}}).catch(()=>null);
+  if(!portal){
+    const b=DARK_PORTAL_BOSSES[Math.floor(Math.random()*DARK_PORTAL_BOSSES.length)];
+    const opensAt=new Date();
+    const closesAt=new Date(opensAt.getTime()+24*60*60*1000);
+    portal=await prisma.darkPortal.create({data:{bossName:b.name,bossIcon:b.icon,bossHp:3000,currentHp:3000,opensAt,closesAt,status:"active"}}).catch(()=>null);
+    if(portal){
+      const allUsers=await prisma.user.findMany({select:{id:true}}).catch(()=>[]);
+      for(const u of allUsers){
+        await createNotification(u.id,"dark_portal","🌑 Тёмный портал открылся!","24 часа. Войди один. Победа даёт 2000 золота. Поражение стоит уровня.",portal.id).catch(()=>{});
+      }
+    }
+  }
+  return portal;
+}
+
 function randomClanTag(n=6){let o="";for(let i=0;i<n;i++)o+=CLAN_TAG_CHARS[Math.floor(Math.random()*CLAN_TAG_CHARS.length)];return o;}
 async function generateUniqueClanTag(){let t,e=true;while(e){t=randomClanTag();e=!!(await prisma.clan.findUnique({where:{tag:t}}));}return t;}
 function getMasteryState(user){const raw=user.masteryChoices?JSON.parse(user.masteryChoices):{};return new Set(raw.completed||[]);}
@@ -902,7 +971,16 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
     const activeNpc=cu.activeNpcId?getNpc(cu.activeNpcId):null;
     const npcBonusMult=activeNpc&&activeNpc.branch===task.branch?1.1:1;
     const autoClass=cu.masteryPath?null:await computeAutoClass(req.userId);
-    const{xpGained,goldGained:goldGain,multipliers:multipliersBreakdown}=await calculateRewards(cu,task,{comboMult,npcBonusMult,autoClass});
+    let{xpGained,goldGained:goldGain,multipliers:multipliersBreakdown}=await calculateRewards(cu,task,{comboMult,npcBonusMult,autoClass});
+    // Cursed artifact modifiers on quest rewards
+    const cursedArt=await prisma.cursedArtifact.findUnique({where:{userId:req.userId}}).catch(()=>null);
+    if(cursedArt?.active){
+      const ef=cursedArt.artifactId;
+      if(ef==="sword_of_darkness")xpGained=Math.round(xpGained*0.8);
+      else if(ef==="greed_ring")goldGain=Math.round(goldGain*1.5);
+      else if(ef==="martyr_shield")goldGain=Math.round(goldGain*0.7);
+      else if(ef==="ancient_eye"&&Math.random()<0.2){goldGain=Math.max(0,goldGain-Math.floor(Math.random()*20+10));}
+    }
     const{xp,level}=applyXpGain(cu.xp,cu.level,xpGained);
     // ── Random drop (10%) ────────────────────────────────────────────────────
     let dropReward=null;
@@ -1093,7 +1171,20 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
                     }
                     io.emit("raid:boss_defeated",{raidId:activeRaid.id,bossName:activeRaid.bossName,bossIcon:activeRaid.bossIcon});
                     const newRaidAchs=await checkRaidAchievements(req.userId,finalRaid||activeRaid);
-                    raidResult={status:"victory",damage:raidDamage,rewardGold,rewardXp,newAchievements:newRaidAchs};
+                    // Cursed artifact drop (15% chance on S/S+ victory, only if no artifact)
+                    let droppedArtifact=null;
+                    if(["S","S+"].includes(activeRaid.difficulty)&&Math.random()<0.15){
+                      const hasArtifact=await prisma.cursedArtifact.findUnique({where:{userId:req.userId}}).catch(()=>null);
+                      if(!hasArtifact){
+                        const artIds=Object.keys(CURSED_ARTIFACTS);
+                        const artId=artIds[Math.floor(Math.random()*artIds.length)];
+                        const art=CURSED_ARTIFACTS[artId];
+                        await prisma.cursedArtifact.create({data:{userId:req.userId,artifactId:artId}}).catch(()=>{});
+                        await createNotification(req.userId,"cursed_artifact",`🗿 Проклятый артефакт найден!`,`${art.name}. Бонус: ${art.bonus}. Проклятие: ${art.curse}`).catch(()=>{});
+                        droppedArtifact={id:artId,...art};
+                      }
+                    }
+                    raidResult={status:"victory",damage:raidDamage,rewardGold,rewardXp,newAchievements:newRaidAchs,droppedArtifact};
                   } else {
                     if(!phaseChange)await prisma.dungeonRaid.update({where:{id:activeRaid.id},data:{currentHp:newHp}});
                     io.emit("raid:hp_update",{raidId:activeRaid.id,currentHp:newHp,damage:raidDamage,userId:req.userId});
@@ -1138,7 +1229,54 @@ app.patch("/tasks/:id/complete",authMiddleware,async(req,res)=>{
         }
       }
     }catch(wbErr){console.error("Weekly boss error:",wbErr.message);}
-    res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:finalLevel>cu.level,newLevel:finalLevel,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0,multipliers:multipliersBreakdown,...(raidResult?{raidResult}:{}),...(raidDamage?{raidDamage}:{}),...(weeklyBossResult?{weeklyBossResult}:{})});
+    // ── Dark Portal damage ────────────────────────────────────────────────────
+    let portalResult=null;
+    try{
+      const attempt=await prisma.darkPortalAttempt.findFirst({where:{userId:req.userId,status:"active"}});
+      if(attempt){
+        const portal=await prisma.darkPortal.findUnique({where:{id:attempt.portalId}});
+        if(portal&&portal.status==="active"&&new Date()<new Date(portal.closesAt)){
+          const pDmg=15;
+          const newPortalHp=Math.max(0,portal.currentHp-pDmg);
+          await prisma.darkPortalAttempt.update({where:{id:attempt.id},data:{damage:{increment:pDmg}}});
+          await prisma.darkPortal.update({where:{id:portal.id},data:{currentHp:newPortalHp}});
+          if(newPortalHp<=0){
+            await prisma.darkPortalAttempt.update({where:{id:attempt.id},data:{status:"victory"}});
+            await prisma.darkPortal.update({where:{id:portal.id},data:{status:"defeated"}});
+            await prisma.user.update({where:{id:req.userId},data:{gold:{increment:2000},portalVictories:{increment:1}}});
+            const exAch=await prisma.achievement.findFirst({where:{userId:req.userId,type:"portal_victory"}});
+            if(!exAch){await prisma.achievement.create({data:{userId:req.userId,type:"portal_victory",xpReward:500}}).catch(()=>{});await prisma.user.update({where:{id:req.userId},data:{xp:{increment:500},activeTitle:"Покоритель Тёмного портала"}}).catch(()=>{});}
+            await createNotification(req.userId,"portal_victory","⚫ Портал покорён!","Тёмный босс повержён! +2000 💰 +Титул").catch(()=>{});
+            portalResult={status:"victory",damage:pDmg};
+          }else{portalResult={status:"active",damage:pDmg,currentHp:newPortalHp,totalHp:portal.bossHp};}
+        }
+      }
+    }catch(pErr){console.error("Portal damage error:",pErr.message);}
+    // ── Survival raid progress ────────────────────────────────────────────────
+    let survivalResult=null;
+    try{
+      const sv=await prisma.survivalRaid.findFirst({where:{userId:req.userId,status:"active"}});
+      if(sv){
+        if(new Date()>new Date(sv.waveDeadline)){
+          await prisma.survivalRaid.update({where:{id:sv.id},data:{status:"completed"}});
+          survivalResult={status:"timeout",wave:sv.currentWave};
+        }else{
+          const waveInfo=getSurvivalWaveInfo(sv.currentWave);
+          const newQuestsDone=sv.questsDone+1;
+          if(newQuestsDone>=waveInfo.questsNeeded){
+            const nextWave=sv.currentWave+1;
+            const nextWaveInfo=getSurvivalWaveInfo(nextWave);
+            const newDeadline=new Date(Date.now()+nextWaveInfo.timeMinutes*60000);
+            await prisma.survivalRaid.update({where:{id:sv.id},data:{currentWave:nextWave,questsDone:0,waveDeadline:newDeadline,totalDamage:{increment:newQuestsDone}}});
+            survivalResult={status:"wave_complete",wave:sv.currentWave,nextWave,nextEnemy:nextWaveInfo.enemy,nextQuestsNeeded:nextWaveInfo.questsNeeded};
+          }else{
+            await prisma.survivalRaid.update({where:{id:sv.id},data:{questsDone:newQuestsDone}});
+            survivalResult={status:"active",wave:sv.currentWave,questsDone:newQuestsDone,questsNeeded:waveInfo.questsNeeded};
+          }
+        }
+      }
+    }catch(svErr){console.error("Survival raid error:",svErr.message);}
+    res.json({...updatedTask,xpGained,goldGained:goldGain,leveledUp:finalLevel>cu.level,newLevel:finalLevel,freezeConsumed,streakJustCompleted,newStreak:streakJustCompleted?newStreak:undefined,chestReward,newAchievements,petCreated,dropReward,combo:newCombo,comboBonus:comboMult>1?Math.round((comboMult-1)*100):0,multipliers:multipliersBreakdown,...(raidResult?{raidResult}:{}),...(raidDamage?{raidDamage}:{}),...(weeklyBossResult?{weeklyBossResult}:{}),...(portalResult?{portalResult}:{}),...(survivalResult?{survivalResult}:{})});
   }catch(e){console.error('QUEST COMPLETE ERROR:',e.message,e.stack);res.status(500).json({message:"Ошибка сервера",error:e.message});}
 });
 
@@ -1279,8 +1417,19 @@ app.post("/raid/start",authMiddleware,async(req,res)=>{
   try{
     const{difficulty,useItems=[]}=req.body;
     if(!DUNGEON_BOSSES[difficulty])return res.status(400).json({message:"Неверная сложность"});
-    const user=await prisma.user.findUnique({where:{id:req.userId},select:{activeRaidId:true,fatiguedUntil:true,gold:true,dailyRaidCount:true,dailyRaidDate:true}});
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{activeRaidId:true,fatiguedUntil:true,gold:true,dailyRaidCount:true,dailyRaidDate:true,totalRaids:true}});
     if(user.activeRaidId)return res.status(400).json({message:"Сначала заверши текущий рейд"});
+    // Death tutorial — first ever raid
+    const isFirstRaid=(user.totalRaids||0)===0;
+    if(isFirstRaid){
+      const endsAt=new Date(Date.now()+10*60*1000); // 10 minutes
+      const raid=await prisma.dungeonRaid.create({
+        data:{userId:req.userId,difficulty:"S+",bossName:"Тёмный Страж ☠️",bossIcon:"☠️",bossHp:9999,currentHp:9999,stage:3,isIllusion:false,status:"active",participants:JSON.stringify([req.userId]),endsAt,rewardXp:0,rewardGold:0,penaltyXp:0,penaltyGold:100},
+      });
+      await prisma.raidParticipant.create({data:{raidId:raid.id,userId:req.userId}});
+      await prisma.user.update({where:{id:req.userId},data:{activeRaidId:raid.id,totalRaids:1}});
+      return res.json({...raid,isFirstRaid:true,chosenDifficulty:difficulty,actualDifficulty:"S+",raidNumber:1});
+    }
     // Apply start-time equipment (fatigue cure + illusion reduce)
     let illusionChance=0.2;
     const RAID_START_ITEMS=["raid_fatigue_cure","raid_illusion_reduce"];
@@ -1301,23 +1450,27 @@ app.post("/raid/start",authMiddleware,async(req,res)=>{
     const todayStart=startOfToday();
     const isNewDay=!user.dailyRaidDate||new Date(user.dailyRaidDate)<todayStart;
     const dailyCount=isNewDay?0:(user.dailyRaidCount||0);
-    // Escalate difficulty by dailyCount (can't go lower than chosen)
     const baseIdx=DUNGEON_RANKS.indexOf(difficulty);
     const escalatedIdx=Math.min(baseIdx+dailyCount,DUNGEON_RANKS.length-1);
     let actualDiff=DUNGEON_RANKS[Math.max(baseIdx,escalatedIdx)];
-    // Illusion dungeon chance
     const isIllusion=Math.random()<illusionChance;
     if(isIllusion){
       const idx=DUNGEON_RANKS.indexOf(actualDiff);
       actualDiff=DUNGEON_RANKS[Math.min(idx+1,DUNGEON_RANKS.length-1)];
     }
-    const boss=DUNGEON_BOSSES[actualDiff];
+    // Boss pool selection
+    const pool=DUNGEON_BOSS_POOLS[actualDiff];
+    const boss=pool?pool[Math.floor(Math.random()*pool.length)]:DUNGEON_BOSSES[actualDiff];
     const endsAt=new Date(Date.now()+24*60*60*1000);
+    const rewardXp=DUNGEON_BOSSES[actualDiff]?.rewardXp||boss.rewardXp||0;
+    const rewardGold=DUNGEON_BOSSES[actualDiff]?.rewardGold||boss.rewardGold||0;
+    const penaltyXp=DUNGEON_BOSSES[actualDiff]?.penaltyXp||boss.penaltyXp||0;
+    const penaltyGold=DUNGEON_BOSSES[actualDiff]?.penaltyGold||boss.penaltyGold||0;
     const raid=await prisma.dungeonRaid.create({
-      data:{userId:req.userId,difficulty:actualDiff,bossName:boss.name,bossIcon:boss.icon,bossHp:boss.hp,currentHp:boss.hp,stage:1,isIllusion,status:"active",participants:JSON.stringify([req.userId]),endsAt,rewardXp:boss.rewardXp,rewardGold:boss.rewardGold,penaltyXp:boss.penaltyXp,penaltyGold:boss.penaltyGold},
+      data:{userId:req.userId,difficulty:actualDiff,bossName:boss.name,bossIcon:boss.icon||"👹",bossHp:boss.hp,currentHp:boss.hp,stage:1,isIllusion,status:"active",participants:JSON.stringify([req.userId]),endsAt,rewardXp,rewardGold,penaltyXp,penaltyGold},
     });
     await prisma.raidParticipant.create({data:{raidId:raid.id,userId:req.userId}});
-    const userUpdateData={activeRaidId:raid.id,dailyRaidCount:dailyCount+1};
+    const userUpdateData={activeRaidId:raid.id,dailyRaidCount:dailyCount+1,totalRaids:{increment:1}};
     if(isNewDay)userUpdateData.dailyRaidDate=new Date();
     await prisma.user.update({where:{id:req.userId},data:userUpdateData});
     res.json({...raid,isIllusion,chosenDifficulty:difficulty,actualDifficulty:actualDiff,raidNumber:dailyCount+1,escalated:actualDiff!==difficulty});
@@ -1479,6 +1632,109 @@ app.get("/raid/weekly",authMiddleware,async(req,res)=>{
     const myRank=myDmg?boss.damages.findIndex(d=>d.userId===req.userId)+1:null;
     res.json({...boss,myDamage:myDmg?.damage||0,myRank});
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+// ── DARK PORTAL ──────────────────────────────────────────────────────────────
+app.get("/portal/current",authMiddleware,async(req,res)=>{
+  try{
+    const portal=await getOrCreateDarkPortal();
+    if(!portal)return res.json(null);
+    const now=new Date();
+    if(new Date(portal.closesAt)<now&&portal.status==="active"){
+      // Close expired portal — penalize all active attempts (level loss)
+      const activeAttempts=await prisma.darkPortalAttempt.findMany({where:{portalId:portal.id,status:"active"}});
+      for(const att of activeAttempts){
+        await prisma.darkPortalAttempt.update({where:{id:att.id},data:{status:"defeat"}});
+        const u=await prisma.user.findUnique({where:{id:att.userId},select:{level:true,xp:true}});
+        if(u&&u.level>5){
+          await prisma.user.update({where:{id:att.userId},data:{level:{decrement:1},xp:0}});
+          await createNotification(att.userId,"portal_defeat","💀 Тёмный портал закрылся","Ты не успел победить. Потерян уровень!").catch(()=>{});
+        }
+      }
+      await prisma.darkPortal.update({where:{id:portal.id},data:{status:"closed"}});
+      return res.json({...portal,status:"closed"});
+    }
+    const myAttempt=await prisma.darkPortalAttempt.findUnique({where:{portalId_userId:{portalId:portal.id,userId:req.userId}}}).catch(()=>null);
+    const leaderboard=await prisma.darkPortalAttempt.findMany({where:{portalId:portal.id},include:{user:{select:{id:true,name:true,level:true}}},orderBy:{damage:"desc"},take:10});
+    res.json({...portal,myAttempt,leaderboard,timeLeft:Math.max(0,new Date(portal.closesAt)-now)});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.post("/portal/enter",authMiddleware,async(req,res)=>{
+  try{
+    const portal=await getOrCreateDarkPortal();
+    if(!portal||portal.status!=="active")return res.status(400).json({message:"Портал не активен"});
+    if(new Date()>new Date(portal.closesAt))return res.status(400).json({message:"Портал закрылся"});
+    const existing=await prisma.darkPortalAttempt.findUnique({where:{portalId_userId:{portalId:portal.id,userId:req.userId}}}).catch(()=>null);
+    if(existing)return res.status(400).json({message:"Ты уже вошёл в портал"});
+    const attempt=await prisma.darkPortalAttempt.create({data:{portalId:portal.id,userId:req.userId}});
+    res.json({...attempt,portal});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.get("/portal/leaderboard",authMiddleware,async(req,res)=>{
+  try{
+    const portal=await getOrCreateDarkPortal();
+    if(!portal)return res.json([]);
+    const lb=await prisma.darkPortalAttempt.findMany({where:{portalId:portal.id},include:{user:{select:{id:true,name:true,level:true}}},orderBy:{damage:"desc"},take:20});
+    res.json(lb);
+  }catch(e){res.status(500).json({message:"Server error"});}
+});
+
+// ── SURVIVAL RAID ─────────────────────────────────────────────────────────────
+app.post("/survival/start",authMiddleware,async(req,res)=>{
+  try{
+    const existing=await prisma.survivalRaid.findFirst({where:{userId:req.userId,status:"active"}});
+    if(existing)return res.status(400).json({message:"У тебя уже есть активный рейд на выживание"});
+    const waveInfo=getSurvivalWaveInfo(1);
+    const waveDeadline=new Date(Date.now()+waveInfo.timeMinutes*60000);
+    const sv=await prisma.survivalRaid.create({data:{userId:req.userId,currentWave:1,questsDone:0,waveDeadline,weekStart:getWeekStart()}});
+    res.json({...sv,waveInfo});
+  }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
+});
+
+app.get("/survival/active",authMiddleware,async(req,res)=>{
+  try{
+    const sv=await prisma.survivalRaid.findFirst({where:{userId:req.userId,status:"active"},orderBy:{createdAt:"desc"}});
+    if(!sv)return res.json(null);
+    if(new Date()>new Date(sv.waveDeadline)){
+      await prisma.survivalRaid.update({where:{id:sv.id},data:{status:"completed"}});
+      return res.json({...sv,status:"completed",timedOut:true});
+    }
+    const waveInfo=getSurvivalWaveInfo(sv.currentWave);
+    const timeLeft=Math.max(0,new Date(sv.waveDeadline)-new Date());
+    res.json({...sv,waveInfo,timeLeft});
+  }catch(e){res.status(500).json({message:"Server error"});}
+});
+
+app.get("/survival/leaderboard",authMiddleware,async(req,res)=>{
+  try{
+    const ws=getWeekStart();
+    const top=await prisma.survivalRaid.findMany({where:{weekStart:{gte:ws}},orderBy:{currentWave:"desc"},take:10,include:{user:{select:{id:true,name:true,level:true}}}});
+    res.json(top);
+  }catch(e){res.status(500).json({message:"Server error"});}
+});
+
+// ── CURSED ARTIFACTS ──────────────────────────────────────────────────────────
+app.get("/artifact/current",authMiddleware,async(req,res)=>{
+  try{
+    const art=await prisma.cursedArtifact.findUnique({where:{userId:req.userId}});
+    if(!art)return res.json(null);
+    const meta=CURSED_ARTIFACTS[art.artifactId];
+    res.json({...art,meta});
+  }catch(e){res.status(500).json({message:"Server error"});}
+});
+
+app.post("/artifact/remove",authMiddleware,async(req,res)=>{
+  try{
+    const art=await prisma.cursedArtifact.findUnique({where:{userId:req.userId}});
+    if(!art)return res.status(404).json({message:"Артефакта нет"});
+    const user=await prisma.user.findUnique({where:{id:req.userId},select:{gold:true}});
+    if((user?.gold||0)<500)return res.status(400).json({message:"Нужно 500 золота"});
+    await prisma.cursedArtifact.delete({where:{userId:req.userId}});
+    await prisma.user.update({where:{id:req.userId},data:{gold:{decrement:500}}});
+    res.json({message:"Артефакт снят. -500 💰"});
+  }catch(e){res.status(500).json({message:"Server error"});}
 });
 
 // ── PLAYERS DISCOVER ──────────────────────────────────────────────────────────

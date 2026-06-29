@@ -360,7 +360,13 @@ function ActiveRaidScreen({ raid: initialRaid, token, showToast, onRaidEnd }) {
   const reload = useCallback(async () => {
     try {
       const r = await axios.get(`${API}/raid/active`, authH);
-      if (r.data) { setRaid(r.data); if (r.data.status !== "active") onRaidEnd(r.data); }
+      if (r.data) {
+        setRaid(r.data);
+        if (r.data.status !== "active") {
+          const isFirstRaid = r.data.bossName?.includes("Тёмный Страж");
+          onRaidEnd({ ...r.data, isFirstRaid });
+        }
+      }
     } catch {}
   }, [token]);
 
@@ -867,9 +873,346 @@ function HistoryScreen({ token }) {
   );
 }
 
+// ── Dark Portal Screen ────────────────────────────────────────────────────────
+const CURSED_ARTIFACTS_META = {
+  sword_of_darkness: { name:"Меч Тьмы ⚔️",        bonus:"+100% урона в рейдах", curse:"-20% XP с квестов"             },
+  greed_ring:        { name:"Кольцо жадности 💍",  bonus:"+50% золота везде",    curse:"Провал рейда стоит x2"         },
+  martyr_shield:     { name:"Щит мученика 🛡️",     bonus:"Защита от потери уровня", curse:"-30% золота с квестов"      },
+  ancient_eye:       { name:"Глаз Древнего 👁️",    bonus:"Видишь комнаты наперёд", curse:"20% шанс штрафа каждый день"},
+  necro_bone:        { name:"Кость некроманта 💀",  bonus:"Воскрешение 1 раз",    curse:"Стрик обнуляется при провале" },
+};
+
+function DarkPortalScreen({ token, showToast }) {
+  const [portal, setPortal] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [entering, setEntering] = useState(false);
+  const authH = { headers: { Authorization: `Bearer ${token}` } };
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await axios.get(`${API}/portal/current`, authH);
+      setPortal(r.data);
+      if (r.data?.timeLeft) setTimeLeft(r.data.timeLeft);
+    } catch {} finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!timeLeft) return;
+    const id = setInterval(() => setTimeLeft(t => Math.max(0, t - 1000)), 1000);
+    return () => clearInterval(id);
+  }, [timeLeft > 0]);
+
+  const enter = async () => {
+    setEntering(true);
+    try {
+      await axios.post(`${API}/portal/enter`, {}, authH);
+      showToast("⚫ Ты вошёл в Тёмный портал! Выполняй квесты.", "success");
+      load();
+    } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
+    finally { setEntering(false); }
+  };
+
+  const fmt = (ms) => {
+    const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+    return `${h}ч ${m}м`;
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "rgba(255,255,255,0.4)" }}>Загрузка...</div>;
+  if (!portal || portal.status === "closed") return (
+    <div style={{ padding: "40px 24px", textAlign: "center", color: "rgba(255,255,255,0.35)" }}>
+      <div style={{ fontSize: 48, marginBottom: 12 }}>🌑</div>
+      <div>Тёмный портал закрыт. Открывается раз в неделю.</div>
+    </div>
+  );
+
+  const isActive = portal.status === "active" && timeLeft > 0;
+  const myAttempt = portal.myAttempt;
+  const hpPct = Math.max(0, (portal.currentHp / portal.bossHp) * 100);
+
+  return (
+    <div style={{ padding: "16px 16px 120px" }}>
+      <style>{`@keyframes portalPulse{0%,100%{box-shadow:0 0 20px rgba(88,28,135,0.4)}50%{box-shadow:0 0 50px rgba(139,92,246,0.8)}}`}</style>
+      <div style={{
+        background: "linear-gradient(135deg,#1a0533,#0d0022)", border: "1px solid rgba(139,92,246,0.5)",
+        borderRadius: 20, padding: "24px 20px", marginBottom: 20, textAlign: "center",
+        animation: isActive ? "portalPulse 2s ease-in-out infinite" : "none",
+      }}>
+        <div style={{ fontSize: 56, marginBottom: 8, filter: "drop-shadow(0 0 20px rgba(139,92,246,0.8))" }}>
+          {portal.bossIcon}
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 900, color: "#c4b5fd", letterSpacing: 1 }}>{portal.bossName}</div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4, marginBottom: 16 }}>Тёмный портал</div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 5 }}>
+            <span style={{ color: "rgba(255,255,255,0.4)" }}>HP ПОРТАЛА</span>
+            <span style={{ color: "#a78bfa", fontWeight: 700 }}>{portal.currentHp.toLocaleString()} / {portal.bossHp.toLocaleString()}</span>
+          </div>
+          <div style={{ height: 12, background: "rgba(0,0,0,0.5)", borderRadius: 6, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${hpPct}%`, background: "linear-gradient(90deg,#4c1d95,#7c3aed,#a855f7)", borderRadius: 6, transition: "width 0.5s" }} />
+          </div>
+        </div>
+
+        {isActive && <div style={{ fontSize: 13, color: "#f97316", fontWeight: 700 }}>⏱️ Закрывается через {fmt(timeLeft)}</div>}
+      </div>
+
+      {!myAttempt && isActive && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 12, padding: "12px 14px", marginBottom: 12, fontSize: 12, color: "rgba(255,200,100,0.8)", lineHeight: 1.6 }}>
+            ⚠️ Одиночный рейд. Снаряжение не работает. Нельзя звать друзей. Поражение = потеря уровня.
+          </div>
+          <button onClick={enter} disabled={entering} style={{
+            width: "100%", background: "linear-gradient(135deg,#4c1d95,#7c3aed)",
+            border: "1px solid rgba(139,92,246,0.6)", borderRadius: 16, padding: "16px",
+            color: "#fff", fontSize: 16, fontWeight: 800, cursor: entering ? "not-allowed" : "pointer",
+            boxShadow: "0 4px 24px rgba(124,58,237,0.5)", opacity: entering ? 0.6 : 1,
+          }}>
+            {entering ? "Вхожу..." : "⚫ Войти в Тёмный портал"}
+          </button>
+        </div>
+      )}
+
+      {myAttempt && (
+        <div style={{ background: "rgba(124,58,237,0.12)", border: "1px solid rgba(124,58,237,0.35)", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#c4b5fd", marginBottom: 4 }}>
+            {myAttempt.status === "victory" ? "✅ Победа!" : myAttempt.status === "defeat" ? "💀 Поражение" : "⚔️ Ты внутри"}
+          </div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Твой урон: {myAttempt.damage} ⚔️</div>
+        </div>
+      )}
+
+      {portal.leaderboard?.length > 0 && (
+        <div style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(139,92,246,0.15)", borderRadius: 14, overflow: "hidden" }}>
+          <div style={{ padding: "10px 14px", fontSize: 10, fontWeight: 800, color: "rgba(139,92,246,0.7)", letterSpacing: 1.5, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            Лучшие воины
+          </div>
+          {portal.leaderboard.map((a, i) => (
+            <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: i < 3 ? ["#f59e0b","#94a3b8","#b45309"][i] : "rgba(255,255,255,0.3)", width: 22 }}>
+                {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i+1}`}
+              </span>
+              <div style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>{a.user?.name || "Игрок"}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#a78bfa" }}>{a.damage} ⚔️</div>
+              {a.status === "victory" && <span style={{ fontSize: 11, color: "#22c55e" }}>✓</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Survival Raid Screen ───────────────────────────────────────────────────────
+function SurvivalScreen({ token, showToast }) {
+  const [sv, setSv] = useState(null);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const authH = { headers: { Authorization: `Bearer ${token}` } };
+
+  const load = useCallback(async () => {
+    try {
+      const [active, lb] = await Promise.all([
+        axios.get(`${API}/survival/active`, authH),
+        axios.get(`${API}/survival/leaderboard`, authH),
+      ]);
+      setSv(active.data);
+      setLeaderboard(lb.data || []);
+      if (active.data?.timeLeft) setTimeLeft(active.data.timeLeft);
+    } catch {} finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!timeLeft) return;
+    const id = setInterval(() => setTimeLeft(t => Math.max(0, t - 1000)), 1000);
+    return () => clearInterval(id);
+  }, [timeLeft > 0]);
+
+  const start = async () => {
+    setStarting(true);
+    try {
+      const r = await axios.post(`${API}/survival/start`, {}, authH);
+      setSv(r.data);
+      setTimeLeft((r.data.waveInfo?.timeMinutes || 60) * 60000);
+      showToast("⚔️ Рейд на выживание начат!", "success");
+    } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
+    finally { setStarting(false); }
+  };
+
+  const fmt = (ms) => {
+    const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000);
+    return `${m}м ${s}с`;
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "rgba(255,255,255,0.4)" }}>Загрузка...</div>;
+
+  return (
+    <div style={{ padding: "16px 16px 120px" }}>
+      <div style={{ textAlign: "center", marginBottom: 20 }}>
+        <div style={{ fontSize: 40, marginBottom: 6 }}>🌊</div>
+        <div style={{ fontSize: 20, fontWeight: 900, color: "#fff", letterSpacing: 1 }}>ВЫЖИВАНИЕ</div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Побей как можно больше волн</div>
+      </div>
+
+      {sv && sv.status === "active" ? (
+        <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 18, padding: "20px", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>ВОЛНА</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: RED }}>#{sv.currentWave}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>ВРАГ</div>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>{sv.waveInfo?.waveName || sv.waveInfo?.enemy}</div>
+            </div>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}>
+              <span style={{ color: "rgba(255,255,255,0.4)" }}>Квесты волны</span>
+              <span style={{ color: "#fff", fontWeight: 700 }}>{sv.questsDone}/{sv.waveInfo?.questsNeeded}</span>
+            </div>
+            <div style={{ height: 10, background: "rgba(0,0,0,0.4)", borderRadius: 5, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${((sv.questsDone||0)/(sv.waveInfo?.questsNeeded||1))*100}%`, background: "linear-gradient(90deg,#dc2626,#ef4444)", borderRadius: 5, transition: "width 0.3s" }} />
+            </div>
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: timeLeft < 120000 ? RED : "#f97316" }}>
+            ⏱️ {fmt(timeLeft)} до конца волны
+          </div>
+        </div>
+      ) : (
+        <button onClick={start} disabled={starting} style={{
+          width: "100%", background: "linear-gradient(135deg,#7f1d1d,#dc2626)",
+          border: "1px solid rgba(239,68,68,0.5)", borderRadius: 16, padding: "18px",
+          color: "#fff", fontSize: 16, fontWeight: 800, cursor: starting ? "not-allowed" : "pointer",
+          marginBottom: 20, opacity: starting ? 0.6 : 1,
+          boxShadow: "0 4px 24px rgba(239,68,68,0.4)",
+        }}>
+          {starting ? "Начинаю..." : "⚔️ Начать выживание"}
+        </button>
+      )}
+
+      {leaderboard.length > 0 && (
+        <div style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(239,68,68,0.15)", borderRadius: 14, overflow: "hidden" }}>
+          <div style={{ padding: "10px 14px", fontSize: 10, fontWeight: 800, color: "rgba(239,68,68,0.6)", letterSpacing: 1.5, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+            Рекорды недели
+          </div>
+          {leaderboard.map((e, i) => (
+            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: i < 3 ? ["#f59e0b","#94a3b8","#b45309"][i] : "rgba(255,255,255,0.3)", width: 22 }}>
+                {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i+1}`}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{e.user?.name || "Игрок"}</div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>Ур. {e.user?.level}</div>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: RED }}>Волна {e.currentWave}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: 16, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "12px 14px", fontSize: 12, color: "rgba(255,255,255,0.4)", lineHeight: 1.7 }}>
+        🏆 Топ-1 недели: «Вечный воин» + 1000 💰 · Топ-3: +500 💰<br/>
+        Выполняй квесты в срок. Каждая волна сложнее предыдущей.
+      </div>
+    </div>
+  );
+}
+
+// ── Cursed Artifact Banner ────────────────────────────────────────────────────
+function CursedArtifactBanner({ token, showToast }) {
+  const [art, setArt] = useState(undefined);
+  const authH = { headers: { Authorization: `Bearer ${token}` } };
+
+  useEffect(() => {
+    axios.get(`${API}/artifact/current`, authH).then(r => setArt(r.data)).catch(() => setArt(null));
+  }, [token]);
+
+  const remove = async () => {
+    if (!window.confirm("Снять артефакт за 500 💰?")) return;
+    try {
+      await axios.post(`${API}/artifact/remove`, {}, authH);
+      showToast("Артефакт снят. -500 💰", "success");
+      setArt(null);
+    } catch (e) { showToast(e.response?.data?.message || "Ошибка", "error"); }
+  };
+
+  if (art === undefined || art === null) return null;
+  const meta = CURSED_ARTIFACTS_META[art.artifactId] || art.meta;
+  if (!meta) return null;
+
+  return (
+    <div style={{
+      background: "rgba(120,0,0,0.18)", border: "1px solid rgba(239,68,68,0.5)",
+      borderRadius: 14, padding: "14px 16px", marginBottom: 16,
+      boxShadow: "0 0 20px rgba(239,68,68,0.2)",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+        <div style={{ fontSize: 28 }}>{meta.name.match(/[\u{1F300}-\u{1FFFF}]|[☀-⟿]/u)?.[0] || "🗿"}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#fca5a5" }}>{meta.name}</div>
+          <div style={{ fontSize: 11, color: "#22c55e", marginTop: 2 }}>✦ {meta.bonus}</div>
+          <div style={{ fontSize: 11, color: RED, marginTop: 1 }}>✗ {meta.curse}</div>
+        </div>
+        <button onClick={remove} style={{
+          background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)",
+          borderRadius: 10, padding: "6px 10px", color: "#fca5a5", fontSize: 11,
+          fontWeight: 700, cursor: "pointer",
+        }}>Снять<br/>500 💰</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Death Tutorial Screen ────────────────────────────────────────────────────
+function DeathTutorialScreen({ onBack }) {
+  const [step, setStep] = useState(0);
+  const steps = [
+    { icon:"💀", title:"ТЫ ПОГИБ", text:"Тёмный Страж уничтожил тебя. Это был твой первый рейд." },
+    { icon:"⚔️", title:"РЕЙДЫ СМЕРТЕЛЬНЫ", text:"Потеря уровня. Потеря золота. Усталость на часы. Здесь нет второго шанса." },
+    { icon:"👥", title:"БЕРИ ДРУЗЕЙ", text:"Вместе вы сильнее. Трое участников — иммунитет от потери уровня." },
+    { icon:"🎒", title:"ГОТОВЬ СНАРЯЖЕНИЕ", text:"Зелье силы, Свиток защиты. Купи в магазине перед рейдом." },
+    { icon:"🧭", title:"ВЫБИРАЙ МУДРО", text:"E — для новичков. S+ — для легенд. Начни с малого." },
+  ];
+  const cur = steps[step];
+  const isLast = step === steps.length - 1;
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "#000", zIndex: 9999,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "40px 28px", textAlign: "center",
+    }}>
+      <style>{`@keyframes dtFadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}`}</style>
+      <div key={step} style={{ animation: "dtFadeIn 0.4s ease" }}>
+        <div style={{ fontSize: 80, marginBottom: 20 }}>{cur.icon}</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: RED, letterSpacing: 2, marginBottom: 14 }}>{cur.title}</div>
+        <div style={{ fontSize: 15, color: "rgba(255,255,255,0.7)", lineHeight: 1.7, marginBottom: 40 }}>{cur.text}</div>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 32 }}>
+        {steps.map((_, i) => (
+          <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: i <= step ? RED : "rgba(255,255,255,0.2)", transition: "background 0.3s" }} />
+        ))}
+      </div>
+      <button onClick={isLast ? onBack : () => setStep(s => s + 1)} style={{
+        background: isLast ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)",
+        border: `1px solid ${isLast ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)"}`,
+        borderRadius: 16, padding: "16px 32px",
+        color: isLast ? "#22c55e" : RED, fontSize: 15, fontWeight: 800, cursor: "pointer",
+      }}>
+        {isLast ? "Понял, буду осторожнее" : "Далее →"}
+      </button>
+    </div>
+  );
+}
+
 // ── Main Raid Component ──────────────────────────────────────────────────────
 export default function Raid({ token, showToast, userLevel = 1, masteryPath = null }) {
-  const [screen, setScreen] = useState("loading"); // loading | equipment | select | illusion | active | result | history
+  const [screen, setScreen] = useState("loading");
   const [activeRaid, setActiveRaid] = useState(null);
   const [resultRaid, setResultRaid] = useState(null);
   const [resultStatus, setResultStatus] = useState(null);
@@ -878,7 +1221,8 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
   const [gold, setGold] = useState(0);
   const [equipment, setEquipment] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
-  const [tab, setTab] = useState("raid"); // raid | leviathan | history
+  const [tab, setTab] = useState("raid"); // raid | portal | survival | leviathan | history
+  const [showDeathTutorial, setShowDeathTutorial] = useState(false);
   const authH = { headers: { Authorization: `Bearer ${token}` } };
 
   const init = useCallback(async () => {
@@ -909,6 +1253,7 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
 
   const handleStart = (raidData) => {
     if (!raidData) { init(); return; }
+    if (raidData.isFirstRaid) { setActiveRaid(raidData); setScreen("active"); return; }
     if (raidData.isIllusion) { setActiveRaid(raidData); setScreen("illusion"); }
     else { setActiveRaid(raidData); setScreen("active"); }
   };
@@ -924,6 +1269,12 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
   };
 
   const handleRaidEnd = (endedRaid) => {
+    // Death tutorial: show special screen on defeat
+    if (endedRaid.isFirstRaid && endedRaid.status === "defeat") {
+      setShowDeathTutorial(true);
+      setActiveRaid(null);
+      return;
+    }
     setResultRaid(endedRaid);
     setResultStatus(endedRaid.status);
     setRaidResult({
@@ -943,13 +1294,15 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
 
   return (
     <div style={{ minHeight: "100vh", background: BG, color: "#fff", fontFamily: "monospace" }}>
-      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.4)", position: "sticky", top: 0, zIndex: 10 }}>
-        {[["raid","⚔️ Рейд"],["leviathan","🐋 Левиафан"],["history","📜 История"]].map(([id, label]) => (
+      {showDeathTutorial && <DeathTutorialScreen onBack={() => { setShowDeathTutorial(false); init(); }} />}
+
+      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.4)", position: "sticky", top: 0, zIndex: 10, overflowX: "auto" }}>
+        {[["raid","⚔️ Рейд"],["portal","⚫ Портал"],["survival","🌊 Выживание"],["leviathan","🐋 Левиафан"],["history","📜 История"]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} style={{
-            flex: 1, background: "none", border: "none",
+            flex: "0 0 auto", background: "none", border: "none",
             borderBottom: tab === id ? `2px solid ${RED}` : "2px solid transparent",
-            padding: "12px 4px", color: tab === id ? "#fff" : "rgba(255,255,255,0.4)",
-            fontSize: 12, fontWeight: 700, cursor: "pointer",
+            padding: "12px 10px", color: tab === id ? "#fff" : "rgba(255,255,255,0.4)",
+            fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
           }}>{label}</button>
         ))}
       </div>
@@ -958,19 +1311,26 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
         <HistoryScreen token={token} />
       ) : tab === "leviathan" ? (
         <WeeklyBossScreen token={token} />
+      ) : tab === "portal" ? (
+        <DarkPortalScreen token={token} showToast={showToast} />
+      ) : tab === "survival" ? (
+        <SurvivalScreen token={token} showToast={showToast} />
       ) : screen === "loading" ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
           <div style={{ fontSize: 36, animation: "spin 1s linear infinite" }}>⚔️</div>
           <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
         </div>
       ) : screen === "equipment" ? (
-        <EquipmentScreen
-          equipment={equipment}
-          selectedItems={selectedItems}
-          onToggle={toggleItem}
-          onContinue={() => setScreen("select")}
-          masteryPath={masteryPath}
-        />
+        <>
+          <CursedArtifactBanner token={token} showToast={showToast} />
+          <EquipmentScreen
+            equipment={equipment}
+            selectedItems={selectedItems}
+            onToggle={toggleItem}
+            onContinue={() => setScreen("select")}
+            masteryPath={masteryPath}
+          />
+        </>
       ) : screen === "select" ? (
         <DifficultyScreen
           onStart={handleStart}

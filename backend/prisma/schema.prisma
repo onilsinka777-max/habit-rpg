@@ -124,6 +124,11 @@ model User {
   dailyRaidCount           Int               @default(0)
   dailyRaidDate            DateTime?
   raidStreak               Int               @default(0)
+  totalRaids               Int               @default(0)
+  portalVictories          Int               @default(0)
+  portalAttempts           DarkPortalAttempt[]
+  survivalRaids            SurvivalRaid[]
+  cursedArtifact           CursedArtifact?
   isPro                    Boolean          @default(false)
   proExpiresAt             DateTime?
   darkSideActive           Boolean          @default(false)
@@ -893,4 +898,54 @@ model InviteCode {
   usedBy    Int?
   usedAt    DateTime?
   createdAt DateTime @default(now())
+}
+
+model DarkPortal {
+  id           Int                 @id @default(autoincrement())
+  bossName     String
+  bossIcon     String
+  bossHp       Int
+  currentHp    Int
+  opensAt      DateTime
+  closesAt     DateTime
+  status       String              @default("active")
+  participants String              @default("[]")
+  attempts     DarkPortalAttempt[]
+  createdAt    DateTime            @default(now())
+}
+
+model DarkPortalAttempt {
+  id        Int        @id @default(autoincrement())
+  portalId  Int
+  portal    DarkPortal @relation(fields: [portalId], references: [id])
+  userId    Int
+  user      User       @relation(fields: [userId], references: [id])
+  damage    Int        @default(0)
+  status    String     @default("active")
+  startedAt DateTime   @default(now())
+
+  @@unique([portalId, userId])
+}
+
+model SurvivalRaid {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  currentWave  Int      @default(1)
+  questsDone   Int      @default(0)
+  status       String   @default("active")
+  waveDeadline DateTime
+  totalDamage  Int      @default(0)
+  weekStart    DateTime @default(now())
+  createdAt    DateTime @default(now())
+}
+
+model CursedArtifact {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @unique
+  user       User     @relation(fields: [userId], references: [id])
+  artifactId String
+  obtainedAt DateTime @default(now())
+  active     Boolean  @default(true)
+  reviveUsed Boolean  @default(false)
 }
