@@ -678,7 +678,7 @@ export default function App() {
               {key:"hall-of-fame", label:"Зал Славы",  icon:"🏆"},
             ]} active={view} onChange={setView} />
             {view === "worldmap"     && <WorldMap    token={token} userLevel={user?.level||1} showToast={showToast} />}
-            {view === "raid"         && <Raid        token={token} showToast={showToast} userLevel={user?.level||1} />}
+            {view === "raid"         && <Raid        token={token} showToast={showToast} userLevel={user?.level||1} masteryPath={user?.masteryPath||null} />}
             {view === "chains"       && <QuestChains token={token} showToast={showToast} askConfirm={askConfirm} userLevel={user?.level||1} />}
             {view === "marathons"    && <Marathons   token={token} showToast={showToast} userLevel={user?.level||1} />}
             {view === "mastery"      && <Mastery     token={token} showToast={showToast} askConfirm={askConfirm} myLevel={user?.level||1} onFinished={loadProfile} />}

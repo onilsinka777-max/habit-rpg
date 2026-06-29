@@ -35,6 +35,13 @@ const items = [
   { title:"Рамка Рейдер",            description:"Эксклюзивная рамка для победителей рейдов",                 category:"cosmetic", price:800,  effect:"frame_raider"         },
   { title:"Титул: Истребитель боссов",description:"Носи этот титул с гордостью",                             category:"cosmetic", price:600,  effect:"title_boss_slayer"    },
 
+  // ── РЕЙДОВОЕ СНАРЯЖЕНИЕ (расходники) ─────────────────────────────────────────
+  { title:"Зелье силы",        description:"+50% урона боссу за следующее выполнение квеста в рейде", category:"raid", price:100, effect:"raid_damage_boost"    },
+  { title:"Свиток защиты",     description:"Снимает всё золотое и XP наказание при поражении",        category:"raid", price:150, effect:"raid_no_penalty"       },
+  { title:"Паёк героя",        description:"Мгновенно снимает усталость без траты золота",            category:"raid", price:80,  effect:"raid_fatigue_cure"     },
+  { title:"Факел",             description:"Нейтрализует ловушку факела в подземелье",               category:"raid", price:60,  effect:"raid_trap_immunity"    },
+  { title:"Амулет удачи",      description:"Снижает шанс иллюзорного подземелья с 20% до 5%",        category:"raid", price:200, effect:"raid_illusion_reduce"  },
+
   // ── КОНТЕНТ PDF ───────────────────────────────────────────────────────────────
   { title:"Чеклист питания",                description:"PDF: нутрициология и питание",              category:"content", price:10000, effect:"pdf_nutrition",    contentUrl:"/pdfs/01_питание.pdf"          },
   { title:"Чеклист тренировок (набор)",     description:"PDF: программа набора мышечной массы",      category:"content", price:10000, effect:"pdf_workout_gain", contentUrl:"/pdfs/02_тренировки_набор.pdf" },

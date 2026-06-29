@@ -117,6 +117,7 @@ model User {
   futureLetters            FutureLetter[]
   raidParticipations       RaidParticipant[]
   dungeonRaids             DungeonRaid[]
+  weeklyRaidDamages        WeeklyRaidDamage[]
   fatiguedUntil            DateTime?
   activeRaidId             Int?
   isPro                    Boolean          @default(false)
@@ -837,6 +838,30 @@ model RaidParticipant {
   joinedAt DateTime    @default(now())
 
   @@unique([raidId, userId])
+}
+
+model WeeklyRaidBoss {
+  id        Int                @id @default(autoincrement())
+  name      String
+  icon      String
+  totalHp   Int
+  currentHp Int
+  weekStart DateTime
+  weekEnd   DateTime
+  status    String             @default("active")
+  damages   WeeklyRaidDamage[]
+  createdAt DateTime           @default(now())
+}
+
+model WeeklyRaidDamage {
+  id     Int            @id @default(autoincrement())
+  bossId Int
+  boss   WeeklyRaidBoss @relation(fields: [bossId], references: [id])
+  userId Int
+  user   User           @relation(fields: [userId], references: [id])
+  damage Int            @default(0)
+
+  @@unique([bossId, userId])
 }
 
 model InviteCode {
