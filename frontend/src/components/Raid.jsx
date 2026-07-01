@@ -875,7 +875,7 @@ function DarkPortalScreen({ token, showToast }) {
     if (!timeLeft) return;
     const id = setInterval(() => setTimeLeft(t => Math.max(0, t - 1000)), 1000);
     return () => clearInterval(id);
-  }, [timeLeft > 0]);
+  }, [timeLeft]);
 
   const enter = async () => {
     setEntering(true);
@@ -1003,7 +1003,7 @@ function SurvivalScreen({ token, showToast }) {
     if (!timeLeft) return;
     const id = setInterval(() => setTimeLeft(t => Math.max(0, t - 1000)), 1000);
     return () => clearInterval(id);
-  }, [timeLeft > 0]);
+  }, [timeLeft]);
 
   const start = async () => {
     setStarting(true);
@@ -1194,7 +1194,7 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
   const [gold, setGold] = useState(0);
   const [equipment, setEquipment] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
-  const [tab, setTab] = useState("dungeon"); // dungeon | survival | portal
+  const [tab, setTab] = useState("dungeon"); // dungeon | survival | portal | boss | history
   const [showInvite, setShowInvite] = useState(false);
   const [showDeathTutorial, setShowDeathTutorial] = useState(false);
   const authH = { headers: { Authorization: `Bearer ${token}` } };
@@ -1271,14 +1271,14 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
       {showDeathTutorial && <DeathTutorialScreen onBack={() => { setShowDeathTutorial(false); init(); }} />}
       {showInvite && <RaidInviteModal token={token} showToast={showToast} raidId={activeRaid?.id} onClose={() => setShowInvite(false)} />}
 
-      {/* 3-tab header */}
-      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.5)", position: "sticky", top: 0, zIndex: 10 }}>
-        {[["dungeon","🏰 Подземелье"],["survival","🌊 Выживание"],["portal","⚫ Портал"]].map(([id, label]) => (
+      {/* tabs */}
+      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.5)", position: "sticky", top: 0, zIndex: 10, overflowX: "auto" }}>
+        {[["dungeon","🏰 Подземелье"],["survival","🌊 Выживание"],["portal","⚫ Портал"],["boss","🐋 Левиафан"],["history","📜 История"]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} style={{
-            flex: 1, background: "none", border: "none",
+            flex: "0 0 auto", background: "none", border: "none",
             borderBottom: tab === id ? `2px solid ${RED}` : "2px solid transparent",
-            padding: "13px 4px", color: tab === id ? "#fff" : "rgba(255,255,255,0.38)",
-            fontSize: 12, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3,
+            padding: "13px 12px", color: tab === id ? "#fff" : "rgba(255,255,255,0.38)",
+            fontSize: 12, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3, whiteSpace: "nowrap",
           }}>{label}</button>
         ))}
       </div>
@@ -1287,6 +1287,10 @@ export default function Raid({ token, showToast, userLevel = 1, masteryPath = nu
         <DarkPortalScreen token={token} showToast={showToast} />
       ) : tab === "survival" ? (
         <SurvivalScreen token={token} showToast={showToast} />
+      ) : tab === "boss" ? (
+        <WeeklyBossScreen token={token} />
+      ) : tab === "history" ? (
+        <HistoryScreen token={token} />
       ) : screen === "loading" ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
           <div style={{ fontSize: 36, animation: "spin 1s linear infinite" }}>⚔️</div>
