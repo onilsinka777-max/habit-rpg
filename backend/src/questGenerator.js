@@ -189,7 +189,9 @@ async function ensurePeaceQuests(userId, user) {
 
 async function ensureDailyQuests(userId) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return;
+  if (!user) { console.log(`[quests] user ${userId} not found`); return; }
+
+  console.log(`[quests] ensureDailyQuests start uid=${userId} level=${user.level}`);
 
   // 1. Apply penalties for missed quests before deleting them
   await applyMissedRequiredPenalties(userId);
@@ -237,6 +239,10 @@ async function ensureDailyQuests(userId) {
       const allTemplates = await findTemplatesForLevel(branch, type, user.level);
       const pool = shuffle(allTemplates.filter((t) => !existingTitles.has(t.title)));
 
+      if (pool.length === 0) {
+        console.log(`[quests] no templates for branch=${branch} type=${type} level=${user.level}`);
+      }
+
       for (let i = 0; i < needed && pool.length > 0; i++) {
         const preferred = getDifficultyForLevel(user.level);
         let idx = pool.findIndex((t) => t.difficulty === preferred);
@@ -266,6 +272,9 @@ async function ensureDailyQuests(userId) {
   if (user.peaceUnlocked) {
     await ensurePeaceQuests(userId, user);
   }
+
+  const finalCount = await prisma.task.count({ where: { userId, isDaily: true, expiresAt: { gt: new Date() } } });
+  console.log(`[quests] ensureDailyQuests done uid=${userId} active=${finalCount}`);
 
   // Dark side branch
   if (user.darkSideActive && !user.darkSideChoice) {

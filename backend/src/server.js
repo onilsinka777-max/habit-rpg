@@ -611,7 +611,10 @@ app.post("/auth/login",async(req,res)=>{
     const{email,password}=req.body;
     const user=await prisma.user.findUnique({where:{email}});
     if(!user||!(await bcrypt.compare(password,user.password)))return res.status(400).json({message:"Invalid credentials"});
-    res.json({token:jwt.sign({userId:user.id},JWT_SECRET,{expiresIn:"7d"})});
+    const token=jwt.sign({userId:user.id},JWT_SECRET,{expiresIn:"7d"});
+    res.json({token});
+    // Pre-generate today's quests in the background so they're ready when user opens the app
+    ensureDailyQuests(user.id).catch(e=>console.error("[quests] login pre-generate error:",e));
   }catch(e){console.error(e);res.status(500).json({message:"Server error"});}
 });
 
